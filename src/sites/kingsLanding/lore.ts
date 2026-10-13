@@ -1,0 +1,46 @@
+// Place descriptions, summarised from A Wiki of Ice and Fire (awoiaf.westeros.org/index.php/King's_Landing).
+export const OVERVIEW =
+  "Capital of the Seven Kingdoms, on the east coast of Westeros where the Blackwater Rush meets Blackwater Bay. " +
+  'Founded by Aegon I Targaryen in 2 BC, it is the most populous city in Westeros (about 500,000 people), walled, ' +
+  'guarded by the gold cloaks of the City Watch, and famous for its stench. It covers three hills named for Aegon and his sisters.';
+
+export const LORE: Record<string, string> = {
+  'The Red Keep': "The royal castle atop Aegon's High Hill in the south-east corner of the city, seat of the Iron Throne. It replaced Aegon's first wood-and-earth Aegonfort and was completed under Maegor the Cruel. Inside stand Maegor's Holdfast and the Tower of the Hand.",
+  'Great Sept of Baelor': "The holiest sept of the Faith of the Seven, crowning Visenya's Hill with marble walls and seven crystal towers. Begun by Baelor the Blessed and finished after his death; the Most Devout convene there with the High Septon.",
+  Dragonpit: "A huge dome on the Hill of Rhaenys that once housed the Targaryen dragons. Maegor built it on the ruins of the Sept of Remembrance; it was finished in 55 AC and wrecked in the Storming of the Dragonpit (130 AC). Its bronze doors have stayed shut for over a century.",
+  'Guildhall of the Alchemists': "Stands on the Street of the Sisters beneath the Hill of Rhaenys. Below it the pyromancers brew and store wildfire.",
+  'West Barracks': 'Barracks of the City Watch, the two-thousand-strong gold cloaks who guard and police the city.',
+  'East Barracks': 'Barracks of the City Watch near the Dragon Gate. The gold cloaks take their name from the wool cloaks introduced by Prince Daemon Targaryen.',
+  Fishmarket: "The city's fish market, outside the walls by the quays of the harbor, the largest in the Seven Kingdoms.",
+  "Cobbler's Square": 'A market square in the north-west of the city.',
+  "Fishmonger's Square": 'Market square just inside the Mud Gate. The Street of Steel and the Muddy Way both begin here; in A Clash of Kings the Three Whores trebuchets stood nearby.',
+  'Plaza of the Sept': "The great central square, laid out in the reign of Jaehaerys I, where the Street of the Sisters meets the roads from the Great Sept.",
+  "Chataya's": "An expensive brothel on the Street of Silk, catering to lords and rich merchants.",
+  "Shae's Manse": 'A manse near the Iron Gate with its own stable, well and garden, where Tyrion kept Shae.',
+  "Littlefinger's Brothel": 'Lord Petyr Baelish owns a brothel near the river.',
+  'Shop of Tobho Mott': "At the top of the Street of Steel. The master armorer forged two Valyrian steel swords from Ned Stark's Ice for Lord Tywin.",
+  'Tourney Grounds': "Outside the King's Gate near the Blackwater, where the Hand's tourney was held for Eddard Stark.",
+  'Flea Bottom': "The worst slum in the city: a maze of narrow streets and alleys at the foot of Rhaenys's Hill, smelling of pigsties, tanneries and winesinks. Its pot-shops sell 'bowls of brown'.",
+  "Visenya's Hill": 'The western hill, crowned by the Great Sept of Baelor. Eel Alley, with its inns and taverns, is on it.',
+  "Rhaenys's Hill": 'The northern hill, capped by the ruined Dragonpit. Its top holds the Street of Silk; Flea Bottom lies at its foot.',
+  "Aegon's High Hill": 'The highest of the three hills, where Aegon landed and raised the Aegonfort. Today the Red Keep crowns it, overlooking Blackwater Bay.',
+  'Winch Towers': 'Two winch towers Tyrion had built at the mouth of the Blackwater Rush to raise a great chain boom across the river before the Battle of the Blackwater.',
+  'Street of Steel': "Where most smiths have their forges. It runs from Fishmonger's Square up Visenya's Hill; the higher up, the more expensive the shops.",
+  'Street of the Sisters': "Runs straight as an arrow between the hills of Rhaenys and Visenya, linking the Great Sept to the Dragonpit.",
+  'Street of Silk': 'North-west of the Dragonpit, lined with brothels of varying expense.',
+  'Muddy Way': "Formerly the Blackwater Way; it begins at Fishmonger's Square.",
+  'The Hook': "A long, curved thoroughfare connecting the River Gate to Aegon's High Hill.",
+  'River Row': "A street along the southern wall, east of Fishmonger's Square, home to sea captains and fishmongers.",
+  Kingsroad: 'The great road north through the Dragon Gate (and south across the river from the Mud Gate).',
+  Goldroad: 'Leads west from the Lion Gate toward the westerlands.',
+  'Rosby road': 'Leaves the city through the Iron Gate toward Rosby.',
+  'Blackwater Rush': "The river along the city's southern edge. Aegon landed on its north bank in 2 BC.",
+  'Blackwater Bay': 'The bay overlooked by the Red Keep, guarded from the narrow sea by Driftmark and Dragonstone.',
+  'Dragon Gate': 'One of the seven gates (seven being sacred to the Faith); leads north to the kingsroad.',
+  'Iron Gate': 'Leads to the Rosby road.',
+  'Old Gate': 'Gate in the northern wall; the richer quarters are said to lie near it.',
+  'Gate of the Gods': 'North-western gate; an unnamed market square lies just inside it.',
+  'River Gate': 'Called the Mud Gate by the smallfolk. Leads south to the kingsroad and the roseroad.',
+  'Lion Gate': 'Leads west to the Goldroad.',
+  "King's Gate": 'Western gate, with the tourney grounds outside it.',
+};

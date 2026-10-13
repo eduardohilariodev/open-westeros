@@ -1,0 +1,73 @@
+# Open Westeros
+
+**A community-built, Google Earth–style 3D atlas of the Known World.** Spin the planet, dive into King's Landing, walk the walls of Winterfell — and help build the rest.
+
+## Manifesto
+
+Westeros has been drawn a thousand times, but never mapped as a place you can *fly through*. Open Westeros is an attempt to do that together, in the open.
+
+1. **Open by default.** The code is MIT-licensed. Every decision, tool and pipeline lives in this repo. Pull requests aren't just accepted — they are the plan.
+2. **Community built.** No single person can model a continent. Each castle, city, road and river is a contribution. If you love a corner of the Seven Kingdoms (or Essos, or beyond the Wall), it is waiting for you.
+3. **Canon first, sources always.** Sizes, distances and layouts follow the books and official maps first, then well-argued fan reconstructions. Every number in [`src/config.ts`](src/config.ts) says where it came from. When canon is silent, we say so.
+4. **Honest scale.** One planet (radius 6,915 km), one coordinate system, real metres. A castle is as big as the text implies — not as big as looks cool.
+5. **Reproducible, not redistributed.** Copyrighted art (GRRM's maps, game assets, mods) is *never* committed. Instead we ship the tools that turn your own copies into the atlas, so anyone can rebuild it and nobody's work is taken.
+6. **Small, readable pieces.** Prefer the simplest thing that works. A new site should be a config entry, one view module and one data pipeline — nothing more.
+7. **Credit the makers.** Artists, modders, cartographers and wiki editors made this possible. Their names stay attached to what they made.
+
+## What exists today
+
+- **The globe** — the Known World map draped on a planet ~8% larger than Earth, georeferenced so the Wall sits at 66.6°N and Dorne's coast ~3,000 mi south. Painted and atlas-outline styles.
+- **King's Landing** — a 3D city generated from the painted city map: ~20,000 houses, walls and gates, the Red Keep, the Great Sept, the Dragonpit, terrain, lore for every landmark.
+- **Winterfell** — Shadiversity's book-accurate design (via the Skyrim port *The True Winterfell SE*), converted mesh by mesh and placed exactly.
+- **Google Earth–style controls** — search across all places, compass, tilt, zoom, scale bar, coordinates, guided tours, deep links (`#winterfell/Great%20Keep`).
+
+## Run it
+
+```bash
+npm install
+npm run dev
+```
+
+The app needs generated data in `public/` (ignored by git). Build it from your own copies of the sources:
+
+| Source (not included) | Put it at | Then run |
+| --- | --- | --- |
+| *The Known World* map (9050×6000) | `assets/world/known-world.jpg` | `npm run prepare:world` |
+| Known World outline map | `assets/world/known-world-outline.webp` | (same) |
+| *King's Landing* painted map + heightmap | `assets/sites/kingsLanding/` | `npm run analyze` |
+| *The True Winterfell SE* (Nexus Mods #94816), extracted | `assets/sites/winterfell/mod/` | `npm run winterfell:collect` (needs Skyrim SE) then `npm run winterfell` |
+
+Without the Winterfell data the app falls back to a procedural Winterfell; the globe and King's Landing need their sources.
+
+## How it's built
+
+```text
+src/
+  config.ts            planet size, georeferencing, sites — the single source of truth for scale
+  geo.ts               lat/lon ↔ planet ↔ local site frames
+  globe/               the planet view
+  sites/               one folder per zoomable place (+ shared SiteScene, primitives)
+  ui/                  panel, search, compass & navigation
+tools/
+  world/               globe textures, map alignment
+  sites/<site>/        per-site data pipelines (image analysis, Skyrim ESM/NIF/BSA/DDS readers…)
+```
+
+Three.js + Vite + TypeScript, no framework. Each site is its own local scene in metres; zooming close to a globe marker hands the camera over seamlessly.
+
+## Add a place
+
+1. Add it to `SITES` in [`src/config.ts`](src/config.ts) with its pixel position on the Known World map.
+2. Write a view in `src/sites/<id>/` using `createSiteScene` (see Winterfell for the shortest example).
+3. Register it in [`src/sites/index.ts`](src/sites/index.ts).
+4. If it needs data, add a pipeline under `tools/sites/<id>/` — never commit the copyrighted inputs.
+
+Ideas waiting for an owner: the Wall and Castle Black, Harrenhal, Casterly Rock, Oldtown and the Hightower, the Eyrie, Dragonstone, Braavos, the kingsroad between them all.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## License & credits
+
+Code: [MIT](LICENSE) © Open Westeros contributors.
+
+*A Song of Ice and Fire* and its maps © George R. R. Martin. Winterfell design © Shadiversity; Skyrim port by the authors of *The True Winterfell SE*; *The Elder Scrolls V: Skyrim* assets © Bethesda Softworks. Lore summarised from [A Wiki of Ice and Fire](https://awoiaf.westeros.org). Open Westeros is an unofficial fan project, not affiliated with or endorsed by any of them.

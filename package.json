@@ -1,0 +1,34 @@
+{
+  "name": "open-westeros",
+  "version": "1.0.0",
+  "description": "Community-built, Google Earth-style 3D atlas of the Known World",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "rectify": "node tools/sites/kingsLanding/rectify.mjs",
+    "plan": "node tools/sites/kingsLanding/plan.mjs",
+    "analyze": "node tools/sites/kingsLanding/analyze.mjs",
+    "gis": "node tools/sites/kingsLanding/export-gis.mjs",
+    "assets": "node tools/world/prepare.mjs && node tools/sites/kingsLanding/plan.mjs && node tools/sites/kingsLanding/analyze.mjs && node tools/sites/kingsLanding/export-gis.mjs",
+    "prepare:world": "node tools/world/prepare.mjs",
+    "winterfell:collect": "node tools/sites/winterfell/collect.mjs",
+    "winterfell": "node tools/sites/winterfell/import.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "@types/three": "^0.186.0",
+    "lz4js": "^0.2.0",
+    "meshoptimizer": "^1.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

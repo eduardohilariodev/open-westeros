@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Known World</title>
+  <link rel="stylesheet" href="/src/ui/style.css" />
+</head>
+<body data-mode="globe" class="drawer-open">
+  <div id="globeLabels" class="labels"></div>
+
+  <!-- top left: search pill + drawer -->
+  <div id="side">
+    <div class="searchbox">
+      <button id="menuBtn" class="icon" aria-label="Menu" title="Menu">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
+      </button>
+      <input id="search" type="search" list="places" placeholder="Search Westeros" autocomplete="off" />
+      <datalist id="places"></datalist>
+      <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+    </div>
+    <div id="ui" class="card">
+      <div class="globe-only">
+        <h1>The Known World</h1>
+        <p class="muted">A planet ~8% larger than Earth (radius 6,915 km). Drag to spin, scroll to zoom. Zoom into a marked place to enter it.</p>
+        <div id="siteButtons"></div>
+        <h2>Map style</h2>
+        <label><input type="radio" name="globeStyle" value="painted" checked /> Painted map</label>
+        <label><input type="radio" name="globeStyle" value="outline" /> Atlas outline</label>
+      </div>
+      <div class="site-only">
+        <h1 id="siteName"></h1>
+        <button id="tour" class="pill">▶ Tour</button>
+        <h2>Show</h2>
+        <div id="layers"></div>
+        <h2>Labels</h2>
+        <div id="labelKinds"></div>
+        <div id="terrainControls">
+          <h2>Ground</h2>
+          <label><input type="radio" name="ground" value="painting" checked /> Painted map</label>
+          <label><input type="radio" name="ground" value="clean" /> Clean terrain</label>
+          <h2>Vertical exaggeration <span id="exv">1.5×</span></h2>
+          <input id="ex" type="range" min="1" max="4" step="0.1" value="1.5" />
+        </div>
+        <h2>Sun</h2>
+        <input id="sun" type="range" min="0" max="360" step="1" value="220" />
+        <p class="hint">Drag: pan · Right-drag / Ctrl-drag: rotate &amp; tilt · Wheel: zoom<br />WASD fly · Q/E down/up · Shift faster</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="info" class="card site-only"></div>
+
+  <!-- bottom right: navigation -->
+  <div id="nav">
+    <button id="toGlobe" class="fab site-only" title="Back to the globe" aria-label="Back to the globe">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 17.9A8 8 0 0 1 4.1 11H7c.2 3.2 1.6 6.4 4 8.9zm0-17.8C8.6 4.6 7.2 7.8 7 11H4.1A8 8 0 0 1 11 2.1zm2 0A8 8 0 0 1 19.9 11H17c-.2-3.2-1.6-6.4-4-8.9zm0 17.8c2.4-2.5 3.8-5.7 4-8.9h2.9a8 8 0 0 1-6.9 8.9zM9 11c.2-2.8 1.3-5.4 3-7.5 1.7 2.1 2.8 4.7 3 7.5H9zm0 2h6c-.2 2.8-1.3 5.4-3 7.5-1.7-2.1-2.8-4.7-3-7.5z" /></svg>
+    </button>
+    <button id="homeBtn" class="fab" title="Reset view" aria-label="Reset view">
+      <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3h-2.1A7 7 0 0 0 13 5.1V3h-2v2.1A7 7 0 0 0 5.1 11H3v2h2.1a7 7 0 0 0 5.9 5.9V21h2v-2.1a7 7 0 0 0 5.9-5.9H21v-2zm-9 6a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" /></svg>
+    </button>
+    <button id="compass" class="fab compass" title="Reset north" aria-label="Reset north">
+      <svg id="compassNeedle" viewBox="0 0 40 40">
+        <text x="20" y="9.5" text-anchor="middle" class="n">N</text>
+        <path d="M20 11l4.5 9h-9z" class="north" />
+        <path d="M20 29l-4.5-9h9z" class="south" />
+      </svg>
+    </button>
+    <button id="tiltBtn" class="fab text" title="Toggle 2D / 3D view">3D</button>
+    <div class="zoom">
+      <button id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" /></svg></button>
+      <button id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14z" /></svg></button>
+    </div>
+  </div>
+
+  <!-- bottom right: status bar -->
+  <div id="status">
+    <div class="scale"><span id="scaleMi"></span><span id="scaleKm"></span></div>
+    <span id="coords"></span>
+    <span id="altitude"></span>
+    <span class="credit">Maps © George R. R. Martin · Winterfell: Shadiversity / The True Winterfell SE</span>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

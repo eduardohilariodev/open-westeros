@@ -1,0 +1,27 @@
+// Place descriptions for Winterfell, summarised from A Song of Ice and Fire.
+export const OVERVIEW =
+  'Seat of House Stark and the greatest castle of the North, raised according to legend by Brandon the Builder some ' +
+  '8,000 years ago. It is built over hot springs whose water is piped through its walls to warm the halls and glass gardens. ' +
+  'Two granite curtain walls, the outer 80 feet and the inner 100 feet high, are separated by a moat. ' +
+  "The layout here is a procedural approximation of Shadiversity's book-accurate design.";
+
+export const LORE: Record<string, string> = {
+  'Great Keep': 'Residence of the Stark family. Hot water from the springs runs through its walls, keeping its rooms warm even in deep winter.',
+  'Great Hall': 'Where the Starks feast and receive guests, large enough to seat several hundred. King Robert was feasted here on his visit north.',
+  'First Keep': 'The oldest part of the castle: a squat round drum tower ringed by weathered gargoyles, unused for centuries.',
+  'Broken Tower': 'Once the tallest watchtower, until lightning set it ablaze more than a century ago and its top collapsed. Bran Stark loved to climb it.',
+  'Library Tower': "Tower housing Winterfell's library.",
+  'Bell Tower': 'Its bell marks the hours and sounds the alarm.',
+  "Maester's Turret": "Maester Luwin's tower, with the rookery for the ravens at its top.",
+  'Guards Hall': 'Barracks for the household guard.',
+  'Glass Gardens': 'Greenhouses with glass walls and roofs, warmed by the hot springs, where fruit and vegetables grow even in winter.',
+  Godswood: 'About three acres of old forest left untouched inside the walls, with warm pools fed by the hot springs.',
+  'Heart Tree': 'An ancient weirwood with a carved face and blood-red leaves beside a black pool. The Starks pray to the old gods here.',
+  Crypts: 'Beneath the castle lie the Stark crypts: stone statues of the Kings of Winter and Lords of Winterfell, each with an iron sword across its knees.',
+  "Hunter's Gate": 'Opens toward the wolfswood; the hunting parties ride out through it.',
+  'South Gate': 'The main gate, with a drawbridge over the moat toward the kingsroad and the winter town.',
+  'East Gate': 'Eastern gate with its own gatehouse and drawbridge.',
+  'Winter Town': 'Houses outside the walls that stand mostly empty in summer and fill when winter comes and the smallfolk seek the protection of the castle.',
+  Moat: 'Runs between the two curtain walls, crossed by drawbridges at the gates.',
+  Kingsroad: "Runs south from Winterfell all the way to King's Landing.",
+};

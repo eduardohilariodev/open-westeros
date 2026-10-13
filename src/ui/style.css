@@ -1,0 +1,97 @@
+/* Google Earth-like chrome: white material cards and round buttons over the 3D view, dark translucent status bar. */
+:root {
+  --surface: #fff;
+  --text: #202124;
+  --muted: #5f6368;
+  --accent: #1a73e8;
+  --shadow: 0 1px 2px #3c40434d, 0 2px 6px 2px #3c404326;
+  --font: 'Google Sans', Roboto, 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: #04060c; font: 14px/1.45 var(--font); color: var(--text); }
+button { font: inherit; color: inherit; }
+svg { fill: currentColor; }
+.labels { position: fixed; inset: 0; pointer-events: none; }
+
+/* mode switching */
+body[data-mode=globe] .site-only { display: none !important; }
+body[data-mode=site] .globe-only, body[data-mode=site] #globeLabels, .labels[hidden] { display: none !important; }
+
+.card { background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); }
+
+/* ---------- search + drawer ---------- */
+#side { position: fixed; top: 12px; left: 12px; width: 360px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 24px); z-index: 2; }
+.searchbox { display: flex; align-items: center; height: 48px; padding: 0 12px 0 4px; background: var(--surface); border-radius: 24px; box-shadow: var(--shadow); }
+.searchbox input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 15px; background: none; min-width: 0; }
+.searchbox .search-icon { width: 22px; height: 22px; fill: var(--muted); }
+.icon { width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; cursor: pointer; display: grid; place-items: center; color: var(--muted); }
+.icon:hover { background: #f1f3f4; }
+.icon svg { width: 24px; height: 24px; }
+#ui { padding: 14px 18px; overflow: auto; transition: opacity .15s; }
+body:not(.drawer-open) #ui { display: none; }
+#ui h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+#ui h2 { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .8px; margin: 14px 0 6px; color: var(--muted); }
+#ui p { margin: 4px 0 10px; }
+.muted, .hint { color: var(--muted); font-size: 12px; }
+#ui label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+#ui input[type=checkbox], #ui input[type=radio], #ui input[type=range] { accent-color: var(--accent); }
+#ui input[type=range] { width: 100%; }
+#siteButtons button, .pill { display: block; width: 100%; margin-top: 6px; padding: 8px 14px; border: 1px solid #dadce0; border-radius: 18px; background: var(--surface); color: var(--accent); font-weight: 500; text-align: left; cursor: pointer; }
+#siteButtons button:hover, .pill:hover { background: #f6fafe; border-color: #d2e3fc; }
+
+/* ---------- knowledge card ---------- */
+#info { position: fixed; z-index: 2; left: 12px; bottom: 40px; width: 360px; max-width: calc(100% - 24px); padding: 14px 18px; box-sizing: border-box; }
+body.drawer-open #info { display: none; }
+#info h3 { margin: 0 0 6px; font-size: 18px; font-weight: 500; }
+#info .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+#info p { margin: 0 0 8px; }
+#info a { color: var(--accent); text-decoration: none; }
+#info a:hover { text-decoration: underline; }
+#info .close { float: right; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; cursor: pointer; font-size: 18px; color: var(--muted); }
+#info .close:hover { background: #f1f3f4; }
+
+/* ---------- navigation stack ---------- */
+#nav { position: fixed; right: 16px; bottom: 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; }
+.fab { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: grid; place-items: center; color: #3c4043; padding: 0; }
+.fab:hover { background: #f8f9fa; }
+.fab svg { width: 22px; height: 22px; }
+.fab.text { font-size: 13px; font-weight: 500; }
+.fab[hidden] { display: none; }
+.compass { width: 48px; height: 48px; }
+.compass svg { width: 40px; height: 40px; transition: transform .1s linear; }
+.compass .n { font: 600 8px var(--font); fill: #d93025; }
+.compass .north { fill: #d93025; }
+.compass .south { fill: #9aa0a6; }
+.zoom { display: flex; flex-direction: column; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+.zoom button { width: 40px; height: 40px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: #3c4043; padding: 0; }
+.zoom button + button { border-top: 1px solid #e8eaed; }
+.zoom button:hover { background: #f8f9fa; }
+.zoom svg { width: 22px; height: 22px; }
+
+/* ---------- status bar ---------- */
+#status { position: fixed; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 4px 12px; background: #202124b3; color: #e8eaed; font-size: 11.5px; border-top-left-radius: 6px; font-variant-numeric: tabular-nums; z-index: 2; }
+#status .credit { color: #bdc1c6; }
+#status .scale { display: flex; flex-direction: column; gap: 1px; }
+#status .scale span { display: block; height: 11px; line-height: 9px; font-size: 9.5px; padding: 0 3px; box-sizing: border-box; white-space: nowrap; }
+#scaleMi { border: 1px solid #e8eaed; border-top: 0; }
+#scaleKm { border: 1px solid #e8eaed; border-bottom: 0; }
+
+/* ---------- map labels ---------- */
+.lbl { pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 1px 6px; border-radius: 3px; font: 600 13px Georgia, serif; color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
+.lbl:hover { background: #0006; }
+.lbl.gate { color: #c6d4ff; }
+.lbl.street, .lbl.road { color: #ffe9b8; font-style: italic; font-weight: normal; }
+.lbl.hill, .lbl.district, .lbl.water { color: #d8f0d0; font-size: 15px; letter-spacing: 2px; font-weight: normal; }
+.lbl.castle, .lbl.sept, .lbl.pit, .lbl.keep { font-size: 15px; color: #ffd27a; }
+.lbl.wood { color: #b9f0a8; }
+
+.globe-marker { pointer-events: auto; cursor: pointer; color: #fff; font: 500 13px var(--font); text-shadow: 0 0 4px #000, 0 0 2px #000; white-space: nowrap; transform: translateY(-10px); }
+.globe-marker .dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: #fbbc04; box-shadow: 0 0 0 2px #fff, 0 1px 4px 2px #0008; vertical-align: -1px; }
+.globe-marker:hover { color: #fde293; }
+
+@media (max-width: 700px) {
+  #side { width: auto; right: 12px; }
+  #ui { max-height: 45vh; }
+  #info { bottom: 64px; }
+  #status .credit { display: none; }
+  #nav { bottom: 64px; }
+}

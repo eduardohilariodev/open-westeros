@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Copyrighted source data (maps, game/mod assets) — never commit; see README "Run it".
+assets/
+/*.webp
+/*.jpg
+/*.png
+
+# Generated from the sources above by tools/ — rebuild locally.
+public/world/
+public/sites/
