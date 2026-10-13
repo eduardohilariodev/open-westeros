@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>The Known World</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body data-mode="globe" class="drawer-open">
@@ -25,8 +28,13 @@
         <p class="muted">A planet ~8% larger than Earth (radius 6,915 km). Drag to spin, scroll to zoom. Zoom into a marked place to enter it.</p>
         <div id="siteButtons"></div>
         <h2>Map style</h2>
-        <label><input type="radio" name="globeStyle" value="painted" checked /> Painted map</label>
-        <label><input type="radio" name="globeStyle" value="outline" /> Atlas outline</label>
+        <label><input type="radio" name="globeStyle" value="outline" checked /> Atlas outline</label>
+        <label><input type="radio" name="globeStyle" value="atlas" /> Political atlas</label>
+        <label><input type="radio" name="globeStyle" value="painted" /> Painted map</label>
+        <h2>Legend</h2>
+        <label><input id="showNames" type="checkbox" checked /> Place names</label>
+        <div class="legend-actions"><button id="legendAll" type="button">All</button><button id="legendNone" type="button">None</button></div>
+        <div id="legend"></div>
       </div>
       <div class="site-only">
         <h1 id="siteName"></h1>

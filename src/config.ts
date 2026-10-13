@@ -18,6 +18,8 @@ export const KNOWN_WORLD = {
   source: { width: 9050, height: 6000 },
   crop: 60, // paper border trimmed by tools/world/prepare.mjs
   textureWidth: 8192, // safe max texture size on most GPUs
+  // The painted map's own georeference (the inputs to tools/world/consensus.mjs). The globe does not use it directly:
+  // it uses the consensus fit in src/world-data.ts, which averages it with the atlas map's georeference.
   castleBlack: { y: 960, lat: 66.6 }, // the Wall, just south of the Arctic Circle
   dorneCoast: { y: 3980 }, // Sunspear / Dorne's south coast
   wallToDorneMiles: 3000,
@@ -32,11 +34,27 @@ export const KNOWN_WORLD = {
   },
 };
 
+// Third globe style: the political "Known World" atlas map (assets/world/known-world-atlas.jpg, 10000x8300). It prints its
+// own latitude ticks (equator at y=7663, 87.23 px per degree) and covers 88°N to ~8°S. Its bottom-right legend and credit
+// are painted over with sea colour (`cover`, source px [x0, y0, x1, y1]) when the texture is built.
+export const ATLAS_MAP = {
+  source: { width: 10000, height: 8300 },
+  crop: 14, // scale-bar margin trimmed by tools/world/prepare.mjs
+  textureWidth: 8192,
+  sea: 0xa5c0de,
+  // Registration to the painted map (and so to the outline map, which is aligned to it), by tools/world/align-atlas.mjs:
+  // paintedPx = scale * atlasPx + offset, per axis. The globe places the atlas texture through this, so all three styles
+  // overlay each other.
+  toPainted: { scaleX: 0.8868, offsetX: 96.6, scaleY: 0.8832, offsetY: -1012.3 },
+  cover: [[8685, 7872, 10000, 8300], [8030, 8195, 8685, 8300]],
+};
+
 // Places you can zoom into from the globe. `map` = position on the Known World source image;
 // `erase` = the map's own icon (radius) and label box [x0, y0, x1, y1] painted out under the 3D model.
 export const SITES = {
   kingsLanding: {
     name: "King's Landing",
+    kind: 'city', // symbol on the globe, as for the place names
     map: { x: 1821, y: 3075 },
     erase: { icon: 18, label: [1712, 3102, 1958, 3142] },
     // Book-based estimates (GRRM gives no survey): ~400,000 people, 500,000+ in A Storm of Swords; walls
@@ -46,6 +64,7 @@ export const SITES = {
   },
   winterfell: {
     name: 'Winterfell',
+    kind: 'capital',
     map: { x: 1544, y: 1542 },
     erase: { icon: 18, label: [1474, 1555, 1620, 1592] },
   },

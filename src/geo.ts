@@ -1,21 +1,27 @@
 import * as THREE from 'three';
-import { KNOWN_WORLD as K, METRES_PER_DEGREE, MILE, PLANET, SITES, type SiteId } from './config';
+import { ATLAS_MAP as M, KNOWN_WORLD as K, METRES_PER_DEGREE, PLANET, SITES, type SiteId } from './config';
+import { ATLAS_FIT, PAINTED_FIT as F } from './world-data';
 
-// The Known World map is treated as a plate carrée patch: latitude and longitude are linear in pixels.
-// Latitude scale comes from the Wall->Dorne distance; longitude uses the same ground scale at the meridian city.
-const pxPerDegLat = (K.dorneCoast.y - K.castleBlack.y) / ((K.wallToDorneMiles * MILE) / METRES_PER_DEGREE);
-export const latAt = (y: number) => K.castleBlack.lat - (y - K.castleBlack.y) / pxPerDegLat;
-const pxPerDegLon = pxPerDegLat * Math.cos(THREE.MathUtils.degToRad(latAt(K.meridian.y)));
-export const lonAt = (x: number) => K.meridian.lon + (x - K.meridian.x) / pxPerDegLon;
+// Both source maps are treated as plate carrée patches (latitude and longitude linear in pixels). Their placement is a
+// consensus of the painted map's and the atlas map's own georeferences — see tools/world/consensus.mjs.
+export const latAt = (y: number) => F.latPerPx * y + F.lat0;
+export const lonAt = (x: number) => F.lonPerPx * x + F.lon0;
 
 /** Ground metres per source pixel of the Known World map (same in both axes near the meridian). */
-export const metresPerMapPixel = METRES_PER_DEGREE / pxPerDegLat;
+export const metresPerMapPixel = METRES_PER_DEGREE * Math.abs(F.latPerPx);
 
 export const KNOWN_WORLD_BOUNDS = {
   west: lonAt(K.crop),
   east: lonAt(K.source.width - K.crop),
   north: latAt(K.crop),
   south: latAt(K.source.height - K.crop),
+};
+
+export const ATLAS_BOUNDS = {
+  west: ATLAS_FIT.lonPerPx * M.crop + ATLAS_FIT.lon0,
+  east: ATLAS_FIT.lonPerPx * (M.source.width - M.crop) + ATLAS_FIT.lon0,
+  north: ATLAS_FIT.latPerPx * M.crop + ATLAS_FIT.lat0,
+  south: ATLAS_FIT.latPerPx * (M.source.height - M.crop) + ATLAS_FIT.lat0,
 };
 
 export const siteLatLon = (id: SiteId) => ({ lat: latAt(SITES[id].map.y), lon: lonAt(SITES[id].map.x) });

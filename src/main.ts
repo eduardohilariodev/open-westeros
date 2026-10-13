@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SITES, SITE_SWITCH, type SiteId } from './config';
 import { createGlobeView } from './globe/GlobeView';
+import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { SITE_VIEWS } from './sites';
 import type { SiteView } from './sites/SiteScene';
 import { initNav } from './ui/nav';
@@ -40,7 +41,22 @@ for (const id of ids) {
 }
 
 for (const r of document.querySelectorAll<HTMLInputElement>('input[name=globeStyle]'))
-  r.addEventListener('change', () => globe.setStyle(r.value as 'painted' | 'outline'));
+  r.addEventListener('change', () => globe.setStyle(r.value as 'painted' | 'outline' | 'atlas'));
+($('showNames') as HTMLInputElement).addEventListener('change', (e) => globe.setNamesVisible((e.target as HTMLInputElement).checked));
+
+// Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
+const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).map(([kind, label]) => {
+  const row = document.createElement('label');
+  row.className = 'legend-row';
+  row.innerHTML = `<span class="what"><input type="checkbox" checked /><svg class="k-${kind}" viewBox="0 0 12 12">${PLACE_ICONS[kind]}</svg>${label}</span><span class="n">${globe.kindCounts[kind]}</span>`;
+  const box = row.querySelector('input')!;
+  box.addEventListener('change', () => globe.setKindVisible(kind, box.checked));
+  $('legend').append(row);
+  return { kind, box };
+});
+const setAllKinds = (on: boolean) => legendBoxes.forEach(({ kind, box }) => { box.checked = on; globe.setKindVisible(kind, on); });
+$('legendAll').onclick = () => setAllKinds(true);
+$('legendNone').onclick = () => setAllKinds(false);
 
 let active: SiteId | null = null; // null = globe
 let pending: { id: SiteId; place?: string } | null = null; // what to show after the next arrival
@@ -91,13 +107,24 @@ const searchItems = ids.flatMap((id) => [
   { label: SITES[id].name, id, place: undefined as string | undefined },
   ...sites[id].places.map((p) => ({ label: `${p.name} — ${SITES[id].name}`, id, place: p.name })),
 ]);
-$('places').innerHTML = searchItems.map((s) => `<option value="${s.label.replace(/"/g, '&quot;')}"></option>`).join('');
+// ...and every place name on the maps: they just fly the globe there.
+const mapItems = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, i }));
+const option = (value: string, kind = '') => `<option value="${value.replace(/"/g, '&quot;')}" label="${kind}"></option>`;
+$('places').innerHTML = searchItems.map((s) => option(s.label)).join('') + mapItems.map((m) => option(m.label, m.kind)).join('');
 const search = $('search') as HTMLInputElement;
 search.addEventListener('change', () => {
   const q = search.value.trim().toLowerCase();
   if (!q) return;
-  const hit = searchItems.find((s) => s.label.toLowerCase() === q) ?? searchItems.find((s) => s.label.toLowerCase().includes(q));
-  if (hit) { goTo(hit.id, hit.place); search.value = ''; search.blur(); }
+  // exact name first, then "contains"; sites (and their places) before map places
+  const find = (match: (label: string) => boolean) => ({
+    site: searchItems.find((s) => match(s.label.toLowerCase())),
+    place: mapItems.find((m) => match(m.label.toLowerCase())),
+  });
+  const { site, place } = [find((l) => l === q), find((l) => l.includes(q))].find((r) => r.site || r.place) ?? { site: undefined, place: undefined };
+  if (site) goTo(site.id, site.place);
+  else if (place) { if (active) exitSite(active); pending = null; globe.flyToPlace(place.i); }
+  else return;
+  search.value = ''; search.blur();
 });
 
 // Deep links: #siteId or #siteId/Place%20Name land straight on the site (no flight from space).

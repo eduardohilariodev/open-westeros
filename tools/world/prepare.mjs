@@ -1,10 +1,10 @@
 // Builds the globe texture and the per-site surroundings from the Known World map.
 // Usage: node tools/world/prepare.mjs   (reads assets/world/known-world.jpg, writes public/world/*)
 import sharp from 'sharp';
-import { mkdirSync } from 'node:fs';
-import { KNOWN_WORLD as K, SITES } from '../../src/config.ts';
+import { existsSync, mkdirSync } from 'node:fs';
+import { ATLAS_MAP as A, KNOWN_WORLD as K, SITES } from '../../src/config.ts';
 
-const SRC = 'assets/world/known-world.jpg', OUT = 'public/world';
+const SRC = 'assets/world/known-world.jpg', ATLAS = 'assets/world/known-world-atlas.jpg', OUT = 'public/world';
 mkdirSync(OUT, { recursive: true });
 
 const { width, height } = await sharp(SRC).metadata();
@@ -35,6 +35,15 @@ await sharp(SRC)
   }
   await sharp(out, { raw: { width: info.width, height: info.height, channels: 3 } }).jpeg({ quality: 88 }).toFile(`${OUT}/known-world-outline.jpg`);
 }
+
+// Political atlas style (optional): own source, own lat/lon extent. The legend and credit are painted out with sea colour.
+if (existsSync(ATLAS)) {
+  const fill = (a) => ({ input: { create: { width: a[2] - a[0], height: a[3] - a[1], channels: 3, background: `#${A.sea.toString(16)}` } }, left: a[0], top: a[1] });
+  const cleaned = await sharp(ATLAS).composite(A.cover.map(fill)).png().toBuffer();
+  await sharp(cleaned)
+    .extract({ left: A.crop, top: A.crop, width: A.source.width - 2 * A.crop, height: A.source.height - 2 * A.crop })
+    .resize(A.textureWidth).jpeg({ quality: 85 }).toFile(`${OUT}/known-world-atlas.jpg`);
+} else console.log(`no ${ATLAS}: the political atlas globe style is skipped`);
 
 // Fill masked pixels from their known neighbours, ring by ring (diffusion inpainting).
 function inpaint(px, w, h, masked) {

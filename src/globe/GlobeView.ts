@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { KNOWN_WORLD, PLANET, SITE_SWITCH, SITES, type SiteId } from '../config';
-import { KNOWN_WORLD_BOUNDS as B, enuFrame, siteLatLon, toVector } from '../geo';
+import { ATLAS_MAP, KNOWN_WORLD, PLANET, SITE_SWITCH, SITES, type SiteId } from '../config';
+import { ATLAS_BOUNDS, KNOWN_WORLD_BOUNDS as B, enuFrame, siteLatLon, toVector } from '../geo';
+import { PLACES } from '../world-data';
+import { PLACE_ICONS } from './placeIcons';
 
 // Planet-centred frame, metres. The Known World map is draped as a lat/lon patch over an ocean sphere.
 const R = PLANET.radius;
@@ -35,13 +37,17 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const styles = {
     painted: { map: loadTex('/world/known-world.jpg'), ocean: KNOWN_WORLD.ocean },
     outline: { map: loadTex('/world/known-world-outline.jpg'), ocean: KNOWN_WORLD.outline.sea },
+    atlas: { map: loadTex('/world/known-world-atlas.jpg'), ocean: ATLAS_MAP.sea },
   };
   const mapMat = new THREE.MeshLambertMaterial({ map: styles.painted.map });
-  // SphereGeometry's phi=0 points at -X; our longitude 0 faces +Z, hence the +90° offset.
-  const knownWorld = new THREE.Mesh(
-    new THREE.SphereGeometry(R, 512, 256, rad(B.west) + Math.PI / 2, rad(B.east - B.west), Math.PI / 2 - rad(B.north), rad(B.north - B.south)),
-    mapMat,
+  // A lat/lon patch of the planet. SphereGeometry's phi=0 points at -X; our longitude 0 faces +Z, hence the +90° offset.
+  const patch = (b: typeof B, material: THREE.Material) => new THREE.Mesh(
+    new THREE.SphereGeometry(R, 512, 256, rad(b.west) + Math.PI / 2, rad(b.east - b.west), Math.PI / 2 - rad(b.north), rad(b.north - b.south)),
+    material,
   );
+  const knownWorld = patch(B, mapMat); // painted + outline styles share this patch
+  const atlasWorld = patch(ATLAS_BOUNDS, new THREE.MeshLambertMaterial({ map: styles.atlas.map }));
+  atlasWorld.visible = false;
   const atmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(R * 1.035, 96, 48),
     new THREE.ShaderMaterial({
@@ -71,7 +77,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false }));
   })();
   const headlight = new THREE.DirectionalLight(0xffffff, 1.6);
-  scene.add(ocean, knownWorld, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
+  scene.add(ocean, knownWorld, atlasWorld, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
   // ---------- site markers ----------
   const ids = Object.keys(SITES) as SiteId[];
@@ -81,14 +87,50 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   })) as Record<SiteId, ReturnType<typeof enuFrame>>;
   const markers = ids.map((id) => {
     const el = document.createElement('div');
-    el.className = 'globe-marker';
-    el.innerHTML = `<span class="dot"></span>${SITES[id].name}`;
+    // Same look as the place names (name above, symbol on the spot); gold marks the places you can enter.
+    const kind = SITES[id].kind;
+    el.className = `globe-place globe-site k-${kind}`;
+    el.innerHTML = `<span></span><svg viewBox="0 0 12 12">${PLACE_ICONS[kind]}</svg>`;
+    el.firstElementChild!.textContent = SITES[id].name;
     el.onclick = () => view.flyTo(id);
     const obj = new CSS2DObject(el);
-    obj.position.copy(frames[id].origin).addScaledVector(frames[id].up, 20_000);
+    obj.center.set(0.5, 0);
+    obj.position.copy(frames[id].origin).multiplyScalar((R + 3000) / R);
     scene.add(obj);
     return { id, obj };
   });
+
+  // ---------- place names ----------
+  // From the maps (src/world-data.ts). Each kind is shown while the camera is below a height, so the screen only holds
+  // what is readable at that zoom, and only on the near side of the planet. [shown below, fly-to height], metres.
+  // The whole Known World is ~17,000 km across; at 22,000 km up it all fits the screen, at 3,000 km about Westeros-and-a-half.
+  const LOD: Record<string, [number, number]> = {
+    ocean: [60_000_000, 8_000_000], region: [9_000_000, 3_500_000], city: [7_000_000, 900_000], capital: [4_000_000, 700_000],
+    island: [5_000_000, 1_300_000], mountain: [4_500_000, 1_500_000], forest: [4_500_000, 1_500_000], wild: [4_500_000, 2_000_000],
+    sea: [5_000_000, 1_500_000], lake: [2_500_000, 1_000_000], river: [2_000_000, 1_500_000],
+    castle: [2_200_000, 550_000], town: [2_200_000, 550_000], ruin: [2_200_000, 600_000], landmark: [2_500_000, 700_000],
+    minor: [1_100_000, 450_000],
+  };
+  // A place has one position on the painted/outline maps and, if the two drawings differ, another on the political atlas;
+  // the symbol always sits where the map being shown has it.
+  const places = PLACES.map(([name, kind, lat, lon, aLat, aLon], i) => {
+    const el = document.createElement('div');
+    el.className = `globe-place k-${kind}`;
+    el.innerHTML = `<span></span><svg viewBox="0 0 12 12">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`;
+    el.firstElementChild!.textContent = name;
+    el.onclick = () => view.flyToPlace(i);
+    const obj = new CSS2DObject(el);
+    obj.center.set(0.5, 0); // the symbol, at the bottom of the label, sits on the place
+    scene.add(obj);
+    const ups = [toVector(lat, lon, 1), aLat === undefined ? toVector(lat, lon, 1) : toVector(aLat, aLon!, 1)];
+    return { name, kind, ups, up: ups[0], obj, lod: LOD[kind] ?? LOD.town };
+  });
+  const placePlaces = (atlas: boolean) => {
+    for (const p of places) { p.up = p.ups[atlas ? 1 : 0]; p.obj.position.copy(p.up).multiplyScalar(R + 3000); }
+  };
+  placePlaces(false);
+  let showNames = true;
+  const hiddenKinds = new Set<string>();
 
   // ---------- altitude zoom ----------
   // Altitude eases toward altGoal in log space, so wheel and buttons zoom smoothly at any height.
@@ -127,9 +169,19 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       metresPerPixel: () => (2 * alt * Math.tan(rad(camera.fov / 2))) / innerHeight,
     },
     setStyle(style: keyof typeof styles) {
-      mapMat.map = styles[style].map;
+      knownWorld.visible = style !== 'atlas';
+      atlasWorld.visible = style === 'atlas';
+      if (style !== 'atlas') mapMat.map = styles[style].map;
       oceanMat.color.setHex(styles[style].ocean);
+      placePlaces(style === 'atlas');
     },
+    setNamesVisible(v: boolean) { showNames = v; },
+    setKindVisible(kind: string, v: boolean) { if (v) hiddenKinds.delete(kind); else hiddenKinds.add(kind); },
+    /** How many names of each kind the maps have (for the legend). */
+    kindCounts: places.reduce((c, p) => ((c[p.kind] = (c[p.kind] ?? 0) + 1), c), {} as Record<string, number>),
+    /** Every named place on the maps, for search: [name, kind] in the order flyToPlace expects. */
+    places: places.map((p) => ({ name: p.name, kind: p.kind })),
+    flyToPlace(i: number) { flyToDir(places[i].up, places[i].lod[1]); },
     flyTo: (id: SiteId) => flyToDir(frames[id].up, SITE_SWITCH.enterDistance * 0.8),
     jumpTo(id: SiteId) {
       anim = null;
@@ -170,7 +222,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         const f = frames[m.id];
         m.obj.visible = tmp.copy(camera.position).sub(f.origin).dot(f.up) > 0;
       }
+      // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
+      const cosLimit = R / camera.position.length(), cam = camera.position.clone().normalize();
+      for (const p of places) p.obj.visible = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && cam.dot(p.up) > cosLimit;
     },
   };
+  view.setStyle('outline'); // the default look: the atlas outline map
   return view;
 }
