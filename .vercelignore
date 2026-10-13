@@ -1,0 +1,8 @@
+# Upload the code + generated public/ data; never the raw copyrighted sources.
+node_modules/
+dist/
+assets/
+.env*
+/*.webp
+/*.jpg
+/*.png

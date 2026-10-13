@@ -12,3 +12,6 @@ assets/
 # Generated from the sources above by tools/ — rebuild locally.
 public/world/
 public/sites/
+
+.vercel
+.env*

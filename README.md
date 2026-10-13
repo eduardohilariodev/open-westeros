@@ -2,6 +2,8 @@
 
 **A community-built, Google Earth–style 3D atlas of the Known World.** Spin the planet, dive into King's Landing, walk the walls of Winterfell — and help build the rest.
 
+**Live preview:** [open-westeros.vercel.app](https://open-westeros.vercel.app) — private for now (Vercel login required) while we sort out how to show the copyrighted source art publicly.
+
 ## Manifesto
 
 Westeros has been drawn a thousand times, but never mapped as a place you can *fly through*. Open Westeros is an attempt to do that together, in the open.
@@ -38,6 +40,16 @@ The app needs generated data in `public/` (ignored by git). Build it from your o
 | *The True Winterfell SE* (Nexus Mods #94816), extracted | `assets/sites/winterfell/mod/` | `npm run winterfell:collect` (needs Skyrim SE) then `npm run winterfell` |
 
 Without the Winterfell data the app falls back to a procedural Winterfell; the globe and King's Landing need their sources.
+
+### Deploy
+
+The preview is deployed from a machine that has the generated data — Git pushes do **not** deploy, because the data isn't in the repo:
+
+```bash
+npx vercel deploy --prod
+```
+
+[`.vercelignore`](.vercelignore) uploads the code and the generated `public/` data, never the raw sources in `assets/`. The Vercel project keeps Deployment Protection on, so every URL requires a Vercel login.
 
 ## How it's built
 
