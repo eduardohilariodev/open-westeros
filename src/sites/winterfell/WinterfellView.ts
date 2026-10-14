@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createSiteScene, type Place, type SiteView } from '../SiteScene';
-import { LORE, OVERVIEW } from './lore';
+import { LORE } from './lore';
 import { createProceduralWinterfellView } from './procedural';
 
 // Winterfell from "The True Winterfell SE" (the Skyrim port of Shadiversity's model), converted by
@@ -59,10 +59,6 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
     const mtx = new THREE.Matrix4().compose(m4.set(d[k + 1], d[k + 2], d[k + 3]), q.set(d[k + 4], d[k + 5], d[k + 6], d[k + 7]), new THREE.Vector3(s, s, s));
     byModel.set(d[k], [...(byModel.get(d[k]) ?? []), mtx]);
   }
-  const groups = { castle: new THREE.Group(), godswood: new THREE.Group(), town: new THREE.Group(), other: new THREE.Group() };
-  const groupOf = (src: string) =>
-    /\\(castle|wall|tower|doors)\\/i.test(src) ? groups.castle : /\\godswood\\|tree|plant|landscape\\/i.test(src) ? groups.godswood
-      : /\\(houses|fences|furniture|clutter)\\/i.test(src) ? groups.town : groups.other;
   const loader = new GLTFLoader();
   await Promise.all([...byModel].map(async ([mi, mats]) => {
     const model = data.models[mi];
@@ -73,10 +69,9 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
       mats.forEach((m, i) => inst.setMatrixAt(i, m));
       inst.castShadow = inst.receiveShadow = true;
       inst.computeBoundingSphere();
-      groupOf(model.source).add(inst);
+      scene.add(inst);
     });
   }));
-  scene.add(...Object.values(groups));
 
   // ---------- places (positions of the corresponding mod meshes) ----------
   const P = (name: string, kind: string, x: number, z: number, labelY: number, radius = 40): Place => ({ name, kind, pos: [x, z, labelY], radius });
@@ -88,12 +83,6 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
   site.addPlaces(places);
 
   return Object.assign(site, {
-    places,
-    layers: [['Castle & walls', groups.castle], ['Godswood & trees', groups.godswood], ['Houses & clutter', groups.town], ['Other', groups.other], ['Terrain', terrain]] as [string, THREE.Object3D][],
-    labelGroups: [['Buildings', ['keep', 'hall', 'tower']], ['Gates', ['gate']], ['Godswood', ['wood']]] as [string, string[]][],
-    tour: ['East Gate', 'Great Keep', 'Guest House', "Maester's Turret", 'First Keep', 'Broken Tower', 'Godswood', 'Heart Tree'],
-    overview: OVERVIEW.replace("The layout here is a procedural approximation of Shadiversity's book-accurate design.",
-      "Model: Shadiversity's book-accurate Winterfell as ported to Skyrim by the \"The True Winterfell SE\" mod."),
     lore: { ...LORE, 'Guest House': 'Lodging for guests of House Stark within the castle walls.' },
     flyTo(p: Place) {
       site.flyToPoint(new THREE.Vector3(p.pos[0], groundAt(p.pos[0], p.pos[1]) + 10, p.pos[1]), Math.max(140, (p.radius || 40) * 3.5));

@@ -7,12 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "tsc && vite build",
-    "rectify": "node tools/sites/kingsLanding/rectify.mjs",
     "plan": "node tools/sites/kingsLanding/plan.mjs",
     "analyze": "node tools/sites/kingsLanding/analyze.mjs",
     "gis": "node tools/sites/kingsLanding/export-gis.mjs",
-    "assets": "node tools/world/consensus.mjs && node tools/world/prepare.mjs && node tools/sites/kingsLanding/plan.mjs && node tools/sites/kingsLanding/analyze.mjs && node tools/sites/kingsLanding/export-gis.mjs",
-    "prepare:world": "node tools/world/prepare.mjs",
+    "assets": "node tools/world/consensus.mjs && node tools/sites/kingsLanding/plan.mjs && node tools/sites/kingsLanding/analyze.mjs && node tools/sites/kingsLanding/export-gis.mjs",
     "places": "node tools/world/consensus.mjs",
     "winterfell:collect": "node tools/sites/winterfell/collect.mjs",
     "winterfell": "node tools/sites/winterfell/import.mjs"

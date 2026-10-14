@@ -1,4 +1,4 @@
-// World scale and georeferencing — the single source of truth for sizes, shared by src/ and tools/.
+// World scale — the single source of truth for sizes, shared by src/ and tools/.
 // Planet size and latitudes follow the fan reconstruction (atlasoficeandfireblog, "The size and extent of
 // Westeros", 2016): a planet ~8% larger than Earth, the Wall at ~66.6°N, ~3,000 mi from the Wall to the
 // south coast of Dorne, and King's Landing used as the 0° meridian (there is no canonical one).
@@ -13,50 +13,12 @@ export const PLANET = {
 /** Metres per degree of latitude (~120.7 km, ~75 mi). */
 export const METRES_PER_DEGREE = (2 * Math.PI * PLANET.radius) / 360;
 
-// "The Known World" map (assets/world/known-world.jpg), georeferenced from points read off the source image.
-export const KNOWN_WORLD = {
-  source: { width: 9050, height: 6000 },
-  crop: 60, // paper border trimmed by tools/world/prepare.mjs
-  textureWidth: 8192, // safe max texture size on most GPUs
-  // The painted map's own georeference (the inputs to tools/world/consensus.mjs). The globe does not use it directly:
-  // it uses the consensus fit in src/world-data.ts, which averages it with the atlas map's georeference.
-  castleBlack: { y: 960, lat: 66.6 }, // the Wall, just south of the Arctic Circle
-  dorneCoast: { y: 3980 }, // Sunspear / Dorne's south coast
-  wallToDorneMiles: 3000,
-  meridian: { x: 1821, y: 3075, lon: 0 }, // King's Landing = 0°; longitude scale is true at its latitude
-  surroundings: 400, // half-size (source px) of the map crop shown under each site
-  ocean: 0x353b68, // open-sea colour sampled from the map, for the unmapped rest of the planet
-  // Second globe style: the land/sea outline map (assets/world/known-world-outline.webp), aligned to the painted
-  // map by tools/world/align.mjs: outlinePx = scale * paintedPx + offset. Recoloured to an atlas look.
-  outline: {
-    scale: 1.128, offsetX: -111, offsetY: -43,
-    sea: 0x9fb6c8, land: 0xf1ead6, line: 0x55606b,
-  },
-};
-
-// Third globe style: the political "Known World" atlas map (assets/world/known-world-atlas.jpg, 10000x8300). It prints its
-// own latitude ticks (equator at y=7663, 87.23 px per degree) and covers 88°N to ~8°S. Its bottom-right legend and credit
-// are painted over with sea colour (`cover`, source px [x0, y0, x1, y1]) when the texture is built.
-export const ATLAS_MAP = {
-  source: { width: 10000, height: 8300 },
-  crop: 14, // scale-bar margin trimmed by tools/world/prepare.mjs
-  textureWidth: 8192,
-  sea: 0xa5c0de,
-  // Registration to the painted map (and so to the outline map, which is aligned to it), by tools/world/align-atlas.mjs:
-  // paintedPx = scale * atlasPx + offset, per axis. The globe places the atlas texture through this, so all three styles
-  // overlay each other.
-  toPainted: { scaleX: 0.8868, offsetX: 96.6, scaleY: 0.8832, offsetY: -1012.3 },
-  cover: [[8685, 7872, 10000, 8300], [8030, 8195, 8685, 8300]],
-};
-
-// Places you can zoom into from the globe. `map` = position on the Known World source image;
-// `erase` = the map's own icon (radius) and label box [x0, y0, x1, y1] painted out under the 3D model.
+// Places with a 3D scene of their own. They are ordinary places on the map (matched by name in src/world-data.ts, with the
+// kind given here) that load their scene when the camera comes close.
 export const SITES = {
   kingsLanding: {
     name: "King's Landing",
-    kind: 'city', // symbol on the globe, as for the place names
-    map: { x: 1821, y: 3075 },
-    erase: { icon: 18, label: [1712, 3102, 1958, 3142] },
+    kind: 'city',
     // Book-based estimates (GRRM gives no survey): ~400,000 people, 500,000+ in A Storm of Swords; walls
     // "roughly square", several miles across. At medieval densities that is ~10-20 sq mi inside the walls,
     // i.e. ~3-4 mi a side. tools/sites/kingsLanding/plan.mjs scales the consensus city plan to this area.
@@ -65,13 +27,15 @@ export const SITES = {
   winterfell: {
     name: 'Winterfell',
     kind: 'capital',
-    map: { x: 1544, y: 1542 },
-    erase: { icon: 18, label: [1474, 1555, 1620, 1592] },
   },
 };
 export type SiteId = keyof typeof SITES;
 
+// A site's 3D scene is drawn into the globe's frame (same camera pose, same depth buffer), so zooming in is one continuous
+// view. What changes with distance is only who steers the camera and when the scene is loaded and drawn. Metres.
 export const SITE_SWITCH = {
-  enterDistance: 350_000, // globe camera closer than this to a site -> switch to the site scene
-  exitDistance: 400_000, // site camera farther than this from the site -> back to the globe
+  loadDistance: 3_000_000, // start loading the scene
+  drawDistance: 1_500_000, // draw it over the globe
+  enterDistance: 350_000, // the camera is steered by the site's map controls (tilt, WASD, orbit) closer than this
+  exitDistance: 400_000, // and by the globe's controls farther than this
 };

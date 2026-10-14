@@ -1,10 +1,4 @@
 // Place descriptions for Winterfell, summarised from A Song of Ice and Fire.
-export const OVERVIEW =
-  'Seat of House Stark and the greatest castle of the North, raised according to legend by Brandon the Builder some ' +
-  '8,000 years ago. It is built over hot springs whose water is piped through its walls to warm the halls and glass gardens. ' +
-  'Two granite curtain walls, the outer 80 feet and the inner 100 feet high, are separated by a moat. ' +
-  "The layout here is a procedural approximation of Shadiversity's book-accurate design.";
-
 export const LORE: Record<string, string> = {
   'Great Keep': 'Residence of the Stark family. Hot water from the springs runs through its walls, keeping its rooms warm even in deep winter.',
   'Great Hall': 'Where the Starks feast and receive guests, large enough to seat several hundred. King Robert was feasted here on his visit north.',

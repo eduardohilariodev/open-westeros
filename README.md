@@ -18,11 +18,11 @@ Westeros has been drawn a thousand times, but never mapped as a place you can *f
 
 ## What exists today
 
-- **The globe** — the Known World draped on a planet ~8% larger than Earth, in three styles: atlas outline (default), the political atlas and the painted map. The maps are georeferenced as a consensus: the political atlas is registered to the outline's coasts and each map's own latitude reference (the Wall→Dorne distance, the atlas's printed latitude ticks) is averaged, so King's Landing is the 0° meridian and the Wall sits near 65°N.
+- **The globe** — the Known World on a planet ~8% larger than Earth. The default **vector map** is drawn from polygons only: coastlines, rivers, lakes and the Westeros regions from the Known World SVG maps by Abjiklam, plus terrain (plains, forest, swamp, desert, hills, mountains, snow). The ground under a 3D place is the same vector map.
 - **King's Landing** — a 3D city generated from the painted city map: ~20,000 houses, walls and gates, the Red Keep, the Great Sept, the Dragonpit, terrain, lore for every landmark.
 - **Winterfell** — Shadiversity's book-accurate design (via the Skyrim port *The True Winterfell SE*), converted mesh by mesh and placed exactly.
 - **Place names** — ~620 named places read off the maps (cities, castles, regions, seas, rivers, islands…), each with a symbol for its kind, coloured by kind and shown at sensible camera heights. The sidebar legend has a checkbox per kind, and every name is searchable and flies you there.
-- **Google Earth–style controls** — search across all places, compass, tilt, zoom, scale bar, coordinates, guided tours, deep links (`#winterfell/Great%20Keep`).
+- **Google Earth–style controls** — search across all places, compass, tilt, zoom, scale bar, coordinates, a card on click for regions and landmarks.
 
 ## Run it
 
@@ -31,21 +31,22 @@ npm install
 npm run dev
 ```
 
-The app needs generated data in `public/` (ignored by git). Build it from your own copies of the sources:
+The globe needs nothing but the vector data in `src/`. The 3D places need generated data in `public/` (ignored by git). Build it from your own copies of the sources:
 
 | Source (not included) | Put it at | Then run |
 | --- | --- | --- |
-| *The Known World* map (9050×6000) | `assets/world/known-world.jpg` | `npm run prepare:world` |
-| Known World outline map | `assets/world/known-world-outline.webp` | (same) |
-| *The Known World* political atlas (Adam Whitehead, [atlasoficeandfireblog](https://atlasoficeandfireblog.wordpress.com), 10000×8300, optional) | `assets/world/known-world-atlas.jpg` | (same) |
 | *King's Landing* painted map + heightmap | `assets/sites/kingsLanding/` | `npm run analyze` |
 | *The True Winterfell SE* (Nexus Mods #94816), extracted | `assets/sites/winterfell/mod/` | `npm run winterfell:collect` (needs Skyrim SE) then `npm run winterfell` |
 
-Without the Winterfell data the app falls back to a procedural Winterfell; the globe and King's Landing need their sources.
+Without the Winterfell data the app falls back to a procedural Winterfell; King's Landing needs its sources.
+
+### Vector data
+
+The vector map is built from the SVG maps in `assets/world/svg/` (`Location_map_Known_world.svg` and `Locator_map_Dorne_in_Westeros.svg` from the *Known World* series by [Abjiklam](https://commons.wikimedia.org/), CC BY-NC-SA 4.0 — credit them wherever the map is shown): `node tools/world/svg-vector.mjs` writes [src/vector-world.json](src/vector-world.json) (land, lakes, rivers, regions in plain lat/lon degrees, which is the project's canonical frame). Terrain polygons in [src/terrain.json](src/terrain.json) were classified from the political atlas by colour (`tools/world/terrain-classify.mjs`) and vectorised in QGIS (`tools/world/terrain-vectorize.py`). `tools/world/align-canon.mjs` registered the older raster frame to the SVG frame (`CANON` in [tools/world/georef.mjs](tools/world/georef.mjs)).
 
 ### Places and alignment
 
-[tools/world/places.raw.txt](tools/world/places.raw.txt) lists every named place with its position on the painted map and/or the political atlas. `npm run places` fits the consensus georeference and regenerates [src/world-data.ts](src/world-data.ts); `node tools/world/align-atlas.mjs` re-registers the political atlas to the outline map. Add a place by adding a line.
+[tools/world/places.raw.txt](tools/world/places.raw.txt) lists every named place with its position on the painted map and/or the political atlas. `npm run places` places them by the consensus georeference ([tools/world/georef.mjs](tools/world/georef.mjs)) and regenerates [src/world-data.ts](src/world-data.ts). Add a place by adding a line.
 
 ### Deploy
 
@@ -61,21 +62,21 @@ npx vercel deploy --prod
 
 ```text
 src/
-  config.ts            planet size, georeferencing, sites — the single source of truth for scale
+  config.ts            planet size and the 3D places — the single source of truth for scale
   geo.ts               lat/lon ↔ planet ↔ local site frames
-  globe/               the planet view
+  globe/               the planet: vector terrain and region layers, place names
   sites/               one folder per zoomable place (+ shared SiteScene, primitives)
-  ui/                  panel, search, compass & navigation
+  ui/                  compass, zoom, scale bar & coordinates
 tools/
-  world/               globe textures, map alignment
+  world/               vector map and place data pipeline
   sites/<site>/        per-site data pipelines (image analysis, Skyrim ESM/NIF/BSA/DDS readers…)
 ```
 
-Three.js + Vite + TypeScript, no framework. Each site is its own local scene in metres; zooming close to a globe marker hands the camera over seamlessly.
+Three.js + Vite + TypeScript, no framework. Each site is its own local scene in metres; zooming close to a 3D place on the globe hands the camera over seamlessly.
 
 ## Add a place
 
-1. Add it to `SITES` in [`src/config.ts`](src/config.ts) with its pixel position on the Known World map.
+1. Add it to `SITES` in [`src/config.ts`](src/config.ts) and to [tools/world/places.raw.txt](tools/world/places.raw.txt) (then `npm run places`): it is an ordinary place on the map.
 2. Write a view in `src/sites/<id>/` using `createSiteScene` (see Winterfell for the shortest example).
 3. Register it in [`src/sites/index.ts`](src/sites/index.ts).
 4. If it needs data, add a pipeline under `tools/sites/<id>/` — never commit the copyrighted inputs.

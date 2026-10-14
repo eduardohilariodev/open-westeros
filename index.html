@@ -10,7 +10,10 @@
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body data-mode="globe" class="drawer-open">
+  <div id="loading"><h1>The Known World</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
   <div id="globeLabels" class="labels"></div>
+  <div id="loadHint" hidden>Loading 3D models…</div>
+  <div id="info" class="card" hidden><button class="close" aria-label="Close">×</button><div class="kind"></div><h3></h3><p></p><a target="_blank" rel="noopener">Read more on A Wiki of Ice and Fire →</a></div>
 
   <!-- top left: search pill + drawer -->
   <div id="side">
@@ -25,45 +28,41 @@
     <div id="ui" class="card">
       <div class="globe-only">
         <h1>The Known World</h1>
-        <p class="muted">A planet ~8% larger than Earth (radius 6,915 km). Drag to spin, scroll to zoom. Zoom into a marked place to enter it.</p>
-        <div id="siteButtons"></div>
-        <h2>Map style</h2>
-        <label><input type="radio" name="globeStyle" value="outline" checked /> Atlas outline</label>
-        <label><input type="radio" name="globeStyle" value="atlas" /> Political atlas</label>
-        <label><input type="radio" name="globeStyle" value="painted" /> Painted map</label>
+        <p class="muted">A planet ~8% larger than Earth (radius 6,915 km). Drag to spin, scroll to zoom. Zoom into King's Landing or Winterfell to see them in 3D.</p>
+        <button id="editStart" class="pill" hidden>✎ Edit names</button>
         <h2>Legend</h2>
         <label><input id="showNames" type="checkbox" checked /> Place names</label>
+        <label><input id="showBorders" type="checkbox" checked /> Region borders (click a region)</label>
         <div class="legend-actions"><button id="legendAll" type="button">All</button><button id="legendNone" type="button">None</button></div>
         <div id="legend"></div>
       </div>
-      <div class="site-only">
-        <h1 id="siteName"></h1>
-        <button id="tour" class="pill">▶ Tour</button>
-        <h2>Show</h2>
-        <div id="layers"></div>
-        <h2>Labels</h2>
-        <div id="labelKinds"></div>
-        <div id="terrainControls">
-          <h2>Ground</h2>
-          <label><input type="radio" name="ground" value="painting" checked /> Painted map</label>
-          <label><input type="radio" name="ground" value="clean" /> Clean terrain</label>
-          <h2>Vertical exaggeration <span id="exv">1.5×</span></h2>
-          <input id="ex" type="range" min="1" max="4" step="0.1" value="1.5" />
+      <div id="editPanel">
+        <h1>Edit names</h1>
+        <p class="muted">Drag a name to move it, on the map style you're viewing. Click one to select it.</p>
+        <h2>Selected</h2>
+        <p id="editSel">Nothing selected</p>
+        <h2>Rotate (water lettering)</h2>
+        <div class="rot-row">
+          <button id="rotL" type="button" title="Counter-clockwise (Q)">⟲</button>
+          <input id="rot" type="range" min="0" max="359" step="1" value="0" />
+          <button id="rotR" type="button" title="Clockwise (E)">⟳</button>
+          <span id="rotV">0°</span>
         </div>
-        <h2>Sun</h2>
-        <input id="sun" type="range" min="0" max="360" step="1" value="220" />
-        <p class="hint">Drag: pan · Right-drag / Ctrl-drag: rotate &amp; tilt · Wheel: zoom<br />WASD fly · Q/E down/up · Shift faster</p>
+        <p class="hint">Q / E turn 5° (Shift: 1°).</p>
+        <h2>Size</h2>
+        <div class="rot-row"><input id="size" type="range" min="0.2" max="5" step="0.05" value="1" /><span id="sizeV">1×</span></div>
+        <button id="editReset" class="pill" type="button">Reset this name</button>
+        <h2>Save</h2>
+        <button id="editSave" class="pill" type="button">Save to src/place-edits.ts</button>
+        <p id="editMsg" class="hint">Ctrl+S also saves.</p>
+        <button id="editDone" class="pill" type="button">Done</button>
       </div>
     </div>
   </div>
 
-  <div id="info" class="card site-only"></div>
 
   <!-- bottom right: navigation -->
   <div id="nav">
-    <button id="toGlobe" class="fab site-only" title="Back to the globe" aria-label="Back to the globe">
-      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 17.9A8 8 0 0 1 4.1 11H7c.2 3.2 1.6 6.4 4 8.9zm0-17.8C8.6 4.6 7.2 7.8 7 11H4.1A8 8 0 0 1 11 2.1zm2 0A8 8 0 0 1 19.9 11H17c-.2-3.2-1.6-6.4-4-8.9zm0 17.8c2.4-2.5 3.8-5.7 4-8.9h2.9a8 8 0 0 1-6.9 8.9zM9 11c.2-2.8 1.3-5.4 3-7.5 1.7 2.1 2.8 4.7 3 7.5H9zm0 2h6c-.2 2.8-1.3 5.4-3 7.5-1.7-2.1-2.8-4.7-3-7.5z" /></svg>
-    </button>
     <button id="homeBtn" class="fab" title="Reset view" aria-label="Reset view">
       <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3h-2.1A7 7 0 0 0 13 5.1V3h-2v2.1A7 7 0 0 0 5.1 11H3v2h2.1a7 7 0 0 0 5.9 5.9V21h2v-2.1a7 7 0 0 0 5.9-5.9H21v-2zm-9 6a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" /></svg>
     </button>

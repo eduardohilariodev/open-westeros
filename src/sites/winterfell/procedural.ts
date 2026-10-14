@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createSiteScene, type Place, type SiteView } from '../SiteScene';
 import { BOX, CONE, CYL, ROOF, TREE, instanced, mat, part, type Instance } from '../primitives';
-import { LORE, OVERVIEW } from './lore';
+import { LORE } from './lore';
 
 // Fallback Winterfell when the mod import (tools/sites/winterfell) hasn't been run: a procedural approximation
 // of the book layout. Frame: metres, x = east, z = south, origin at the castle centre, flat ground at y = 0.
@@ -156,11 +156,6 @@ export async function createProceduralWinterfellView(renderer: THREE.WebGLRender
   site.addPlaces(places);
 
   return Object.assign(site, {
-    places,
-    layers: [['Walls & gates', walls], ['Castle buildings', castle], ['Godswood', godswood], ['Winter town', town]] as [string, THREE.Object3D][],
-    labelGroups: [['Buildings', ['keep', 'hall', 'tower', 'place']], ['Gates', ['gate']], ['Grounds & town', ['wood', 'water', 'district', 'road']]] as [string, string[]][],
-    tour: ['South Gate', 'Great Hall', 'Great Keep', 'Broken Tower', 'First Keep', 'Heart Tree', 'Godswood', 'Glass Gardens', 'Winter Town'],
-    overview: OVERVIEW,
     lore: LORE,
     flyTo(p: Place) {
       site.flyToPoint(new THREE.Vector3(p.pos[0], p.pos[2] * 0.4, p.pos[1]), Math.max(160, (p.radius || 40) * 4));

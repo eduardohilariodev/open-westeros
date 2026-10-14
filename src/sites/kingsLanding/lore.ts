@@ -1,9 +1,4 @@
 // Place descriptions, summarised from A Wiki of Ice and Fire (awoiaf.westeros.org/index.php/King's_Landing).
-export const OVERVIEW =
-  "Capital of the Seven Kingdoms, on the east coast of Westeros where the Blackwater Rush meets Blackwater Bay. " +
-  'Founded by Aegon I Targaryen in 2 BC, it is the most populous city in Westeros (about 500,000 people), walled, ' +
-  'guarded by the gold cloaks of the City Watch, and famous for its stench. It covers three hills named for Aegon and his sisters.';
-
 export const LORE: Record<string, string> = {
   'The Red Keep': "The royal castle atop Aegon's High Hill in the south-east corner of the city, seat of the Iron Throne. It replaced Aegon's first wood-and-earth Aegonfort and was completed under Maegor the Cruel. Inside stand Maegor's Holdfast and the Tower of the Hand.",
   'Great Sept of Baelor': "The holiest sept of the Faith of the Seven, crowning Visenya's Hill with marble walls and seven crystal towers. Begun by Baelor the Blessed and finished after his death; the Most Devout convene there with the High Septon.",

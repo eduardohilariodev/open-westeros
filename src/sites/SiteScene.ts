@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { KNOWN_WORLD, METRES_PER_DEGREE, SITE_SWITCH, SITES, type SiteId } from '../config';
-import { metresPerMapPixel, siteLatLon } from '../geo';
+import { METRES_PER_DEGREE, SITE_SWITCH, type SiteId } from '../config';
+import { siteLatLon } from '../geo';
 import type { Nav } from '../ui/nav';
 
 // Everything a zoomable site shares: local frame in metres (x = east, y = up, z = south, origin at the site),
@@ -12,34 +12,8 @@ import type { Nav } from '../ui/nav';
 /** A named, clickable place. pos = [x, z, groundHeight] in the site frame. */
 export type Place = { name: string; kind: string; pos: [number, number, number]; radius?: number };
 
-export interface SiteView {
-  id: SiteId;
-  name: string;
-  scene: THREE.Scene;
-  camera: THREE.PerspectiveCamera;
-  controls: MapControls;
-  labels: CSS2DRenderer;
-  nav: Nav;
-  places: Place[];
-  labelObjs: { obj: CSS2DObject; place: Place }[];
-  /** Filter checkboxes: [label, object]. */
-  layers: [string, THREE.Object3D][];
-  /** Label filter checkboxes: [label, kinds]. */
-  labelGroups: [string, string[]][];
-  tour: string[];
-  overview: string;
-  lore: Record<string, string>;
-  onPick: (p: Place) => void;
-  onUserMove: () => void;
-  flyTo(p: Place): void;
-  flyHome(): void;
-  flyOut(): void;
-  enter(position: THREE.Vector3, target: THREE.Vector3): void;
-  update(dt: number, now: number): void;
-  setSun(deg: number): void;
-  setGround?(kind: 'painting' | 'clean'): void;
-  setExaggeration?(v: number): void;
-}
+/** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the camera goes for a place. */
+export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; flyTo(p: Place): void };
 
 type Options = {
   id: SiteId;
@@ -51,11 +25,11 @@ type Options = {
 };
 
 export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLElement, o: Options) {
+  // No background: this scene is drawn over the globe's (same depth buffer), so it needs the globe camera's fov and far plane.
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(o.sky);
   const fog = new THREE.Fog(o.sky, 4500, 15000);
   scene.fog = fog;
-  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 1, 3_000_000);
+  const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 3e8);
   camera.position.copy(o.home.position);
   const controls = new MapControls(camera, renderer.domElement);
   controls.target.copy(o.home.target);
@@ -73,24 +47,19 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e, near: 10, far: e * 5 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 1;
+  sun.shadow.autoUpdate = false; // the sun and the models are static: render the shadow map once, not every frame
   scene.add(sun, sun.target);
   const setSun = (deg: number) => {
     const a = THREE.MathUtils.degToRad(deg);
     sun.position.set(Math.cos(a), 0.8, Math.sin(a)).multiplyScalar(e * 1.5);
+    sun.shadow.needsUpdate = true;
   };
   setSun(220);
 
-  // The Known World map around the site at true scale (its own icon painted out by tools/world/prepare.mjs).
-  const tex = new THREE.TextureLoader().load(`/world/surroundings-${o.id}.jpg`);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const size = 2 * KNOWN_WORLD.surroundings * metresPerMapPixel;
-  const surroundings = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: tex }));
-  surroundings.position.y = -7;
-  scene.add(surroundings);
-
+  // The ground around the site is the globe's own map, drawn in the same frame (main.ts), so this scene has no ground of its own.
+  const origin = siteLatLon(o.id), cosLat = Math.cos(THREE.MathUtils.degToRad(origin.lat));
   // ---------- labels ----------
-  const labelObjs: SiteView['labelObjs'] = [];
+  const labelObjs: { obj: CSS2DObject; place: Place }[] = [];
   function addPlaces(places: Place[]) {
     for (const p of places) {
       const el = document.createElement('div');
@@ -117,14 +86,14 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     dir.normalize();
     animateTo(target.clone().addScaledVector(dir, dist * 0.8).setY(target.y + dist * 0.55), target);
   }
-  controls.addEventListener('start', () => { anim = orbit = null; site.onUserMove(); });
+  controls.addEventListener('start', () => { anim = orbit = null; });
 
   // ---------- WASD flight ----------
   const keys = new Set<string>();
   addEventListener('keydown', (ev) => {
     if (!controls.enabled || (ev.target as HTMLElement).tagName === 'INPUT') return;
     keys.add(ev.code);
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(ev.code)) { anim = orbit = null; site.onUserMove(); }
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(ev.code)) anim = orbit = null;
   });
   addEventListener('keyup', (ev) => keys.delete(ev.code));
   addEventListener('blur', () => keys.clear());
@@ -151,7 +120,6 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       d1: THREE.MathUtils.clamp(d1, controls.minDistance, controls.maxDistance),
     };
   };
-  const origin = siteLatLon(o.id), cosLat = Math.cos(THREE.MathUtils.degToRad(origin.lat));
   const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
   const offset = new THREE.Vector3(), sph = new THREE.Spherical();
   const nav: Nav = {
@@ -173,13 +141,9 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
 
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const site = {
-    id: o.id,
-    name: SITES[o.id].name,
     scene, camera, controls, labels, labelObjs, addPlaces, flyToPoint, setSun, nav,
     onPick: (_p: Place) => {},
-    onUserMove: () => {},
     flyHome: () => animateTo(o.home.position.clone(), o.home.target.clone(), 3500),
-    flyOut: () => animateTo(new THREE.Vector3(0, SITE_SWITCH.exitDistance * 1.15, 50_000), new THREE.Vector3(), 2500),
     enter(position: THREE.Vector3, target: THREE.Vector3) {
       anim = orbit = null;
       camera.position.copy(position);
@@ -204,9 +168,13 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       if (camera.position.y < floor) camera.position.y = floor;
       controls.update();
       const d = camera.position.distanceTo(controls.target);
+      site.setFog(d);
+      labelsEl.style.visibility = d > o.labelMaxDistance ? 'hidden' : '';
+    },
+    /** Haze that thickens with the camera's distance d, so a high view is not lost in it. */
+    setFog(d: number) {
       fog.near = Math.max(4500, d * 1.5);
       fog.far = Math.max(15000, d * 6);
-      labelsEl.style.visibility = d > o.labelMaxDistance ? 'hidden' : '';
     },
   };
   return site;
