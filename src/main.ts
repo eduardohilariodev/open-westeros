@@ -1,10 +1,14 @@
 import * as THREE from 'three';
+import { inject } from '@vercel/analytics';
 import { SITE_SWITCH, type SiteId } from './config';
 import { createGlobeView, type Card } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { SITE_VIEWS } from './sites';
 import type { SiteView } from './sites/SiteScene';
 import { initNav } from './ui/nav';
+
+// Initialize Vercel Web Analytics
+inject();
 
 // One renderer, several scenes: the planet (planet-centred frame) and one local scene per 3D place.
 // Zooming close to such a place on the globe hands the camera over to its scene, and back.
