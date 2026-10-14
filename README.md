@@ -2,7 +2,7 @@
 
 **A community-built, Google Earth–style 3D atlas of the Known World.** Spin the planet, dive into King's Landing, walk the walls of Winterfell — and help build the rest.
 
-**Live preview:** [open-westeros.vercel.app](https://open-westeros.vercel.app) — private for now (Vercel login required) while we sort out how to show the copyrighted source art publicly.
+**Live preview:** [open-westeros.vercel.app](https://open-westeros.vercel.app) — public.
 
 ## Manifesto
 
@@ -56,7 +56,7 @@ The preview is deployed from a machine that has the generated data — Git pushe
 npx vercel deploy --prod
 ```
 
-[`.vercelignore`](.vercelignore) uploads the code and the generated `public/` data, never the raw sources in `assets/`. The Vercel project keeps Deployment Protection on, so every URL requires a Vercel login.
+[`.vercelignore`](.vercelignore) uploads the code and the generated `public/` data, never the raw sources in `assets/`. Deployment Protection (SSO) is turned off, so the site is public.
 
 ## How it's built
 

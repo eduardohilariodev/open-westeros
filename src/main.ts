@@ -11,6 +11,7 @@ import { initNav } from './ui/nav';
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.autoClear = false; // the globe's pass clears; the site scene is drawn over it
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -116,7 +117,7 @@ function enterSite(id: SiteId) {
   setActive(id);
 }
 function exitSite(id: SiteId) {
-  globe.enterFromSite(id, sites[id]!.camera.position);
+  globe.followSite(id, sites[id]!.camera);
   setActive(null);
 }
 
@@ -143,20 +144,35 @@ let last = performance.now();
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  // The planet and the nearby site's scene are drawn into one frame with the same camera pose: whoever steers (the globe
+  // controls far away, the site's map controls close up), the other camera follows.
+  let drawn: SiteId | null = active;
   if (!active) {
     globe.update(dt, now);
-    const id = globe.siteInRange();
-    if (id) {
-      if (sites[id]) enterSite(id);
-      else { loadSite(id); $('loadHint').hidden = false; } // keep showing the globe until the scene is ready
-    }
+    const load = globe.siteWithin(SITE_SWITCH.loadDistance);
+    if (load && !sites[load]) loadSite(load);
+    const enter = globe.siteWithin(SITE_SWITCH.enterDistance);
+    if (enter && sites[enter]) { enterSite(enter); drawn = enter; }
+    else drawn = globe.siteWithin(SITE_SWITCH.drawDistance) ?? null;
+    $('loadHint').hidden = !(enter && !sites[enter]);
   } else {
     sites[active]!.update(dt, now);
-    if (sites[active]!.camera.position.length() > SITE_SWITCH.exitDistance) exitSite(active);
+    if (sites[active]!.camera.position.length() > SITE_SWITCH.exitDistance) { exitSite(active); drawn = null; }
+    $('loadHint').hidden = true;
   }
-  if (active) $('loadHint').hidden = true;
+  const site = drawn && sites[drawn];
+  if (site && drawn) {
+    if (active) globe.followSite(drawn, site.camera);
+    else { const c = globe.siteCamera(drawn); site.camera.position.copy(c.position); site.camera.quaternion.copy(c.quaternion); }
+  }
+  globe.setSky();
+  renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it, depth-tested against it
+  if (site) {
+    site.scene.fog!.color.copy(globe.scene.background as THREE.Color);
+    if (!active) site.setFog(site.camera.position.length());
+    renderer.render(site.scene, site.camera);
+  }
   const v = active ? sites[active]! : globe;
-  renderer.render(v.scene, v.camera);
   v.labels.render(v.scene, v.camera);
   nav.update();
   if (!ready) { // first frame is on screen: reveal the world
