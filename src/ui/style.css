@@ -168,3 +168,4 @@ body.editing .globe-place { cursor: move; }
 
 #loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #0b0d12cc; color: #e8e4d8; font-size: 13px; }
 #loadHint[hidden] { display: none; }
+#status .credit a { color: inherit; text-decoration: underline; }
