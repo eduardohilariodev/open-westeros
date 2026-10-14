@@ -1,0 +1,3 @@
+#!/bin/sh
+# Block pushes (and so git-triggered prod deploys) unless the build passes.
+npm run build >/dev/null || { echo 'build failed: push aborted'; exit 1; }
