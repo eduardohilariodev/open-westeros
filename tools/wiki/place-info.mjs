@@ -30,13 +30,16 @@ export function parse(md) {
   const summary = (start < 0 ? [] : paras.slice(start)).map(plain).join('\n\n');
   // The lead's first picture (the infobox's, else a location map); the wiki's "red pog" marker is not one.
   const image = [...lead.matchAll(/!\[[^\]]*\]\((https:\/\/awoiaf\.westeros\.org\/thumb\.php\?[^)\s]+)\)/g)].map((m) => m[1]).find((u) => !/f=Red_pog/.test(u));
-  return { title, summary, facts, image };
+  // The gallery: every picture in the article (file names for thumb.php), not icons or the red pog; document order, no repeats.
+  const images = [...new Set([...body.matchAll(/!\[[^\]]*\]\(https:\/\/awoiaf\.westeros\.org\/thumb\.php\?f=([^&)\s]+)&width=(\d+)\)/g)]
+    .filter((m) => +m[2] >= 200 && !/^Red_pog/.test(m[1])).map((m) => m[1]))].slice(0, 40);
+  return { title, summary, facts, image, images };
 }
 
 const out = {};
 for (const [name, file] of Object.entries(places)) {
-  const { title, summary, facts, image } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
-  out[name] = { wiki: title, ...(image && { image }), ...(summary && { summary }), ...(facts.length && { facts }) };
+  const { title, summary, facts, image, images } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
+  out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(summary && { summary }), ...(facts.length && { facts }) };
 }
 writeFileSync('src/place-wiki.json', JSON.stringify(out));
 console.log(`${Object.keys(out).length} places, ${Object.values(out).filter((p) => !p.summary).length} without a summary, ${Object.values(out).filter((p) => !p.image).length} without an image`);

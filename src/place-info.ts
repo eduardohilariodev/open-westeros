@@ -5,6 +5,8 @@ import wiki from './place-wiki.json';
 export interface PlaceInfo {
   /** Photo or art at the top of the panel (URL or path under public/). */
   image?: string;
+  /** The gallery: file names of the article's pictures, as in awoiaf's thumb.php?f=. */
+  images?: string[];
   summary?: string;
   /** Rows under the summary, [label, value]: ['Ruler', 'House Stark'], ['Founded', 'Age of Heroes']. */
   facts?: [string, string][];

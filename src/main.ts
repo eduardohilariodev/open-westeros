@@ -51,9 +51,55 @@ const showCard = (c: Card) => {
     li.firstChild!.textContent = k; li.lastChild!.textContent = v;
     return li;
   }));
+  files = info.images ?? [];
+  q('.photos').hidden = !files.length;
+  if (files.length) { q<HTMLImageElement>('.tile img').src = thumb(files[0], 400); q('.tile span').textContent = `Images (${files.length})`; }
   place.scrollTop = 0;
 };
 q<HTMLImageElement>('.hero').onerror = () => { q('.hero').hidden = true; }; // hot-linked: hide it if it fails
+
+// Gallery: the place's pictures from its wiki article (file names in place-info), opened by the panel's picture or its
+// Images tile. thumb.php resizes by width but refuses to upscale (400), so the big picture tries the widest first and
+// steps down. Arrows or ←/→ browse, the strip jumps, click outside the picture or Esc closes.
+let files: string[] = [], at = 0, widths: number[] = [];
+const thumb = (f: string, w: number) => `https://awoiaf.westeros.org/thumb.php?f=${f}&width=${w}`;
+const viewer = $('viewer'), big = viewer.querySelector<HTMLImageElement>('.big')!, strip = viewer.querySelector<HTMLElement>('.strip')!;
+const tryWidth = () => { big.src = thumb(files[at], widths.shift()!); };
+big.onerror = () => { if (widths.length) tryWidth(); };
+const showImage = (i: number) => {
+  at = (i + files.length) % files.length;
+  widths = [1600, 1200, 800, 400, 200];
+  tryWidth();
+  [...strip.children].forEach((b, j) => b.classList.toggle('on', j === at));
+  strip.children[at].scrollIntoView({ inline: 'center', block: 'nearest' });
+};
+const openGallery = (i: number) => {
+  if (!files.length) return;
+  const many = files.length > 1;
+  strip.hidden = !many;
+  viewer.querySelectorAll<HTMLElement>('.nav').forEach((b) => (b.hidden = !many));
+  strip.replaceChildren(...files.map((f, j) => {
+    const b = document.createElement('button'), img = document.createElement('img');
+    img.src = thumb(f, 200); img.loading = 'lazy'; img.alt = '';
+    b.append(img); b.onclick = () => showImage(j);
+    return b;
+  }));
+  viewer.hidden = false;
+  showImage(i);
+};
+const closeGallery = () => { viewer.hidden = true; big.removeAttribute('src'); };
+q<HTMLImageElement>('.hero').onclick = (e) => openGallery(Math.max(0, files.findIndex((f) => (e.currentTarget as HTMLImageElement).src.includes(`f=${f}&`))));
+q('.tile').onclick = () => openGallery(0);
+viewer.onclick = (e) => { if (e.target === viewer) closeGallery(); };
+viewer.querySelector<HTMLElement>('.close')!.onclick = closeGallery;
+viewer.querySelector<HTMLElement>('.prev')!.onclick = () => showImage(at - 1);
+viewer.querySelector<HTMLElement>('.next')!.onclick = () => showImage(at + 1);
+addEventListener('keydown', (e) => {
+  if (viewer.hidden) return;
+  if (e.key === 'Escape') closeGallery();
+  else if (e.key === 'ArrowLeft') showImage(at - 1);
+  else if (e.key === 'ArrowRight') showImage(at + 1);
+});
 const globe = createGlobeView(renderer, $('globeLabels'), showCard);
 q('.close').onclick = () => globe.deselect();
 

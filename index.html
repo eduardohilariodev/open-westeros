@@ -12,6 +12,13 @@
 <body data-mode="globe" class="drawer-open">
   <div id="loading"><h1>The Known World</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
   <div id="globeLabels" class="labels"></div>
+  <div id="viewer" hidden>
+    <button class="close" aria-label="Close" title="Close (Esc)">×</button>
+    <img class="big" alt="" />
+    <button class="nav prev" aria-label="Previous" title="Previous (←)">‹</button>
+    <button class="nav next" aria-label="Next" title="Next (→)">›</button>
+    <div class="strip"></div>
+  </div>
   <div id="loadHint" hidden>Loading 3D models…</div>
 
   <!-- top left: search pill + drawer -->
@@ -36,6 +43,10 @@
         </div>
         <p class="summary"></p>
         <ul class="facts"></ul>
+        <div class="photos" hidden>
+          <h2>Images</h2>
+          <button class="tile" type="button"><img alt="" /><span></span></button>
+        </div>
         <p class="credit" hidden>From <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.</p>
       </div>
     </div>
