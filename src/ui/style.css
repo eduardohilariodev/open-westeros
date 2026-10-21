@@ -107,7 +107,7 @@ body:not(.drawer-open) #ui { display: none; }
 .lbl.wood { color: #b9f0a8; }
 
 /* names of places on the maps; larger kinds are drawn bigger. Dark lettering with a white stroke, readable on every map style */
-.globe-place { position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #1d2f2d; font: 400 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 1.5px #f3ead0; text-shadow: 0 1px 2px #0a2a2899, 0 3px 7px #0a2a28b3; paint-order: stroke fill; }
+.globe-place { position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #1d2f2d; font: 400 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 3px #f3ead0; paint-order: stroke fill; }
 /* a point label's box is its symbol, centred on the place; the name sits to its right */
 .globe-place:not(.globe-area) { width: 13px; height: 13px; }
 .globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: 0 -50%; text-align: left; }
