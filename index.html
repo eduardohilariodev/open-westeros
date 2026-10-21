@@ -13,7 +13,6 @@
   <div id="loading"><h1>The Known World</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
   <div id="globeLabels" class="labels"></div>
   <div id="loadHint" hidden>Loading 3D models…</div>
-  <div id="info" class="card" hidden><button class="close" aria-label="Close">×</button><div class="kind"></div><h3></h3><p></p><a target="_blank" rel="noopener">Read more on A Wiki of Ice and Fire →</a></div>
 
   <!-- top left: search pill + drawer -->
   <div id="side">
@@ -25,6 +24,21 @@
       <datalist id="places"></datalist>
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
     </div>
+    <!-- place panel, like Google Maps: shown instead of the drawer while a place is open -->
+    <div id="place" class="card" hidden>
+      <img class="hero" alt="" hidden />
+      <button class="close" aria-label="Close" title="Close">×</button>
+      <div class="body">
+        <h1></h1>
+        <div class="kind"></div>
+        <div class="actions">
+          <a class="act" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" /></svg></span>Wiki</a>
+        </div>
+        <p class="summary"></p>
+        <ul class="facts"></ul>
+        <p class="credit" hidden>From <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.</p>
+      </div>
+    </div>
     <div id="ui" class="card">
       <div class="globe-only">
         <h1>The Known World</h1>
@@ -32,7 +46,8 @@
         <button id="editStart" class="pill" hidden>✎ Edit names</button>
         <h2>Legend</h2>
         <label><input id="showNames" type="checkbox" checked /> Place names</label>
-        <label><input id="showBorders" type="checkbox" checked /> Region borders (click a region)</label>
+        <label><input id="showBorders" type="checkbox" checked /> Region borders (click a region's name)</label>
+        <label><input id="showRelief" type="checkbox" checked /> Terrain relief (off: flat map)</label>
         <div class="legend-actions"><button id="legendAll" type="button">All</button><button id="legendNone" type="button">None</button></div>
         <div id="legend"></div>
       </div>
@@ -85,7 +100,7 @@
     <div class="scale"><span id="scaleMi"></span><span id="scaleKm"></span></div>
     <span id="coords"></span>
     <span id="altitude"></span>
-    <span class="credit">Maps © George R. R. Martin · Winterfell: Shadiversity / The True Winterfell SE · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <span class="credit">Maps © George R. R. Martin · Winterfell: Shadiversity / The True Winterfell SE · Icons: <a href="https://game-icons.net/" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0) · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

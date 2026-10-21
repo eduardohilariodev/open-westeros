@@ -13,6 +13,17 @@ export const PLANET = {
 /** Metres per degree of latitude (~120.7 km, ~75 mi). */
 export const METRES_PER_DEGREE = (2 * Math.PI * PLANET.radius) / 360;
 
+// The source maps are flat art drawn at one scale everywhere, and the tools read them as plate carrée degrees. On the
+// sphere that shrinks east-west distances by cos(lat) (the North came out half as wide as drawn). Reading the art as a
+// sinusoidal projection instead keeps every parallel at its drawn length. Centred on King's Landing's meridian.
+// STRETCH tunes it: 1 = full sinusoidal (true widths, but far from the meridian shapes shear into a fan), 0 = plate carrée.
+const MERIDIAN = -7.81, STRETCH = 0.75;
+const k = (lat: number) => Math.cos((lat * Math.PI) / 180) ** STRETCH;
+/** Plate-carrée lon (as read off the flat map) -> lon on the globe. Latitude is unchanged. */
+export const unflatten = (lon: number, lat: number) => MERIDIAN + (lon - MERIDIAN) / k(lat);
+/** Inverse of unflatten. */
+export const flatten = (lon: number, lat: number) => MERIDIAN + (lon - MERIDIAN) * k(lat);
+
 // Places with a 3D scene of their own. They are ordinary places on the map (matched by name in src/world-data.ts, with the
 // kind given here) that load their scene when the camera comes close.
 export const SITES = {

@@ -5,8 +5,9 @@ import { PLANET, SITE_SWITCH, SITES, type SiteId } from '../config';
 import { eastNorth, enuFrame, siteLatLon, toVector } from '../geo';
 import { PLACE_EDITS, type PlaceEdit } from '../place-edits';
 import { PLACES } from '../world-data';
-import { PLACE_ICONS } from './placeIcons';
-import { createRegions, regionAt, regionNamed, type Region } from './regions';
+import { PLACE_ICONS, PLACE_KINDS } from './placeIcons';
+import { createRegions, regionAt, regionNamed } from './regions';
+import { createRelief } from './relief';
 import { createTerrain, TERRAIN_SEA } from './terrain';
 
 // Planet-centred frame, metres. The vector map (terrain.ts, regions.ts) is draped as lat/lon patches over an ocean sphere.
@@ -15,12 +16,13 @@ const MIN_ALT = 150_000, MAX_ALT = 40_000_000;
 const rad = THREE.MathUtils.degToRad;
 
 export type GlobeView = ReturnType<typeof createGlobeView>;
-/** What a card shows: a region, a landmark of a 3D place. `null` hides it. */
-export type Card = { kind: string; name: string; text?: string } | null;
+/** What the place panel shows: a place on the map, a landmark of a 3D place. `null` hides it. */
+export type Card = { kind: string; name: string; text?: string; lat?: number; lon?: number; region?: string } | null;
+const KIND_NAME = Object.fromEntries(PLACE_KINDS.map(([k, , one]) => [k, one]));
 
 export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLElement, showCard: (c: Card) => void) {
   const scene = new THREE.Scene();
-  const SPACE = new THREE.Color(0x04060c), SKY = new THREE.Color(0xbcd0de);
+  const SPACE = new THREE.Color(0x041011), SKY = new THREE.Color(0xc4d3c8);
   scene.background = SPACE.clone();
   const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 100, 3e8);
   const HOME = { dir: toVector(30, 27, 1), alt: 22_000_000 }; // over the Known World
@@ -32,7 +34,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const labels = new CSS2DRenderer({ element: labelsEl });
 
   // ---------- planet ----------
-  const ocean = new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshLambertMaterial({ color: TERRAIN_SEA }));
+  const ocean = new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false }));
   const atmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(R * 1.035, 96, 48),
     new THREE.ShaderMaterial({
@@ -51,7 +53,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         void main() {
           #include <logdepthbuf_fragment>
           float rim = pow(1.0 - abs(dot(vN, vV)), 2.5);
-          gl_FragColor = vec4(0.45, 0.65, 1.0, 1.0) * rim * 1.4;
+          gl_FragColor = vec4(0.3, 0.65, 0.6, 1.0) * rim * 0.9;
         }`,
     }),
   );
@@ -59,11 +61,14 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     const p = new Float32Array(6000 * 3), v = new THREE.Vector3();
     for (let i = 0; i < 6000; i++) v.randomDirection().multiplyScalar(2e8).toArray(p, i * 3);
     const g = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p, 3));
-    return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false }));
+    return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xf0e2b8, size: 1.6, sizeAttenuation: false }));
   })();
   const headlight = new THREE.DirectionalLight(0xffffff, 1.6);
   const regions = createRegions(R), terrain = createTerrain(R);
-  scene.add(ocean, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
+  const relief = createRelief(terrain.fills, terrain.strokes, ocean, terrain.rivers); // shaded canon relief; off = the flat parchment map
+  relief.setEnabled(true);
+  scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r); // the relief's detail follows the camera drawn
+  scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
   // ---------- sites: ordinary places on the map whose scene loads when the camera comes close ----------
   const ids = Object.keys(SITES) as SiteId[];
@@ -78,20 +83,31 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   })) as Record<SiteId, THREE.Quaternion>;
 
   // ---------- place names ----------
-  // From the maps (src/world-data.ts). Each kind is shown while the camera is below a height, so the screen only holds
-  // what is readable at that zoom, and only on the near side of the planet. [shown below, fly-to height], metres.
+  // From the maps (src/world-data.ts). Each kind has a height band, so the screen only holds what is readable at that
+  // zoom, and only on the near side of the planet: [shown below, fly-to height, hidden below], metres. Big lettering
+  // (oceans, regions) gives way to the places inside it once you are well within it, like Google Maps.
   // The whole Known World is ~17,000 km across; at 22,000 km up it all fits the screen, at 3,000 km about Westeros-and-a-half.
-  const LOD: Record<string, [number, number]> = {
-    ocean: [30_000_000, 8_000_000], region: [6_000_000, 3_500_000], city: [3_500_000, 900_000], capital: [4_000_000, 700_000],
+  const LOD: Record<string, [number, number, number?]> = {
+    continent: [MAX_ALT * 2, 12_000_000, 6_000_000], ocean: [30_000_000, 8_000_000, 500_000], region: [6_000_000, 3_500_000, 500_000], city: [3_500_000, 900_000], capital: [4_000_000, 700_000],
     island: [3_000_000, 1_300_000], mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000],
     sea: [3_500_000, 1_500_000], lake: [1_600_000, 1_000_000], river: [1_600_000, 1_400_000],
     castle: [1_200_000, 550_000], town: [1_200_000, 550_000], ruin: [1_200_000, 600_000], landmark: [1_500_000, 700_000],
     minor: [700_000, 450_000],
   };
-  const AREA_KINDS = new Set(['ocean', 'sea', 'lake', 'river', 'region']);
+  const AREA_KINDS = new Set(['continent', 'ocean','sea', 'lake', 'river', 'region']);
   // Hand edits (src/place-edits.ts) override the generated positions; `edits` is what edit mode saves back.
   const edits: Record<string, PlaceEdit> = JSON.parse(JSON.stringify(PLACE_EDITS));
   type Gen = (typeof PLACES)[number];
+  /** At most two words a line, not counting "the": "Tower of / the Hand". */
+  const wrap = (name: string) => {
+    let out = '', n = 0;
+    for (const w of name.split(' ')) {
+      if (n === 2) { out += '\n'; n = 0; } else if (out) out += ' ';
+      out += w;
+      if (w.toLowerCase() !== 'the') n++;
+    }
+    return out;
+  };
   const layout = ([, , lat, lon]: Gen, e: PlaceEdit) => ({ up: toVector(...(e.p ?? [lat, lon]), 1), rot: e.rot ?? 0, scale: e.s ?? 1 });
   const places = PLACES.map((g, i) => {
     const [name, kind] = g;
@@ -102,19 +118,44 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     // Regions are just lettering over the area (like Google Maps); everything else gets a symbol on its spot.
     const area = AREA_KINDS.has(kind);
     el.className = `globe-place k-${kind}${area ? ' globe-area' : ''}`;
-    el.innerHTML = `<span></span>${area ? '' : `<svg viewBox="0 0 12 12">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`}`;
-    el.firstElementChild!.textContent = name;
-    el.onclick = () => { if (!editing) view.flyToPlace(i); };
-    if (outline) { // hovering the name lights up its area
-      el.onmouseenter = () => { if (bordersOn && !editing) regions.hover = outline.id; };
-      el.onmouseleave = () => { regions.hover = null; };
-    }
-    const obj = new CSS2DObject(el);
-    if (!area) obj.center.set(0.5, 0); // the symbol, at the bottom of the label, sits on the place
+    el.innerHTML = `<span></span>${area ? '' : `<svg viewBox="0 0 512 512">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`}`;
+    el.firstElementChild!.textContent = area ? name : wrap(name);
+    el.onclick = () => {
+      if (editing) return;
+      if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
+      view.flyToPlace(i);
+    };
+    const obj = new CSS2DObject(el); // centred: a point label's box is just its symbol, the text hangs off its right side
     scene.add(obj);
-    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, nat: 0 };
+    labelsEl.append(el); // in the page from the start, so it can be measured before it is first shown
+    el.style.display = 'none';
+    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, size: [0, 0, 0, 0], offAt: 0 };
   });
   type Place = (typeof places)[number];
+  /** [symbol w, h, text w, h] in px, unscaled. All names at once, so it is one reflow; again once the web font is in. */
+  const measure = () => {
+    const els = places.map((p) => (p.obj as CSS2DObject).element), shown = els.map((e) => e.style.display);
+    els.forEach((e) => (e.style.display = ''));
+    places.forEach((p, i) => { const t = els[i].firstElementChild as HTMLElement; p.size = [els[i].offsetWidth, els[i].offsetHeight, t.offsetWidth, t.offsetHeight]; });
+    els.forEach((e, i) => (e.style.display = shown[i]));
+  };
+  measure();
+  document.fonts.ready.then(measure);
+  // When names overlap on screen, the higher tier keeps its spot: continents, oceans, regions, cities, then ever smaller places.
+  const RANK = ['continent', 'ocean', 'region', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'landmark', 'ruin', 'minor'];
+  const ranked = [...places].sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
+  let order = ranked; // ranked, with the pinned place first
+  const pt = new THREE.Vector3();
+  /** A name's box on screen: [left, top, right, bottom], px. */
+  const screenBox = (p: Place) => {
+    pt.copy(p.obj.position).project(camera);
+    const x = ((pt.x + 1) / 2) * innerWidth, y = ((1 - pt.y) / 2) * innerHeight, s = p.scale * p.fit, [w, h, tw, th] = p.size;
+    if (AREA_KINDS.has(p.kind)) return [x - (tw * s) / 2, y - (th * s) / 2, x + (tw * s) / 2, y + (th * s) / 2];
+    const hh = Math.max(h, th * s) / 2;
+    return [x - w / 2, y - hh, x + w / 2 + 4 + tw * s, y + hh]; // text 4px right of the symbol (style.css)
+  };
+  const PAD = 4;
+  const overlaps = (a: number[], b: number[]) => a[0] < b[2] + PAD && b[0] < a[2] + PAD && a[1] < b[3] + PAD && b[1] < a[3] + PAD;
   let editorSync = () => {}; // editorSync: edit mode's selection box, set below
   const put = (p: Place) => {
     p.obj.position.copy(p.up).multiplyScalar(R + 3000);
@@ -126,10 +167,28 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     } else { // scale only the text, so the symbol stays on the spot
       const text = (p.obj as CSS2DObject).element.firstElementChild as HTMLElement;
       const s = p.scale * p.fit;
-      text.style.cssText = s === 1 ? '' : `display:inline-block;transform-origin:50% 100%;transform:scale(${s})`;
+      text.style.cssText = s === 1 ? '' : `display:inline-block;transform-origin:${AREA_KINDS.has(p.kind) ? '50% 50%' : '0 50%'};transform:scale(${s})`;
     }
   };
   places.forEach(put);
+  // map pin on the place a search or a click flew to
+  const pinEl = document.createElement('div');
+  pinEl.className = 'globe-pin';
+  pinEl.innerHTML = `<svg viewBox="0 0 512 512">${PLACE_ICONS.pin}</svg>`;
+  const pin = new CSS2DObject(pinEl);
+  pin.center.set(0.5, 1); // the tip
+  pin.visible = false;
+  scene.add(pin);
+  let pinned: Place | null = null;
+  const setPin = (p: Place | null) => { // the pin takes the place of the place's own symbol
+    if (pinned) (pinned.obj as CSS2DObject).element.classList.remove('pinned');
+    pinned = p;
+    order = p ? [p, ...ranked.filter((q) => q !== p)] : ranked;
+    pin.visible = !!p && !AREA_KINDS.has(p.kind); // area lettering marks itself
+    if (!p) return;
+    pin.position.copy(p.up).multiplyScalar(R + 3000);
+    (p.obj as CSS2DObject).element.classList.add('pinned');
+  };
   let showNames = true;
   const hiddenKinds = new Set<string>();
 
@@ -142,6 +201,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // ---------- altitude zoom ----------
   // Altitude eases toward altGoal in log space, so wheel and buttons zoom smoothly at any height.
   let alt = HOME.alt, altGoal = alt;
+  let tilt = 0; // radians from straight down; alt is then the distance to the ground point at the screen centre
+  let heading = 0; // radians clockwise from north
+  const MAX_TILT = rad(70);
   // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
   let anchor: THREE.Vector3 | null = null;
   const anchorNdc = new THREE.Vector2();
@@ -176,17 +238,24 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   controls.enableRotate = false;
   // Place names sit in a separate overlay, so the same listeners go on both. Capture starts only once the pointer has
   // moved a few px, so a plain click on a name still reaches the name.
-  let grab: THREE.Vector3 | null = null, dragging = false, down = { x: 0, y: 0 };
-  const release = () => (grab = null, dragging = false);
+  // Shift-drag tilts and turns instead, about the ground point at the screen centre: up/down tilts, left/right turns.
+  let grab: THREE.Vector3 | null = null, dragging = false, tilting = false, down = { x: 0, y: 0 };
+  const release = () => (grab = null, dragging = tilting = false);
   for (const t of [el, labelsEl]) {
     t.addEventListener('pointerdown', (e) => {
       if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
       anim = anchor = null;
       down = { x: e.clientX, y: e.clientY };
+      if (e.shiftKey) { tilting = true; el.setPointerCapture(e.pointerId); return; }
       ray.setFromCamera(toNdc(e), camera);
       grab = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
     });
     t.addEventListener('pointermove', (e) => {
+      if (tilting) {
+        tilt = THREE.MathUtils.clamp(tilt - e.movementY * 0.005, 0, MAX_TILT);
+        heading = (heading + e.movementX * 0.005) % (2 * Math.PI);
+        return;
+      }
       if (!grab) return;
       if (!dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 4) return;
       if (!dragging) { dragging = true; el.setPointerCapture(e.pointerId); }
@@ -207,15 +276,15 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const ray = new THREE.Raycaster(), planet = new THREE.Sphere(new THREE.Vector3(), R), hit = new THREE.Vector3();
 
   const view = {
-    scene, camera, controls, labels,
+    scene, camera, controls, labels, ocean, terrain, relief,
     nav: {
-      heading: () => 0, // the globe stays north-up
-      resetNorth() {},
+      heading: () => heading,
+      resetNorth() { heading = 0; },
       zoom: (f: number) => zoomTo(altGoal * f),
       canTilt: false,
-      tilt: () => 0,
+      tilt: () => tilt,
       toggleTilt() {},
-      home: () => flyToDir(HOME.dir, HOME.alt),
+      home: () => (tilt = heading = 0, flyToDir(HOME.dir, HOME.alt)),
       altitude: () => alt,
       pick(ndc: THREE.Vector2) {
         ray.setFromCamera(ndc, camera);
@@ -233,6 +302,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     /** A place with a 3D scene is approached until the scene takes over. */
     flyToPlace(i: number) {
       const p = places[i];
+      setPin(p);
+      const { lat, lon } = latLon(p.up);
+      showCard({ kind: KIND_NAME[p.kind] ?? p.kind, name: p.name, lat, lon, region: p.outline ? undefined : regionAt(lat, lon)?.name });
       flyToDir(p.up, ids.some((id) => SITES[id].name === p.name) ? SITE_SWITCH.enterDistance * 0.8 : p.lod[1]);
     },
     /** The site whose centre the camera is within `d` metres of, if any. */
@@ -248,6 +320,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     followSite(id: SiteId, site: THREE.Camera) {
       const f = frames[id], p = site.position;
       anim = null;
+      tilt = heading = 0;
       camera.position.copy(f.origin).addScaledVector(f.east, p.x).addScaledVector(f.up, p.y).addScaledVector(f.north, -p.z);
       camera.quaternion.copy(frameQuat[id]).multiply(site.quaternion);
       alt = altGoal = Math.max(camera.position.length() - R, 1);
@@ -259,6 +332,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       stars.visible = atmosphere.visible = f === 0;
     },
     update(dt: number, now: number) {
+      if (tilt) { // undo last frame's tilt: back above the ground point at the screen centre
+        camera.updateMatrixWorld();
+        ray.setFromCamera(new THREE.Vector2(), camera);
+        if (ray.ray.intersectSphere(planet, hit)) camera.position.copy(hit);
+      }
       if (anim) {
         const t = Math.min(1, (now - anim.t0) / 3500), e = ease(t);
         camera.position.copy(tmp.copy(anim.d0).lerp(anim.d1, e).normalize());
@@ -268,21 +346,39 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         alt = Math.exp(THREE.MathUtils.lerp(Math.log(alt), Math.log(altGoal), Math.min(1, dt * 8)));
       }
       camera.position.setLength(R + alt);
-      if (anim) anchor = null; else holdAnchor();
       controls.rotateSpeed = THREE.MathUtils.clamp(alt / 10_000_000, 0.02, 1);
       controls.update();
+      if (heading) camera.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(camera.position.clone().normalize(), -heading));
+      if (tilt) { // swing about the ground point below, around the camera's right axis
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), tilt);
+        const g = camera.position.clone().setLength(R);
+        camera.position.sub(g).applyQuaternion(q).add(g);
+        camera.quaternion.premultiply(q);
+      }
+      if (anim) anchor = null; else holdAnchor(); // after the tilt, so the wheel's anchor stays under the cursor
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
-      for (const p of places) {
-        p.obj.visible = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && cam.dot(p.up) > cosLimit;
-        if (!p.obj.visible || !p.outline) continue;
-        // keep a region's name inside its borders: shrink it to the area's on-screen width (at most its natural size)
-        const text = (p.obj as CSS2DObject).element.firstElementChild as HTMLElement;
-        const room = (p.outline.span * rad(1) * R * Math.cos(rad(p.outline.center[0]))) / view.nav.metresPerPixel();
-        const fit = Math.min(1, Math.max(0.1, (0.9 * room) / ((p.nat ||= text.offsetWidth) * p.scale || 1))); // measured once: reading layout every frame forces a reflow
-        if (Math.abs(fit - p.fit) > 0.01) { p.fit = fit; put(p); }
+      camera.updateMatrixWorld();
+      const taken: number[][] = [];
+      // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
+      for (const p of order) {
+        let on = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && alt > (p.lod[2] ?? 0) && cam.dot(p.up) > cosLimit;
+        if (on && p.outline) {
+          // keep a region's name inside its borders: shrink it to the area's on-screen width (at most its natural size)
+          const room = (p.outline.span * rad(1) * R * Math.cos(rad(p.outline.center[0]))) / view.nav.metresPerPixel();
+          const fit = Math.min(1, Math.max(0.1, (0.9 * room) / (p.size[2] * p.scale || 1)));
+          if (Math.abs(fit - p.fit) > 0.01) { p.fit = fit; put(p); }
+        }
+        if (on && !editing) { // edit mode shows every name, so a hidden one can still be picked
+          const b = screenBox(p);
+          on = !taken.some((t) => overlaps(t, b));
+          if (on) taken.push(b);
+        }
+        // fade rather than pop (style.css); the name leaves the page once its fade-out is done
+        (p.obj as CSS2DObject).element.classList.toggle('off', !on);
+        if (on) { p.obj.visible = true; p.offAt = 0; } else if (p.obj.visible && now - (p.offAt ||= now) > 300) p.obj.visible = false;
       }
       editorSync();
     },
@@ -412,31 +508,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     else if (sel?.flat && (k === 'q' || k === 'e')) editor.setRot(sel.rot + (k === 'q' ? 1 : -1) * (e.shiftKey ? 1 : 5));
   });
 
-  // ---------- region borders: hover and click to highlight, like Google Maps ----------
-  let bordersOn = true, clickStart: { x: number; y: number; t: number } | null = null;
-  const select = (r: Region | null) => {
-    regions.selected = r?.id ?? null;
-    showCard(r && { kind: 'Region', name: r.name });
-  };
-  const regionUnder = (e: PointerEvent) => {
-    const p = view.nav.pick(toNdc(e));
-    return p ? regionAt(p.lat, p.lon) : null;
-  };
-  el.addEventListener('pointermove', (e) => {
-    if (!controls.enabled || !bordersOn || editing) return;
-    const r = e.buttons ? null : regionUnder(e); // no hover while dragging the globe
-    regions.hover = r?.id ?? null;
-    el.style.cursor = r ? 'pointer' : '';
-  });
-  el.addEventListener('pointerleave', () => { regions.hover = null; });
-  el.addEventListener('pointerdown', (e) => { clickStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  el.addEventListener('pointerup', (e) => {
-    const d = clickStart; clickStart = null;
-    if (!d || !controls.enabled || !bordersOn || editing) return;
-    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5 && performance.now() - d.t < 500) select(regionUnder(e));
-  });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') select(null); });
-  view.setBordersVisible = (v: boolean) => { bordersOn = v; regions.object.visible = v; if (!v) { regions.hover = null; select(null); } };
+  // ---------- region borders: click the region's name to select it ----------
+  let bordersOn = true;
+  const deselect = () => { regions.selected = null; setPin(null); showCard(null); };
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') deselect(); });
+  view.setBordersVisible = (v: boolean) => { bordersOn = v; regions.object.visible = v; if (!v) regions.selected = null; };
 
-  return Object.assign(view, { editor, deselect: () => select(null) });
+  return Object.assign(view, { editor, deselect });
 }

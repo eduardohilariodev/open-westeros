@@ -5,6 +5,7 @@
 import sharp from 'sharp';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { ATLAS as M, ATLAS_FIT as F } from './georef.mjs';
+import { flatten } from '../../src/config.ts';
 
 const out = process.argv[2] ?? 'assets/world/terrain';
 mkdirSync(out, { recursive: true });
@@ -51,13 +52,14 @@ for (let pass = 0; pass < 2; pass++) {
   cls = next;
 }
 
-// resample onto the lat/lon grid: 0.05 deg cells over the atlas extent
-const STEP = 0.05, LON0 = -28, LON1 = 117, LAT1 = 90, LAT0 = -6;
+// resample onto the lat/lon grid: 0.05 deg cells over the atlas extent once unflattened (wider in the north)
+const STEP = 0.05, LON0 = -70, LON1 = 150, LAT1 = 85, LAT0 = -6;
 const GW = Math.round((LON1 - LON0) / STEP), GH = Math.round((LAT1 - LAT0) / STEP), geo = new Uint8Array(GW * GH);
 for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-  const lon = LON0 + (gx + 0.5) * STEP, lat = LAT1 - (gy + 0.5) * STEP;
+  const lat = LAT1 - (gy + 0.5) * STEP, lon = flatten(LON0 + (gx + 0.5) * STEP, lat);
   const px = Math.round(((lon - F.lon0) / F.lonPerPx) * SCALE), py = Math.round(((lat - F.lat0) / F.latPerPx) * SCALE);
-  geo[gy * GW + gx] = px < 0 || py < 0 || px >= W || py >= H ? 0 : cls[py * W + px];
+  const m = M.crop * SCALE; // the atlas's dashed frame border
+  geo[gy * GW + gx] = px < m || py < m || px >= W - m || py >= H - m ? 0 : cls[py * W + px];
 }
 await sharp(Buffer.from(geo), { raw: { width: GW, height: GH, channels: 1 } }).png().toFile(`${out}/terrain_geo.png`);
 writeFileSync(`${out}/terrain_geo.json`, JSON.stringify({ lon0: LON0, lat1: LAT1, step: STEP, width: GW, height: GH, classes: Object.fromEntries(Object.entries(CLASSES).map(([k, v]) => [k, v.name])) }));

@@ -4,11 +4,11 @@
 # Per class: polygonize -> drop specks (atlas text leaves some) -> smooth -> simplify. Land (everything but sea) is one underlay.
 import json, processing
 from osgeo import gdal, osr
-from qgis.core import QgsVectorLayer, QgsFeature, QgsVectorFileWriter, QgsProject
+from qgis.core import QgsVectorLayer, QgsFeature, QgsVectorFileWriter, QgsProject, QgsWkbTypes
 
 base = 'assets/world/terrain'
 meta = json.load(open(base + '/terrain_geo.json'))
-arr = gdal.Open(base + '/terrain_geo.png').GetRasterBand(1).ReadAsArray()
+src = gdal.Open(base + '/terrain_geo.png'); arr = src.GetRasterBand(1).ReadAsArray(); src = None  # keep src alive while reading
 srs = osr.SpatialReference(); srs.ImportFromEPSG(4326)
 o = gdal.GetDriverByName('GTiff').Create(base + '/terrain_geo.tif', meta['width'], meta['height'], 1, gdal.GDT_Byte, ['COMPRESS=LZW'])
 o.SetGeoTransform((meta['lon0'], meta['step'], 0, meta['lat1'], 0, -meta['step'])); o.SetProjection(srs.ExportToWkt())
@@ -28,7 +28,10 @@ def clean(layer, keep, tol=0.035):
 out = QgsVectorLayer('MultiPolygon?crs=EPSG:4326&field=c:string', 'terrain_vector', 'memory'); pr = out.dataProvider(); feats = []
 def add(layer, name):
     for f in layer.getFeatures():
-        g = f.geometry(); g.convertToMultiType(); nf = QgsFeature(out.fields()); nf.setGeometry(g); nf.setAttributes([name]); feats.append(nf)
+        # snap to the written precision first: rounding collapses thin necks into lines, which the writer would emit as collections
+        g = f.geometry().snappedToGrid(0.01, 0.01).makeValid(); g.convertGeometryCollectionToSubclass(QgsWkbTypes.PolygonGeometry); g.convertToMultiType()
+        if g.isEmpty(): continue
+        nf = QgsFeature(out.fields()); nf.setGeometry(g); nf.setAttributes([name]); feats.append(nf)
 
 land = processing.run('native:extractbyexpression', {'INPUT': poly, 'EXPRESSION': '"c" > 1', 'OUTPUT': T})['OUTPUT']
 land = processing.run('native:dissolve', {'INPUT': land, 'OUTPUT': T})['OUTPUT']

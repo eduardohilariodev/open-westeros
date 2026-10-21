@@ -1,13 +1,13 @@
-/* Google Earth-like chrome: white material cards and round buttons over the 3D view, dark translucent status bar. */
+/* Illuminated-manuscript chrome: parchment cards and round buttons over the 3D view, dark teal status bar. */
 :root {
-  --surface: #fff;
-  --text: #202124;
-  --muted: #5f6368;
-  --accent: #1a73e8;
-  --shadow: 0 1px 2px #3c40434d, 0 2px 6px 2px #3c404326;
+  --surface: #efe4c4;
+  --text: #1d2f2d;
+  --muted: #6b5a3e;
+  --accent: #8b2a1e;
+  --shadow: 0 1px 2px #2a1e0a4d, 0 2px 6px 2px #2a1e0a26;
   --font: 'Cormorant Infant', Georgia, serif;
 }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #04060c; font: 500 16px/1.35 var(--font); color: var(--text); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #041011; font: 500 16px/1.2 var(--font); color: var(--text); }
 button { font: inherit; color: inherit; }
 svg { fill: currentColor; }
 .labels { position: fixed; inset: 0; pointer-events: none; }
@@ -23,7 +23,7 @@ body[data-mode=site] .globe-only, body[data-mode=site] #globeLabels, .labels[hid
 .searchbox input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 18px; background: none; min-width: 0; }
 .searchbox .search-icon { width: 22px; height: 22px; fill: var(--muted); }
 .icon { width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; cursor: pointer; display: grid; place-items: center; color: var(--muted); }
-.icon:hover { background: #f1f3f4; }
+.icon:hover { background: #e4d5ab; }
 .icon svg { width: 24px; height: 24px; }
 #ui { padding: 14px 18px; overflow: auto; transition: opacity .15s; }
 body:not(.drawer-open) #ui { display: none; }
@@ -34,46 +34,59 @@ body:not(.drawer-open) #ui { display: none; }
 #ui label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
 #ui input[type=checkbox], #ui input[type=radio], #ui input[type=range] { accent-color: var(--accent); }
 #ui input[type=range] { width: 100%; }
-.pill { display: block; width: 100%; margin-top: 6px; padding: 8px 14px; border: 1px solid #dadce0; border-radius: 18px; background: var(--surface); color: var(--accent); font-weight: 500; text-align: left; cursor: pointer; }
-.pill:hover { background: #f6fafe; border-color: #d2e3fc; }
+.pill { display: block; width: 100%; margin-top: 6px; padding: 8px 14px; border: 1px solid #cdb98a; border-radius: 18px; background: var(--surface); color: var(--accent); font-weight: 500; text-align: left; cursor: pointer; }
+.pill:hover { background: #e9dcb5; border-color: #c9a75a; }
 
-/* ---------- knowledge card ---------- */
-#info { position: fixed; z-index: 5; left: 12px; bottom: 40px; width: 360px; max-width: calc(100% - 24px); padding: 14px 18px; box-sizing: border-box; }
-#info h3 { margin: 0 0 6px; font-size: 18px; font-weight: 500; }
-#info .kind { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-#info p { margin: 0 0 8px; }
-#info p:empty { display: none; }
-#info[hidden] { display: none; }
-#info a { color: var(--accent); text-decoration: none; }
-#info a:hover { text-decoration: underline; }
-#info .close { float: right; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; cursor: pointer; font-size: 18px; color: var(--muted); }
-#info .close:hover { background: #f1f3f4; }
+/* ---------- place panel (Google Maps style): hero, title, actions, summary, fact rows; replaces the drawer while open ---------- */
+#side:has(#place:not([hidden])) #ui { display: none; }
+#place { position: relative; overflow: auto; flex: 0 1 auto; }
+#place[hidden] { display: none; }
+#place .hero { display: block; width: 100%; height: 200px; object-fit: cover; border-radius: 8px 8px 0 0; }
+#place .hero[hidden] { display: none; }
+#place .close { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #efe4c4dd; box-shadow: var(--shadow); cursor: pointer; font-size: 20px; line-height: 1; color: var(--muted); }
+#place .close:hover { background: #e4d5ab; }
+#place .body { padding: 16px 20px 8px; }
+#place h1 { margin: 0 40px 4px 0; font-size: 26px; font-weight: 600; line-height: 1.1; }
+#place .kind { color: var(--muted); font-size: 15px; }
+#place .actions { display: flex; gap: 20px; padding: 14px 0; margin: 12px -20px 0; padding-inline: 20px; border-block: 1px solid #ddcca0; }
+#place .act { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
+#place .act span { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cdb98a; display: grid; place-items: center; }
+#place .act:hover span { background: #e9dcb5; }
+#place .act svg { width: 20px; height: 20px; }
+#place .summary { margin: 14px 0 0; white-space: pre-line; }
+#place .credit { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+#place .credit a { color: inherit; }
+#place .summary:empty { display: none; }
+#place .facts { list-style: none; margin: 10px -20px 0; padding: 0; }
+#place .facts li { display: flex; gap: 12px; padding: 10px 20px; border-top: 1px solid #ddcca0; }
+#place .facts .k { flex: none; width: 96px; color: var(--muted); }
+#place .facts:empty { display: none; }
 
 /* ---------- navigation stack ---------- */
 #nav { position: fixed; right: 16px; bottom: 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; }
-.fab { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: grid; place-items: center; color: #3c4043; padding: 0; }
-.fab:hover { background: #f8f9fa; }
+.fab { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
+.fab:hover { background: #e4d5ab; }
 .fab svg { width: 22px; height: 22px; }
 .fab.text { font-size: 15px; font-weight: 500; }
 .fab[hidden] { display: none; }
 .compass { width: 48px; height: 48px; }
 .compass svg { width: 40px; height: 40px; transition: transform .1s linear; }
-.compass .n { font: 600 8px var(--font); fill: #d93025; }
-.compass .north { fill: #d93025; }
-.compass .south { fill: #9aa0a6; }
+.compass .n { font: 600 8px var(--font); fill: #8b2a1e; }
+.compass .north { fill: #8b2a1e; }
+.compass .south { fill: #a89a78; }
 .zoom { display: flex; flex-direction: column; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
-.zoom button { width: 40px; height: 40px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: #3c4043; padding: 0; }
-.zoom button + button { border-top: 1px solid #e8eaed; }
-.zoom button:hover { background: #f8f9fa; }
+.zoom button { width: 40px; height: 40px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
+.zoom button + button { border-top: 1px solid #ddcca0; }
+.zoom button:hover { background: #e4d5ab; }
 .zoom svg { width: 22px; height: 22px; }
 
 /* ---------- status bar ---------- */
-#status { position: fixed; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 4px 12px; background: #202124b3; color: #e8eaed; font-size: 11.5px; border-top-left-radius: 6px; font-variant-numeric: tabular-nums; z-index: 2; }
-#status .credit { color: #bdc1c6; }
+#status { position: fixed; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 4px 12px; background: #0c2224d9; color: #e8d9b0; font-size: 11.5px; border-top-left-radius: 6px; font-variant-numeric: tabular-nums; z-index: 2; }
+#status .credit { color: #c9b88a; }
 #status .scale { display: flex; flex-direction: column; gap: 1px; }
 #status .scale span { display: block; height: 11px; line-height: 9px; font-size: 11px; padding: 0 3px; box-sizing: border-box; white-space: nowrap; }
-#scaleMi { border: 1px solid #e8eaed; border-top: 0; }
-#scaleKm { border: 1px solid #e8eaed; border-bottom: 0; }
+#scaleMi { border: 1px solid #e8d9b0; border-top: 0; }
+#scaleKm { border: 1px solid #e8d9b0; border-bottom: 0; }
 
 /* ---------- map labels ---------- */
 .lbl { pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 1px 6px; border-radius: 3px; font: 700 15px var(--font); color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
@@ -84,49 +97,54 @@ body:not(.drawer-open) #ui { display: none; }
 .lbl.castle, .lbl.sept, .lbl.pit, .lbl.keep { font-size: 17px; color: #ffd27a; }
 .lbl.wood { color: #b9f0a8; }
 
-/* names of places on the maps; larger kinds are drawn bigger */
-.globe-place { position: relative; padding-bottom: 7px; text-align: center; pointer-events: auto; cursor: pointer; color: #fff; font: 600 15px/1.1 var(--font); white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
-/* the symbol for the kind, centred on the bottom edge of the label = on the place */
-.globe-place svg { position: absolute; left: 50%; bottom: 0; width: 11px; height: 11px; transform: translate(-50%, 50%); filter: drop-shadow(0 0 1.5px #000) drop-shadow(0 0 1px #000); }
+/* names of places on the maps; larger kinds are drawn bigger. Dark lettering with a white stroke, readable on every map style */
+.globe-place { position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #1d2f2d; font: 600 15px/1 var(--font); white-space: pre; -webkit-text-stroke: 3px #f3ead0; paint-order: stroke fill; }
+/* a point label's box is its symbol, centred on the place; the name sits to its right */
+.globe-place:not(.globe-area) { width: 13px; height: 13px; }
+.globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: 0 -50%; text-align: left; }
+.globe-place svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 1px #f3ead0) drop-shadow(0 0 1px #f3ead0) drop-shadow(0 0 1px #f3ead0); }
 .globe-place.k-sea, .globe-place.k-ocean, .globe-place.k-lake, .globe-place.k-river { font-style: italic; }
 .globe-place.k-river { font-size: 13px; }
-.globe-area { padding-bottom: 0; font-weight: 600; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 4px #fff, 0 0 6px #fffc; }
-/* waters and regions: coloured lettering with a light halo, readable on every map style */
-.globe-area.k-sea, .globe-area.k-ocean, .globe-area.k-lake, .globe-area.k-river { color: #1f58a8; }
-.globe-area.k-region { color: #7a4f12; }
-.globe-area:hover { color: #000; }
+.globe-place.pinned svg { visibility: hidden; }
+.globe-pin { pointer-events: none; color: #8b2a1e; }
+.globe-pin svg { display: block; width: 30px; height: 30px; filter: drop-shadow(0 0 1px #f3ead0) drop-shadow(0 0 1px #f3ead0) drop-shadow(0 1px 2px #0008); }
 .globe-place.k-ocean { font-size: 22px; letter-spacing: .32em; }
 .globe-place.k-sea { font-size: 17px; letter-spacing: .2em; }
 .globe-place.k-lake { letter-spacing: .15em; }
+.globe-place.k-continent { font-size: 21px; font-weight: 700; letter-spacing: .35em; text-transform: uppercase; }
 .globe-place.k-region { font-size: 18px; font-weight: 600; letter-spacing: .28em; }
 .globe-place.k-city { font-size: 16px; font-weight: 700; }
 .globe-place.k-capital { font-size: 15px; font-weight: 700; }
-.globe-place.k-city svg, .globe-place.k-capital svg { width: 14px; height: 14px; }
+.globe-place.k-city, .globe-place.k-capital { width: 17px; height: 17px; }
 .globe-place.k-minor, .globe-place.k-ruin { font-size: 13px; }
-.globe-place.k-minor svg { width: 8px; height: 8px; }
-/* one colour per kind */
-.k-sea, .k-ocean { color: #8fbfff; }
-.k-lake { color: #6fe0f0; }
-.k-river { color: #a9d8ff; }
-.k-region { color: #ffd27a; }
-.k-city { color: #ffffff; }
-.k-town { color: #fff0a8; }
-.k-castle, .k-capital { color: #ff9f8a; }
-.k-minor { color: #ffc4b8; }
-.k-ruin { color: #c9a8ff; }
-.k-island { color: #a6f0a0; }
-.k-mountain { color: #e2b88c; }
-.k-forest { color: #7fd68a; }
-.k-wild { color: #f2cd7e; }
-.k-landmark { color: #f4a8dc; }
-.globe-place:hover { color: #fff; text-decoration: underline; }
+.globe-place.k-minor { width: 10px; height: 10px; }
+/* one colour per kind, each at least 4.5:1 against the parchment stroke (WCAG AA) */
+.k-sea, .k-ocean, .k-river { color: #1a4f4c; }
+.k-lake { color: #1f5c58; }
+.k-region { color: #7a4f12; }
+.k-continent { color: #3e2a12; }
+.k-city { color: #1d2f2d; }
+.k-town { color: #2f4544; }
+.k-castle, .k-capital { color: #8b2a1e; }
+.k-minor { color: #8a4a26; }
+.k-ruin { color: #5a2a4a; }
+.k-island { color: #2f5a3c; }
+.k-mountain { color: #5e4632; }
+.k-forest { color: #23452f; }
+.k-wild { color: #7a5200; }
+.k-landmark { color: #8a1f3c; }
+.globe-place:hover { color: var(--accent); }
+/* names fade in and out (height bands, overlaps) instead of popping */
+.globe-place { transition: opacity .25s; }
+.globe-place.off { opacity: 0; pointer-events: none; }
+@starting-style { .globe-place { opacity: 0; } }
 /* edit mode */
 .pill[hidden] { display: none; }
 #editPanel { display: none; }
 body.editing #editPanel { display: block; }
 body.editing .globe-only { display: none; }
 .rot-row { display: flex; align-items: center; gap: 8px; }
-.rot-row button { width: 32px; height: 32px; border: 1px solid #dadce0; border-radius: 50%; background: var(--surface); cursor: pointer; font-size: 16px; }
+.rot-row button { width: 32px; height: 32px; border: 1px solid #cdb98a; border-radius: 50%; background: var(--surface); cursor: pointer; font-size: 16px; }
 .rot-row button:disabled, #editPanel .pill:disabled { opacity: .45; cursor: default; }
 /* selection box with resize/rotate handles */
 .edit-box { position: fixed; left: 0; top: 0; z-index: 5; box-sizing: border-box; pointer-events: none; border: 2px solid #ffc933; background: rgba(255, 201, 51, .16); box-shadow: 0 0 0 1px rgba(0, 0, 0, .75), 0 0 0 4px rgba(255, 201, 51, .25), 0 0 14px rgba(255, 201, 51, .7); }
@@ -145,7 +163,7 @@ body.editing .globe-place { cursor: move; }
 @media (max-width: 700px) {
   #side { width: auto; right: 12px; }
   #ui { max-height: 45vh; }
-  #info { bottom: 64px; }
+  #place { max-height: 55vh; }
   #status .credit { display: none; }
   #nav { bottom: 64px; }
 }
@@ -153,12 +171,12 @@ body.editing .globe-place { cursor: move; }
 /* legend: one row per kind, with a checkbox to show or hide that kind of name on the globe */
 .legend-row { justify-content: space-between; }
 .legend-row .what { display: flex; align-items: center; gap: 8px; flex: 1; }
-.legend-row svg { width: 18px; height: 18px; padding: 3px; box-sizing: border-box; border-radius: 4px; background: #343d4d; flex: none; }
+.legend-row svg { width: 18px; height: 18px; flex: none; }
 .legend-row .n { color: var(--muted); font-size: 14px; }
 .legend-actions { display: flex; gap: 12px; margin: 2px 0 4px; font-size: 14px; }
-.legend-actions button { background: none; border: 0; padding: 0; color: var(--link, #1a73e8); cursor: pointer; }
+.legend-actions button { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
 
-#loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #0b0d12; color: #e8e4d8; transition: opacity .4s; }
+#loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #071416; color: #e8e4d8; transition: opacity .4s; }
 #loading.done { opacity: 0; pointer-events: none; }
 #loading h1 { margin: 0; font-family: 'Cormorant Infant', serif; font-weight: 600; }
 #loading .bar { width: min(320px, 70vw); height: 4px; border-radius: 2px; background: #ffffff22; overflow: hidden; }
@@ -166,6 +184,6 @@ body.editing .globe-place { cursor: move; }
 #loadMsg { margin: 0; font-size: 13px; opacity: .7; }
 
 
-#loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #0b0d12cc; color: #e8e4d8; font-size: 13px; }
+#loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #071416cc; color: #e8e4d8; font-size: 13px; }
 #loadHint[hidden] { display: none; }
 #status .credit a { color: inherit; text-decoration: underline; }

@@ -2,11 +2,16 @@
 // Westeros regions as lat/lon rings and lines. The SVGs are plate carree at 88 px/degree: lon = (x - 2640) / 88,
 // lat = (6500 - y) / 88 (their viewBox is 10000 x 6667 for lon -30..83.64, lat 73.86..-1.90).
 // Usage: node tools/world/svg-vector.mjs <maps-dir>
+// The flat art is then unflattened onto the sphere (src/config.ts).
 import { readFileSync, writeFileSync } from 'node:fs';
+import { unflatten } from '../../src/config.ts';
 
 const dir = process.argv[2] ?? 'assets/world/svg';
 const PX_PER_DEG = 88, X0 = 2640, Y0 = 6500;
-const toLL = ([x, y]) => [+((x - X0) / PX_PER_DEG).toFixed(3), +((Y0 - y) / PX_PER_DEG).toFixed(3)];
+const toLL = ([x, y]) => {
+  const lat = (Y0 - y) / PX_PER_DEG;
+  return [+unflatten((x - X0) / PX_PER_DEG, lat).toFixed(3), +lat.toFixed(3)];
+};
 
 // path data -> subpaths (arrays of [x, y]); only the commands these files use: M m L l H h V v C c (c rare: ends of grids) Z z
 function subpaths(d) {
@@ -44,7 +49,12 @@ function paths(file) {
 }
 
 const world = paths('Location_map_Known_world.svg');
-const rings = (ps) => ps.flatMap((p) => p.rings.filter((r) => r.length > 2).map((r) => r.map(toLL)));
+// unflatten bends straight lines, so long segments (the map's cut edges) get points every half degree to bend with it
+const densify = (r) => r.flatMap((a, i) => {
+  const b = r[(i + 1) % r.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (PX_PER_DEG / 2)));
+  return Array.from({ length: n }, (_, k) => [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+});
+const rings = (ps) => ps.flatMap((p) => p.rings.filter((r) => r.length > 2).map((r) => densify(r).map(toLL)));
 const land = world.filter((p) => p.anc.includes('land'));
 const lakes = world.filter((p) => p.anc.includes('lakes'));
 const rivers = world.filter((p) => p.anc.includes('rivers'));

@@ -3,6 +3,7 @@ import { inject } from '@vercel/analytics';
 import { SITE_SWITCH, type SiteId } from './config';
 import { createGlobeView, type Card } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
+import { PLACE_INFO } from './place-info';
 import { SITE_VIEWS } from './sites';
 import type { SiteView } from './sites/SiteScene';
 import { initNav } from './ui/nav';
@@ -28,18 +29,32 @@ const $ = (id: string) => document.getElementById(id)!;
 $('loadMsg').textContent = 'Building the globe…';
 await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 
-// One card for whatever was picked: a region on the globe, a landmark inside a 3D place.
-const info = $('info');
+// One place panel for whatever was picked: a place on the globe, a landmark inside a 3D place. Wiki facts from src/place-info.ts.
+const place = $('place'), q = <T extends Element>(s: string) => place.querySelector<T & HTMLElement>(s)!;
 const showCard = (c: Card) => {
-  info.hidden = !c;
+  place.hidden = !c;
   if (!c) return;
-  info.querySelector('.kind')!.textContent = c.kind;
-  info.querySelector('h3')!.textContent = c.name;
-  info.querySelector('p')!.textContent = c.text ?? '';
-  info.querySelector('a')!.href = 'https://awoiaf.westeros.org/index.php/' + encodeURIComponent(c.name.replace(/ /g, '_'));
+  const info = PLACE_INFO[c.name] ?? {};
+  const hero = q<HTMLImageElement>('.hero');
+  hero.hidden = !info.image;
+  hero.src = info.image ?? '';
+  q('h1').textContent = c.name;
+  q('.kind').textContent = c.kind;
+  q('.summary').textContent = c.text ?? info.summary ?? '';
+  q<HTMLAnchorElement>('.act').href = 'https://awoiaf.westeros.org/index.php/' + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
+  q('.credit').hidden = !info.wiki || !!c.text;
+  const facts: [string, string][] = [...(c.region ? [['Region', c.region] as [string, string]] : []), ...(info.facts ?? [])];
+  if (c.lat !== undefined && c.lon !== undefined) facts.push(['Coordinates', `${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°`]);
+  q('.facts').replaceChildren(...facts.map(([k, v]) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="k"></span><span></span>';
+    li.firstChild!.textContent = k; li.lastChild!.textContent = v;
+    return li;
+  }));
+  place.scrollTop = 0;
 };
 const globe = createGlobeView(renderer, $('globeLabels'), showCard);
-info.querySelector('button')!.onclick = () => globe.deselect();
+q('.close').onclick = () => globe.deselect();
 
 // 3D place scenes (and their models) load on demand, the first time the camera zooms in on them.
 const sites: Partial<Record<SiteId, SiteView>> = {};
@@ -64,12 +79,13 @@ function loadSite(id: SiteId) {
 
 $('showNames').addEventListener('change', (e) => globe.setNamesVisible((e.target as HTMLInputElement).checked));
 $('showBorders').addEventListener('change', (e) => globe.setBordersVisible((e.target as HTMLInputElement).checked));
+$('showRelief').addEventListener('change', (e) => globe.relief.setEnabled((e.target as HTMLInputElement).checked));
 
 // Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
 const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).map(([kind, label]) => {
   const row = document.createElement('label');
   row.className = 'legend-row';
-  row.innerHTML = `<span class="what"><input type="checkbox" checked /><svg class="k-${kind}" viewBox="0 0 12 12">${PLACE_ICONS[kind]}</svg>${label}</span><span class="n">${globe.kindCounts[kind]}</span>`;
+  row.innerHTML = `<span class="what"><input type="checkbox" checked /><svg class="k-${kind}" viewBox="0 0 512 512">${PLACE_ICONS[kind]}</svg>${label}</span><span class="n">${globe.kindCounts[kind]}</span>`;
   const box = row.querySelector('input')!;
   box.addEventListener('change', () => globe.setKindVisible(kind, box.checked));
   $('legend').append(row);
@@ -125,7 +141,10 @@ function exitSite(id: SiteId) {
   setActive(null);
 }
 
-$('menuBtn').onclick = () => document.body.classList.toggle('drawer-open');
+$('menuBtn').onclick = () => { // with a place open, the menu closes it and brings the drawer back
+  if (!place.hidden) { globe.deselect(); document.body.classList.add('drawer-open'); }
+  else document.body.classList.toggle('drawer-open');
+};
 if (innerWidth < 700) document.body.classList.remove('drawer-open');
 const nav = initNav(renderer.domElement, () => (active ? sites[active]!.nav : globe.nav));
 

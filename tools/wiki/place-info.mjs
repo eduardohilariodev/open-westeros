@@ -1,0 +1,45 @@
+// Place panel text for every place on the map, from the scraped wiki articles (docs/wiki, npm run wiki -- --places):
+// the article's lead as the summary and its infobox rows as facts. Writes src/place-wiki.json.
+// No images: awoiaf serves them only behind its Cloudflare challenge, so they would not load for visitors.
+// Usage: node tools/wiki/place-info.mjs
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const DIR = 'docs/wiki';
+const { places } = JSON.parse(readFileSync(`${DIR}/_places.json`, 'utf8'));
+
+// Markdown -> plain text: link text only, no citation marks, emphasis or escapes.
+const plain = (md) => md
+  .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+  .replace(/\\\[[^\]]*\\\]/g, '')
+  .replace(/\*\*|(?<!\w)_|_(?!\w)/g, '')
+  .replace(/\\(.)/g, '$1')
+  .replace(/\s+([,.;:])/g, '$1').trim();
+
+export function parse(md) {
+  const body = md.replace(/^---[\s\S]*?---\s*/, '');
+  const title = body.match(/^# (.+)/m)[1];
+  const lead = body.slice(body.indexOf('\n')).split(/^## /m)[0];
+  const facts = [];
+  for (const row of lead.matchAll(/^\| ([^|]+?) \|([^|]+?) \|$/gm)) { // two-cell infobox rows; single-cell ones are its title/caption
+    if (/!\[/.test(row[2])) continue; // map or picture cell
+    facts.push([plain(row[1]), plain(row[2].replace(/<br>/g, ', '))]);
+  }
+  // Prose only: from the paragraph that names the subject in bold ("The **Trident** is..."), skipping tables and captions.
+  const paras = lead.split(/\n{2,}/).map((p) => p.trim()).filter((p) => p && !/^[|!\[]/.test(p));
+  const start = paras.findIndex((p) => p.includes('**') && !/^\*\*[^*]+\*\*$/.test(p)); // bold name in prose, not a bold caption
+  const summary = (start < 0 ? [] : paras.slice(start)).map(plain).join('\n\n');
+  return { title, summary, facts };
+}
+
+const out = {};
+for (const [name, file] of Object.entries(places)) {
+  const { title, summary, facts } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
+  out[name] = { wiki: title, ...(summary && { summary }), ...(facts.length && { facts }) };
+}
+writeFileSync('src/place-wiki.json', JSON.stringify(out));
+console.log(`${Object.keys(out).length} places, ${Object.values(out).filter((p) => !p.summary).length} without a summary`);
+
+// Self-check on a known shape (infobox + captions + lead).
+const t = parse('---\ntitle: x\n---\n\n# Oldtown\n\n| Oldtown |\n| --- |\n| Location |the [Reach](Reach.md), [Westeros](Westeros.md) |\n| Map |![](x.png) |\n\nOldtown by someone\n\nThe **Oldtown** is a city,\\[1\\] old _and_ big. It sits in the Reach by the Honeywine.\n\n## History\n\nNo.');
+console.assert(t.summary === 'The Oldtown is a city, old and big. It sits in the Reach by the Honeywine.', t.summary);
+console.assert(JSON.stringify(t.facts) === '[["Location","the Reach, Westeros"]]', JSON.stringify(t.facts));

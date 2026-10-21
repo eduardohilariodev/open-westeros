@@ -444,7 +444,7 @@ Zabhad|town|6610,5470|5000_5000 1790,1810
 The Summer Sea|ocean|5100,4850|5000_5000 845,1265
 The Worm|river|4880,4195|5000_5000 275,668
 The Jade Gates|sea|-|5000_5000 1330,1000
-Sothoryos|region|5000,5540|5000_7500 735,325
+Sothoryos|continent|5000,5540|5000_7500 735,325
 The Green Hell|forest|-|5000_7500 695,495
 Lake Zamoyos|lake|-|5000_7500 410,395
 # --- the far east ---
@@ -489,7 +489,7 @@ Asshai-by-the-Shadow|city|8018,5558|7500_5000 1085,1855
 Stygai|ruin|8207,5355|7500_5000 1230,1740
 The Shadow Lands|mountain|8440,5010|7500_5000 1550,1250
 The Saffron Straits|sea|8440,5490|-
-Ulthos|region|8630,5670|7500_7500 1780,127
+Ulthos|continent|8630,5670|7500_7500 1780,127
 The Vale of Shadows|landmark|-|7500_5000 1285,1790
 The Straits of Leng|sea|-|7500_5000 590,1215
 # --- anchors (the 3D sites; used for alignment only) ---
@@ -640,3 +640,6 @@ Western Provinces|region|-|@7560,6020
 Eastern Provinces|region|-|@8955,6070
 Marahai Bay|sea|-|@7880,7147
 Ash|river|-|@8970,7418
+# --- continents (painted-map px only: lettering spots, not on the atlas) ---
+Westeros|continent|1709,2092|-
+Essos|continent|5403,3084|-

@@ -2,12 +2,13 @@
 // product; these raster georeferences only place the named places (consensus.mjs) and the terrain classes (terrain-classify.mjs).
 // Each map has its own: the painted map from the Wall->Dorne distance, the atlas from the latitude ticks printed on its margin.
 // The consensus averages them so neither map is favoured, then moves into the canonical frame of the SVG vector maps.
-import { METRES_PER_DEGREE, MILE } from '../../src/config.ts';
+import { METRES_PER_DEGREE, MILE, unflatten } from '../../src/config.ts';
 import { readPlaces } from './places-table.mjs';
 
 const rad = (d) => (d * Math.PI) / 180;
 const PAINTED = { castleBlack: { y: 960, lat: 66.6 }, dorneCoast: { y: 3980 }, wallToDorneMiles: 3000 }; // the Wall; Dorne's south coast
-export const ATLAS = { source: { width: 10000, height: 8300 }, crop: 14 }; // crop: scale-bar margin trimmed
+// crop: the dashed frame border (16 px) trimmed; cover: legend box and credits (atlas px), painted over as sea
+export const ATLAS = { source: { width: 10000, height: 8300 }, crop: 20, cover: [[8650, 7850, 10000, 8300], [7750, 8100, 8650, 8300]] };
 // atlasPx -> paintedPx per axis, from the two maps' coasts (align-atlas.mjs, since removed)
 const T = { scaleX: 0.8868, offsetX: 96.6, scaleY: 0.8832, offsetY: -1012.3 };
 // Old stretched-longitude frame -> the canonical frame, 96.8% land overlap (align-canon.mjs).
@@ -35,11 +36,13 @@ const G = {
   lonPerPx: mean('c') * CANON.lonScale, lon0: CANON.lonScale * mean('d') + CANON.lonOffset,
 };
 
-/** Painted-map pixel -> degrees. */
-export const at = ([x, y]) => ({ lat: G.latPerPx * y + G.lat0, lon: G.lonPerPx * x + G.lon0 });
+/** Painted-map pixel -> plate-carrée degrees (the flat frame ATLAS_FIT describes). */
+const flatAt = ([x, y]) => ({ lat: G.latPerPx * y + G.lat0, lon: G.lonPerPx * x + G.lon0 });
+/** Painted-map pixel -> degrees on the globe. */
+export const at = (p) => { const { lat, lon } = flatAt(p); return { lat, lon: unflatten(lon, lat) }; };
 /** Atlas-map pixel -> degrees (the atlas image's own pixel frame). */
 export const atlasAt = ([x, y]) => at(toPainted([x, y]));
-/** The atlas grid as lat = latPerPx * y + lat0, lon = lonPerPx * x + lon0 over atlas px. */
+/** The atlas grid as lat = latPerPx * y + lat0, lon = lonPerPx * x + lon0 over atlas px, in plate-carrée degrees (flatten() first). */
 export const ATLAS_FIT = {
   latPerPx: G.latPerPx * T.scaleY, lat0: G.latPerPx * T.offsetY + G.lat0,
   lonPerPx: G.lonPerPx * T.scaleX, lon0: G.lonPerPx * T.offsetX + G.lon0,

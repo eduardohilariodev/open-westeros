@@ -13,5 +13,9 @@ assets/
 public/world/
 public/sites/
 
+# awoiaf mirror (CC BY-SA, ~10k pages) and its Chrome profile: npm run wiki
+docs/wiki/
+.cache/
+
 .vercel
 .env*

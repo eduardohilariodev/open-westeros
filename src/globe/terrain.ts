@@ -7,12 +7,12 @@ import type { Ring } from './viewLayer';
 // The vector map: sea, land, lakes and rivers from the Known World SVG maps (src/vector-world.json), with terrain (plains,
 // forest, swamp, desert, hills, mountains, snow) from src/terrain.json, as GPU geometry draped on the planet. The layers are
 // drawn bottom to top by renderOrder and sit 7 m under the surface, just below the ground of the 3D sites.
-export const TERRAIN_SEA = 0xaadaff;
-// Google-Maps-like flat colours, drawn bottom to top.
+export const TERRAIN_SEA = 0x0f2f30;
+// Parchment and gold on a deep teal sea, illuminated-manuscript style, drawn bottom to top.
 const TERRAIN: [id: string, fill: string, stroke?: string][] = [
-  ['desert', '#f2e2b5'], ['hills', '#dccdac'], ['mountains', '#bfa98c', '#a8927a'], ['forest', '#a9cf94'], ['swamp', '#8fc3ad'], ['snow', '#ffffff'],
+  ['desert', '#d4b06a'], ['hills', '#c9b483'], ['mountains', '#b39a68', '#6b5a3a'], ['forest', '#4f7a70'], ['swamp', '#6f8a72'], ['snow', '#f1ead6'],
 ];
-const LAND = '#f1efe2', WATER = '#' + TERRAIN_SEA.toString(16), COAST = '#8fb3d1', RIVER = '#7fb6e0';
+const LAND = '#d8c79a', WATER = '#' + TERRAIN_SEA.toString(16).padStart(6, '0'), COAST = '#b8954f', RIVER = '#1f5552';
 
 const terrainPolys = new Map<string, Ring[][]>(); // class -> polygons [outline, ...holes]
 for (const f of terrainData.features) {
@@ -23,17 +23,19 @@ for (const f of terrainData.features) {
 export function createTerrain(R: number) {
   const r = R - 7, group = new THREE.Group();
   let order = 1;
-  const add = (...o: THREE.Object3D[]) => o.forEach((x) => group.add(x));
-  add(fillMesh(fillGeometry(polygons(world.land as Ring[]), r), LAND, order++));
+  const add = <T extends THREE.Object3D>(o: T) => (group.add(o), o);
+  // fills by class ('land' and 'lakes' included), class outlines and rivers, for relief.ts and the look lab to restyle
+  const fills: Record<string, THREE.Mesh> = { land: add(fillMesh(fillGeometry(polygons(world.land as Ring[]), r), LAND, order++)) };
+  const strokes: THREE.Object3D[] = [];
   for (const [id, fill, stroke] of TERRAIN) {
     const polys = terrainPolys.get(id) ?? [];
-    add(fillMesh(fillGeometry(polys, r), fill, order++));
-    if (stroke) add(lineMesh(lineGeometry(polys.flat(), r, true), stroke, 0.9, order++));
+    fills[id] = add(fillMesh(fillGeometry(polys, r), fill, order++));
+    if (stroke) strokes.push(add(lineMesh(lineGeometry(polys.flat(), r, true), stroke, 0.9, order++)));
   }
   add(lineMesh(lineGeometry(world.land as Ring[], r, true), COAST, 1.2, order++));
   const lakeRings = world.lakes.flatMap((l) => l.rings as Ring[]);
-  add(fillMesh(fillGeometry(world.lakes.flatMap((l) => polygons(l.rings as Ring[])), r), WATER, order++));
+  fills.lakes = add(fillMesh(fillGeometry(world.lakes.flatMap((l) => polygons(l.rings as Ring[])), r), WATER, order++));
   add(lineMesh(lineGeometry(lakeRings, r, true), COAST, 1, order++));
-  add(lineMesh(lineGeometry(world.rivers as Ring[], r, false), RIVER, 1.1, order++));
-  return { object: group, refresh: syncLines };
+  const rivers = add(lineMesh(lineGeometry(world.rivers as Ring[], r, false), RIVER, 1.1, order++));
+  return { object: group, refresh: syncLines, fills, strokes, rivers };
 }

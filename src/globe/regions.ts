@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { fillGeometry, fillMesh, inRing, lineGeometry, lineMesh, polygons, syncLines } from './gpuVector';
 import { shape, type Bounds, type Ring, type Shape } from './viewLayer';
 
-// Region borders on the globe, with hover and click highlighting like Google Maps. The polygons come from the Known World
+// Region borders on the globe, highlighted when the region's name is clicked. The polygons come from the Known World
 // SVG maps (src/vector-world.json) and are GPU geometry (gpuVector.ts), sharp at every zoom. Hit-testing is
 // point-in-polygon on lat/lon.
 export interface Region { id: string; name: string; shapes: Shape[]; box: Bounds; center: [number, number]; span: number }
@@ -47,8 +47,8 @@ export const regionAt = (lat: number, lon: number) =>
 
 export function createRegions(R: number) {
   const r = R - 6, group = new THREE.Group();
-  group.add(lineMesh(lineGeometry(REGIONS.flatMap((x) => x.shapes.map((s) => s.ring)), r, true), '#281e14', 1.6, 100, 0.55)); // all borders
-  // hover and selection each reuse one fill + outline pair, pointed at the region's cached geometry
+  // no standing border lines: a region's outline shows only while it's selected
+  // the selection reuses one fill + outline pair, pointed at the region's cached geometry
   const cache = new Map<string, { fill: THREE.BufferGeometry; line: ReturnType<typeof lineGeometry> }>();
   const geometryOf = (id: string) => {
     let g = cache.get(id);
@@ -58,10 +58,12 @@ export function createRegions(R: number) {
     }
     return g;
   };
+  // width 0: fill only, so the outline doesn't sit beside the neighbour's border line
   const highlight = (fill: string, opacity: number, stroke: string, width: number, order: number) => {
     const f = fillMesh(new THREE.BufferGeometry(), fill, order, opacity), l = lineMesh(lineGeometry([[[0, 0], [0, 1]]], r, false), stroke, width, order + 1);
     f.visible = l.visible = false;
-    group.add(f, l);
+    group.add(f);
+    if (width) group.add(l);
     let id: string | null = null;
     return {
       get id() { return id; },
@@ -72,12 +74,11 @@ export function createRegions(R: number) {
       },
     };
   };
-  const hover = highlight('#ffffff', 0.16, '#ffffff', 2.2, 101), selected = highlight('#4285f4', 0.28, '#4285f4', 3.4, 103);
+  const selected = highlight('#8b2a1e', 0.22, '#c9a75a', 3.4, 103);
 
   return {
     object: group,
     refresh: syncLines,
-    set hover(id: string | null) { hover.id = id; },
     set selected(id: string | null) { selected.id = id; },
     get selected() { return selected.id; },
   };

@@ -4,6 +4,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { SITES, type SiteId } from '../config';
 import { siteLatLon, toVector } from '../geo';
+import { lifted } from './lift';
 import { shape, type Ring } from './viewLayer';
 
 // Vector layers as GPU geometry: polygons are triangulated once and draped on the sphere, outlines are screen-width lines.
@@ -89,16 +90,16 @@ export function lineGeometry(rings: Ring[], r: number, close: boolean) {
 }
 
 export const fillMesh = (geometry: THREE.BufferGeometry, color: string, order: number, opacity = 1) => {
-  const m = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+  const m = new THREE.Mesh(geometry, lifted(new THREE.MeshBasicMaterial({
     color, opacity, transparent: opacity < 1, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
-  }));
+  })));
   m.renderOrder = order; m.frustumCulled = false;
   return m;
 };
 
 const lineMats: LineMaterial[] = [];
 export const lineMesh = (geometry: LineSegmentsGeometry, color: string, width: number, order: number, opacity = 1) => {
-  const material = new LineMaterial({ color, linewidth: width, opacity, transparent: opacity < 1, depthWrite: false, toneMapped: false });
+  const material = lifted(new LineMaterial({ color, linewidth: width, opacity, transparent: opacity < 1, depthWrite: false, toneMapped: false }));
   lineMats.push(material);
   const l = new LineSegments2(geometry, material);
   l.renderOrder = order; l.frustumCulled = false;
