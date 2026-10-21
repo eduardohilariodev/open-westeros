@@ -53,6 +53,7 @@ const showCard = (c: Card) => {
   }));
   place.scrollTop = 0;
 };
+q<HTMLImageElement>('.hero').onerror = () => { q('.hero').hidden = true; }; // hot-linked: hide it if it fails
 const globe = createGlobeView(renderer, $('globeLabels'), showCard);
 q('.close').onclick = () => globe.deselect();
 
