@@ -79,7 +79,17 @@ function loadSite(id: SiteId) {
 
 $('showNames').addEventListener('change', (e) => globe.setNamesVisible((e.target as HTMLInputElement).checked));
 $('showBorders').addEventListener('change', (e) => globe.setBordersVisible((e.target as HTMLInputElement).checked));
-$('showRelief').addEventListener('change', (e) => globe.relief.setEnabled((e.target as HTMLInputElement).checked));
+// Terrain button (top of the nav): 3D relief or the flat parchment map. The page starts in 3D, see the await below.
+// Like Google Maps' layer button, it shows a thumbnail of the style a click switches to (style.css picks it by aria-pressed).
+const reliefBtn = $('reliefBtn');
+const showStyle = (on: boolean) => {
+  reliefBtn.setAttribute('aria-pressed', String(on));
+  reliefBtn.title = on ? 'Switch to the flat map' : 'Switch to 3D relief';
+  reliefBtn.querySelector('.name')!.textContent = on ? 'Map' : 'Relief';
+  globe.relief.setEnabled(on);
+};
+reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== 'true');
+reliefBtn.querySelector('.name')!.textContent = 'Map';
 
 // Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
 const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).map(([kind, label]) => {
@@ -161,6 +171,10 @@ search.addEventListener('change', () => {
   globe.flyToPlace(place.i);
   search.value = ''; search.blur();
 });
+
+// Start in 3D: keep the loading screen up until the relief maps and mesh are in (on failure it resolves and stays flat).
+$('loadMsg').textContent = 'Loading terrain…';
+await globe.relief.ready;
 
 let ready = false;
 let last = performance.now();
