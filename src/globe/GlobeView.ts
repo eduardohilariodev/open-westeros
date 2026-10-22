@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { PLANET, SITES, type SiteId } from '../config';
+import { createDeclutter, setShown } from '../declutter';
 import { eastNorth, enuFrame, siteLatLon, toVector } from '../geo';
 import { PLACE_SNAP } from '../place-snap';
 import world from '../vector-world.json';
@@ -10,6 +11,7 @@ import { chaikin } from './rivers';
 import roadData from '../roads.json';
 import type { Ring } from './viewLayer';
 import { PIN_BOX, PLACE_ICONS, PLACE_KINDS } from './placeIcons';
+import { createCameraRig } from './cameraRig';
 import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
 import B from './relief-bounds.json';
@@ -18,8 +20,6 @@ import { WALL_CASTLES } from './wall';
 
 // Planet-centred frame, metres. The vector map (terrain.ts, regions.ts) is draped as lat/lon patches over an ocean sphere.
 const R = PLANET.radius;
-const MIN_ALT = 30, // close enough to stand among a 3D place's buildings
- MAX_ALT = 40_000_000;
 const rad = THREE.MathUtils.degToRad;
 
 export type GlobeView = ReturnType<typeof createGlobeView>;
@@ -36,7 +36,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   camera.position.copy(HOME.dir).multiplyScalar(R + HOME.alt);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
-  controls.enableZoom = false; // altitude-based zoom below; OrbitControls zooms by distance to the centre
+  controls.enableZoom = false; // altitude-based zoom in the camera rig; OrbitControls zooms by distance to the centre
   controls.enableDamping = true;
   const labels = new CSS2DRenderer({ element: labelsEl });
 
@@ -93,7 +93,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const regions = createRegions(R), terrain = createTerrain(R);
   const relief = createRelief(terrain.fills, terrain.strokes, ocean, terrain.rivers); // shaded canon relief; off = the flat parchment map
   relief.setEnabled(true);
-  scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r, tilt); // the relief's detail follows the camera drawn
+  scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r, rig.tilt); // the relief's detail follows the camera drawn
   scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
   // ---------- sites: ordinary places on the map whose scene loads when the camera comes close ----------
@@ -155,7 +155,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     scene.add(obj);
     labelsEl.append(el); // in the page from the start, so it can be measured before it is first shown
     el.style.display = 'none';
-    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], offAt: 0, line: null as LineLabel | null };
+    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], line: null as LineLabel | null };
   });
   type Place = (typeof places)[number];
   /** A river's or road's name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
@@ -201,8 +201,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     const hh = Math.max(h, th * s) / 2;
     return [x - w / 2, y - hh, x + w / 2 + 4 + tw * s, y + hh]; // text 4px right of the symbol (style.css)
   };
-  const PAD = 4;
-  const overlaps = (a: number[], b: number[]) => a[0] < b[2] + PAD && b[0] < a[2] + PAD && a[1] < b[3] + PAD && b[1] < a[3] + PAD;
   const put = (p: Place) => {
     p.obj.position.copy(p.up).multiplyScalar(R + 3000);
     if (p.flat) { // lie on the ground, text running east, turned by rot
@@ -373,107 +371,24 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   let showNames = true;
   const hiddenKinds = new Set<string>();
 
-  const el = renderer.domElement;
-  const toNdc = (e: MouseEvent) => {
-    const r = el.getBoundingClientRect();
-    return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  };
-
-  // ---------- altitude zoom ----------
-  // Altitude eases toward altGoal in log space, so wheel and buttons zoom smoothly at any height.
-  let alt = HOME.alt, altGoal = alt;
-  let tilt = 0; // radians from straight down; alt is then the distance to the ground point at the screen centre
-  let heading = 0; // radians clockwise from north
-  const CLEARANCE = 200; // m the camera keeps above the ground
-  const MAX_TILT = rad(85); // short of 90°, where the camera would sit on the ground
-  // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
-  let anchor: THREE.Vector3 | null = null;
-  const anchorNdc = new THREE.Vector2();
-  const zoomTo = (a: number) => { anim = null; altGoal = THREE.MathUtils.clamp(a, MIN_ALT, MAX_ALT); };
-  const onWheel = (e: WheelEvent) => {
-    if (!controls.enabled) return;
-    e.preventDefault();
-    const ndc = toNdc(e);
-    // keep the existing anchor while the zoom is still easing, so a fast wheel doesn't re-pick a drifting point
-    if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001) {
-      ray.setFromCamera(ndc, camera);
-      anchor = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
-      anchorNdc.copy(ndc);
-    }
-    zoomTo(altGoal * Math.pow(1.0015, e.deltaY));
-  };
-  /** Rotate the camera about the planet centre so the spot `dir` is under `ndc`. */
-  const pinTo = (dir: THREE.Vector3, ndc: THREE.Vector2) => {
-    camera.updateMatrixWorld();
-    ray.setFromCamera(ndc, camera);
-    if (!ray.ray.intersectSphere(planet, hit)) return;
-    const q = new THREE.Quaternion().setFromUnitVectors(hit.normalize(), dir);
-    camera.position.applyQuaternion(q);
-    camera.quaternion.premultiply(q);
-  };
-  const holdAnchor = () => {
-    if (!anchor) return;
-    if (Math.abs(Math.log(alt / altGoal)) < 0.001) anchor = null; else pinTo(anchor, anchorNdc);
-  };
-
-  // Dragging grabs the surface: the spot under the pointer stays under it (replaces OrbitControls' angular rotate).
-  controls.enableRotate = false;
-  // Place names sit in a separate overlay, so the same listeners go on both. Capture starts only once the pointer has
-  // moved a few px, so a plain click on a name still reaches the name.
-  // Shift-drag tilts and turns instead, about the ground point at the screen centre: up/down tilts, left/right turns.
-  let grab: THREE.Vector3 | null = null, dragging = false, tilting = false, down = { x: 0, y: 0 };
-  const release = () => (grab = null, dragging = tilting = false);
-  const attachInput = (t: HTMLElement) => {
-    t.addEventListener('pointerdown', (e) => {
-      if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
-      anim = anchor = null;
-      down = { x: e.clientX, y: e.clientY };
-      if (e.shiftKey) { tilting = true; el.setPointerCapture(e.pointerId); return; }
-      ray.setFromCamera(toNdc(e), camera);
-      grab = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
-    });
-    t.addEventListener('pointermove', (e) => {
-      if (tilting) {
-        tilt = THREE.MathUtils.clamp(tilt - e.movementY * 0.005, 0, MAX_TILT);
-        heading = (heading + e.movementX * 0.005) % (2 * Math.PI);
-        return;
-      }
-      if (!grab) return;
-      if (!dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 4) return;
-      if (!dragging) { dragging = true; el.setPointerCapture(e.pointerId); }
-      pinTo(grab, toNdc(e));
-    });
-    t.addEventListener('pointerup', release);
-    t.addEventListener('pointercancel', release);
-    t.addEventListener('wheel', onWheel, { passive: false });
-  };
-  [el, labelsEl].forEach(attachInput);
-
-  // ---------- flights ----------
-  let anim: { t0: number; d0: THREE.Vector3; d1: THREE.Vector3; a0: number; a1: number } | null = null;
   const tmp = new THREE.Vector3();
-  const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-  const flyToDir = (dir: THREE.Vector3, a: number) =>
-    (anim = { t0: performance.now(), d0: camera.position.clone().normalize(), d1: dir.clone().normalize(), a0: alt, a1: a });
-  const latLon = (v: THREE.Vector3) => ({ lat: THREE.MathUtils.radToDeg(Math.asin(v.y / v.length())), lon: THREE.MathUtils.radToDeg(Math.atan2(v.x, v.z)) });
-  const ray = new THREE.Raycaster(), planet = new THREE.Sphere(new THREE.Vector3(), R), hit = new THREE.Vector3();
+  const rig = createCameraRig(camera, controls, renderer.domElement, R, HOME, (p) => relief.groundAt(p));
+
+  [renderer.domElement, labelsEl].forEach(rig.attachInput);
 
   const view = {
-    scene, camera, controls, labels, attachInput, ocean, terrain, relief,
+    scene, camera, controls, labels, attachInput: rig.attachInput, ocean, terrain, relief,
     nav: {
-      heading: () => heading,
-      resetNorth() { heading = 0; },
-      zoom: (f: number) => zoomTo(altGoal * f),
+      heading: () => rig.heading,
+      resetNorth() { rig.heading = 0; },
+      zoom: rig.zoomBy,
       canTilt: false,
-      tilt: () => tilt,
+      tilt: () => rig.tilt,
       toggleTilt() {},
-      home: () => (tilt = heading = 0, flyToDir(HOME.dir, HOME.alt)),
-      altitude: () => alt,
-      pick(ndc: THREE.Vector2) {
-        ray.setFromCamera(ndc, camera);
-        return ray.ray.intersectSphere(planet, hit) ? latLon(hit) : null;
-      },
-      metresPerPixel: () => (2 * alt * Math.tan(rad(camera.fov / 2))) / innerHeight,
+      home: rig.goHome,
+      altitude: () => rig.alt,
+      pick: rig.pick,
+      metresPerPixel: () => (2 * rig.alt * Math.tan(rad(camera.fov / 2))) / innerHeight,
     },
     setNamesVisible(v: boolean) { showNames = v; },
     setBordersVisible: (_v: boolean) => {}, // replaced below, once the region interaction exists
@@ -487,10 +402,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const p = places[i];
       regions.selected = null; // a region's own click sets it again after this
       setPin(p);
-      const { lat, lon } = latLon(p.up);
+      const { lat, lon } = rig.latLon(p.up);
       showCard({ kind: KIND_NAME[p.kind] ?? p.kind, name: p.name, lat, lon, region: p.outline ? undefined : regionAt(lat, lon)?.name });
       const site = ids.find((id) => SITES[id].name === p.name);
-      flyToDir(p.up, site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
+      rig.flyToDir(p.up, site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
     },
     /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
     siteWithin: (d: number | ((id: SiteId) => number)) =>
@@ -505,50 +420,19 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     /** Fly to the spot (x east, z south, m) in a site's frame, ending `a` m up. */
     flyToSite(id: SiteId, x: number, z: number, a: number) {
       const f = frames[id];
-      flyToDir(f.origin.clone().addScaledVector(f.east, x).addScaledVector(f.north, -z), a);
+      rig.flyToDir(f.origin.clone().addScaledVector(f.east, x).addScaledVector(f.north, -z), a);
     },
     /** Sky: blue near the ground, space above the atmosphere, by camera altitude. */
     setSky() {
-      const f = THREE.MathUtils.clamp(Math.log(600_000 / Math.max(alt, 1)) / Math.log(600_000 / 150_000), 0, 1);
+      const f = THREE.MathUtils.clamp(Math.log(600_000 / Math.max(rig.alt, 1)) / Math.log(600_000 / 150_000), 0, 1);
       (scene.background as THREE.Color).copy(SPACE).lerp(SKY, f);
       atmoMat.uniforms.uLow.value = f;
       stars.visible = f < 1; // dimmed by the sky as it brightens
       (stars.material as THREE.MeshBasicMaterial).opacity = 1 - f;
     },
     update(dt: number, now: number) {
-      if (tilt) { // undo last frame's tilt: back above the ground point at the screen centre
-        camera.updateMatrixWorld();
-        ray.setFromCamera(new THREE.Vector2(), camera);
-        if (ray.ray.intersectSphere(planet, hit)) camera.position.copy(hit);
-      }
-      if (anim) {
-        const t = Math.min(1, (now - anim.t0) / 3500), e = ease(t);
-        camera.position.copy(tmp.copy(anim.d0).lerp(anim.d1, e).normalize());
-        alt = altGoal = Math.exp(THREE.MathUtils.lerp(Math.log(anim.a0), Math.log(anim.a1), e));
-        if (t === 1) anim = null;
-      } else {
-        alt = Math.exp(THREE.MathUtils.lerp(Math.log(alt), Math.log(altGoal), Math.min(1, dt * 8)));
-      }
-      camera.position.setLength(R + alt);
-      const near = Math.min(100, alt / 20); // close to the ground, a 100 m near plane would clip it
-      if (camera.near !== near) { camera.near = near; camera.updateProjectionMatrix(); }
-      controls.rotateSpeed = THREE.MathUtils.clamp(alt / 10_000_000, 0.02, 1);
-      controls.update();
-      if (heading) camera.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(camera.position.clone().normalize(), -heading));
-      if (tilt) { // swing about the ground point below, around the camera's right axis
-        const g = camera.position.clone().setLength(R), right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        const swing = (a: number) => camera.position.clone().sub(g).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right, a)).add(g);
-        const buried = (p: THREE.Vector3) => p.length() - R < relief.groundAt(p) + Math.min(CLEARANCE, alt * 0.15);
-        if (buried(swing(tilt))) { // the terrain is in the way: stop at the steepest tilt that clears it
-          let lo = 0, hi = tilt;
-          for (let i = 0; i < 8; i++) { const mid = (lo + hi) / 2; if (buried(swing(mid))) hi = mid; else lo = mid; }
-          tilt = lo;
-        }
-        const q = new THREE.Quaternion().setFromAxisAngle(right, tilt);
-        camera.position.copy(swing(tilt));
-        camera.quaternion.premultiply(q);
-      }
-      if (anim) anchor = null; else holdAnchor(); // after the tilt, so the wheel's anchor stays under the cursor
+      rig.step(dt, now);
+      const alt = rig.alt;
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
       atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
@@ -557,8 +441,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
       camera.updateMatrixWorld();
-      const taken: number[][] = [];
-      // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
+      const taken = createDeclutter(); // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
       for (const p of order) {
         let on = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && alt > (p.lod[2] ?? 0) && cam.dot(p.up) > cosLimit;
         const zs = zoomScale(p, alt);
@@ -578,8 +461,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
             for (const pts of lineStretches(p.line, tw, th, off, cosLimit, cam)) {
               const h = off + th, xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
               const b = [Math.min(...xs), Math.min(...ys) - h, Math.max(...xs), Math.max(...ys) + h];
-              if (taken.some((t) => overlaps(t, b))) continue;
-              taken.push(b);
+              if (!taken.claim(b)) continue;
               const c = p.line.copies[shown.length];
               c.path.setAttribute('d', `M${pts.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join('L')}`);
               c.tp.setAttribute('dy', String(-off));
@@ -592,12 +474,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         }
         if (on) {
           const b = screenBox(p);
-          on = !taken.some((t) => overlaps(t, b));
-          if (on) taken.push(b);
+          on = taken.claim(b);
         }
         // fade rather than pop (style.css); the name leaves the page once its fade-out is done
-        (p.obj as CSS2DObject).element.classList.toggle('off', !on);
-        if (on) { p.obj.visible = true; p.offAt = 0; } else if (p.obj.visible && now - (p.offAt ||= now) > 300) p.obj.visible = false;
+        setShown(p.obj as CSS2DObject, on, now);
       }
     },
   };

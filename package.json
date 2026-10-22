@@ -4,7 +4,7 @@
   "description": "Community-built, Google Earth-style 3D atlas of the Known World",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test src/declutter.test.ts",
     "dev": "vite",
     "build": "tsc && vite build",
     "plan": "node tools/sites/kingsLanding/plan.mjs",

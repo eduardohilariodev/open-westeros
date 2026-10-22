@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import B from './relief-bounds.json';
 import { PLANET } from '../config';
-import { DISPLACE, exaggeration, LIFT, LIFT_GLSL, NOISE_GLSL } from './lift';
+import { bindBake, exaggerate, LIFT, LIFT_GLSL, NOISE_GLSL, raisedMetres, setDisplace } from './lift';
 import { createReliefMesh, MESH_VERT } from './reliefMesh';
 import { RIVER_VERT, riverGeometry, syncPixel } from './rivers';
 import type { Ring } from './viewLayer';
@@ -206,7 +206,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     for (const id of CLASSES) fills[id].visible = !(on && object.children.length); // the mesh draws the land
     riverLines.visible = !(on && object.children.length); // and its own rivers
     object.visible = on;
-    LIFT.uDisplace.value = on && object.children.length ? DISPLACE : 0;
+    setDisplace(on && object.children.length > 0);
   };
   // data, not pictures: no premultiplied alpha, no colour management
   const loader = new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
@@ -221,8 +221,6 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   cloudTexture.wrapS = THREE.RepeatWrapping;
   cloudTexture.anisotropy = 8;
   const ready = Promise.all(['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'].map(load)).then(([tA, tB, tC, tD, tV]) => {
-    LIFT.uBounds.value.set(B.lon0, B.lon1, B.lat0, B.lat1);
-    LIFT.uHeightMax.value = B.heightMax;
     const uniforms = {
       ...LIFT, tA: { value: tA }, tB: { value: tB }, tC: { value: tC }, tD: { value: tD }, tV: { value: tV },
       uExaggeration, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
@@ -241,7 +239,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     apply();
     const material = new THREE.ShaderMaterial({ uniforms: { ...uniforms }, vertexShader: MESH_VERT, fragmentShader: LAND_FRAG, defines: { COVER: '' } });
     return createReliefMesh(`${import.meta.env.BASE_URL}world/relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
-      LIFT.tH.value = texture;
+      bindBake(texture, B);
       updateMesh = update;
       bakedHeight = heightAt;
       const uPixel = { value: 0 };
@@ -270,16 +268,13 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     groundAt(p: THREE.Vector3) {
       if (!enabled || !bakedHeight) return 0;
       const n = p.clone().normalize(), km = bakedHeight(THREE.MathUtils.radToDeg(Math.atan2(n.x, n.z)), THREE.MathUtils.radToDeg(Math.asin(n.y)));
-      const surface = n.multiplyScalar(PLANET.radius); // siteFade: 0 within 20 km of a site, 1 from 60 km out
-      const fade = Math.min(1, ...LIFT.uSites.value.map((s) => THREE.MathUtils.smoothstep(surface.distanceTo(s), 20e3, 60e3)));
-      return km * (1 + LIFT.uPeaks.value * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * LIFT.uDisplace.value * fade; // as drawn now
+      return raisedMetres(km, n.multiplyScalar(PLANET.radius)); // as drawn now
     },
     /** Picks the mesh's detail and the height exaggeration for the camera (`tilt`: radians from straight down); call before each render. */
     update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, tilt = 0) {
       if (!enabled) return;
       if (object.children.length) { // the 3D relief is up: exaggerate to suit how it is seen
-        const e = exaggeration(camera.position.length() - PLANET.radius, tilt);
-        LIFT.uDisplace.value = e.displace; LIFT.uPeaks.value = e.peaks; uExaggeration.value = B.exaggeration * e.shade;
+        uExaggeration.value = B.exaggeration * exaggerate(camera.position.length() - PLANET.radius, tilt);
       }
       updateMesh?.(camera, renderer);
       uCloud.value = THREE.MathUtils.smoothstep(camera.position.length() - PLANET.radius, 2000e3, 2500e3); // clear below them

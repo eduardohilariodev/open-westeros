@@ -37,6 +37,26 @@ export const LIFT = {
   uSites: { value: sites },
 };
 
+/** Where the baked height texture and grid are, once the relief has loaded. */
+export function bindBake(texture: THREE.Texture, b: { lon0: number; lon1: number; lat0: number; lat1: number; heightMax: number }) {
+  LIFT.tH.value = texture;
+  LIFT.uBounds.value.set(b.lon0, b.lon1, b.lat0, b.lat1);
+  LIFT.uHeightMax.value = b.heightMax;
+}
+/** Switches the 3D height on (at `DISPLACE`) or off (0: nothing moves). */
+export const setDisplace = (on: boolean) => { LIFT.uDisplace.value = on ? DISPLACE : 0; };
+/** Sets the height exaggeration for the camera and returns the hillshade scale to go with it. */
+export function exaggerate(alt: number, tilt: number) {
+  const e = exaggeration(alt, tilt);
+  LIFT.uDisplace.value = e.displace; LIFT.uPeaks.value = e.peaks;
+  return e.shade;
+}
+/** TS twins of siteFade() and raise() below, so a TS query (the camera's clearance) sees the ground as the shader draws it. */
+export const siteFade = (p: THREE.Vector3) => Math.min(1, ...sites.map((s) => THREE.MathUtils.smoothstep(p.distanceTo(s), 20e3, 60e3)));
+/** Metres the ground at surface point `p` is raised for baked height `km`. */
+export const raisedMetres = (km: number, p: THREE.Vector3) =>
+  km * (1 + LIFT.uPeaks.value * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * LIFT.uDisplace.value * siteFade(p);
+
 /** Value noise, and the relief's procedural detail below the bake's ~4 km pixels. Shared by vertex and fragment shaders. */
 export const NOISE_GLSL = `
 float hash13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }

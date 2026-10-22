@@ -41,10 +41,11 @@ export function createTerrain(R: number) {
     fills[id] = add(fillMesh(fillGeometry(polys, r), fill, order++));
     if (stroke) strokes.push(add(lineMesh(lineGeometry(polys.flat(), r, true), stroke, 0.9, order++)));
   }
-  add(lineMesh(lineGeometry(world.land as Ring[], r, true), COAST, 1.2, order++));
+  // coast lines belong to the flat map only: in relief the shoreline is the terrain itself (relief.ts hides `strokes`)
+  strokes.push(add(lineMesh(lineGeometry(world.land as Ring[], r, true), COAST, 1.2, order++)));
   const lakeRings = world.lakes.flatMap((l) => l.rings as Ring[]);
   fills.lakes = add(fillMesh(fillGeometry(world.lakes.flatMap((l) => polygons(l.rings as Ring[])), r), WATER, order++));
-  add(lineMesh(lineGeometry(lakeRings, r, true), COAST, 1, order++));
+  strokes.push(add(lineMesh(lineGeometry(lakeRings, r, true), COAST, 1, order++)));
   const rivers = add(lineMesh(lineGeometry(world.rivers as Ring[], r, false), RIVER, 1.1, order++));
   // The relief lifts a line at its vertices only, so the road is cut into short pieces to follow the heights between them, and
   // rides ROAD_LIFT above the baked ground to stay clear of the mesh's finer detail.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { SiteId } from '../config';
+import { createDeclutter } from '../declutter';
 
 // What a 3D place adds to the globe: a scene in a local frame in metres (x = east, y = up, z = south, origin at the site),
 // with a sun and shadows, clickable labels, and a fade-in. It has no controls of its own: main.ts drives its camera from
@@ -74,14 +75,13 @@ export function createSiteScene(labelsEl: HTMLElement, o: Options) {
   /** Hides the names that are too far for their kind or overlap a more important one. Call each frame, after the camera is placed. */
   function updateLabels() {
     camera.updateMatrixWorld();
-    const taken: number[][] = [];
+    const taken = createDeclutter(4, 2);
     for (const { obj, place, w } of labelObjs) {
       pt.copy(obj.position).project(camera);
       const x = ((pt.x + 1) / 2) * innerWidth, y = ((1 - pt.y) / 2) * innerHeight;
       const b = [x - w / 2, y - 12, x + w / 2, y + 12];
       let on = pt.z < 1 && camera.position.distanceTo(obj.position) < (SHOWN_WITHIN[place.kind] ?? 8000);
-      on &&= !taken.some((t) => b[0] < t[2] + 4 && t[0] < b[2] + 4 && b[1] < t[3] + 2 && t[1] < b[3] + 2);
-      if (on) taken.push(b);
+      on &&= taken.claim(b);
       obj.element.classList.toggle('off', !on);
     }
   }

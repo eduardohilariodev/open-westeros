@@ -45,11 +45,16 @@ type Bounds = { lon0: number; lon1: number; lat0: number; lat1: number; heightMa
  * frame. Also the height texture (R height / heightMax, G land cover) and the baked height (km) at a lon/lat. */
 export async function createReliefMesh(url: string, r: number, b: Bounds, material: THREE.ShaderMaterial) {
   const { W, H, data } = await pixels(url);
+  // The shader's baseHeight (lift.ts), in TS: cubic B-spline of the 4×4 pixels round the point, so a query sees the ground as drawn.
+  const px = (x: number, y: number) => { const p = (Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))) * 4; return (data[p] * 256 + data[p + 1]) / 65535; };
+  const spline = (f: number) => [(1 - f) ** 3 / 6, (4 - 6 * f * f + 3 * f ** 3) / 6, (1 + 3 * f + 3 * f * f - 3 * f ** 3) / 6, f ** 3 / 6];
   const heightAt = (lonDeg: number, latDeg: number) => {
-    const x = Math.round(((lonDeg - b.lon0) / (b.lon1 - b.lon0)) * W - 0.5), y = Math.round(((b.lat1 - latDeg) / (b.lat1 - b.lat0)) * H - 0.5);
-    if (x < 0 || y < 0 || x >= W || y >= H) return 0;
-    const p = (y * W + x) * 4;
-    return ((data[p] * 256 + data[p + 1]) / 65535) * b.heightMax;
+    const sx = ((lonDeg - b.lon0) / (b.lon1 - b.lon0)) * W - 0.5, sy = ((b.lat1 - latDeg) / (b.lat1 - b.lat0)) * H - 0.5;
+    if (sx < -0.5 || sy < -0.5 || sx > W - 0.5 || sy > H - 0.5) return 0;
+    const ix = Math.floor(sx), iy = Math.floor(sy), wx = spline(sx - ix), wy = spline(sy - iy);
+    let h = 0;
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) h += wy[j] * wx[i] * px(ix - 1 + i, iy - 1 + j);
+    return h * b.heightMax;
   };
 
   // height and land cover as half floats: filterable everywhere, ~2 m steps at the top of the range
