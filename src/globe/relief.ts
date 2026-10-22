@@ -266,11 +266,13 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   }).catch((e) => console.warn('relief: staying on the flat map,', e));
   return {
     object, ready, setEnabled(on: boolean) { enabled = on; apply(); },
-    /** Height of the drawn ground above sea level (m) at a lon/lat in degrees; the baked height as raise() lifts it, without the fine detail. */
-    groundAt(lon: number, lat: number) {
+    /** Height of the drawn ground above sea level (m) under a point; the baked height as raise() lifts it (flat at the 3D sites), without the fine detail. */
+    groundAt(p: THREE.Vector3) {
       if (!enabled || !bakedHeight) return 0;
-      const km = bakedHeight(lon, lat);
-      return km * (1 + LIFT.uPeaks.value * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * LIFT.uDisplace.value; // as drawn now
+      const n = p.clone().normalize(), km = bakedHeight(THREE.MathUtils.radToDeg(Math.atan2(n.x, n.z)), THREE.MathUtils.radToDeg(Math.asin(n.y)));
+      const surface = n.multiplyScalar(PLANET.radius); // siteFade: 0 within 20 km of a site, 1 from 60 km out
+      const fade = Math.min(1, ...LIFT.uSites.value.map((s) => THREE.MathUtils.smoothstep(surface.distanceTo(s), 20e3, 60e3)));
+      return km * (1 + LIFT.uPeaks.value * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * LIFT.uDisplace.value * fade; // as drawn now
     },
     /** Picks the mesh's detail and the height exaggeration for the camera (`tilt`: radians from straight down); call before each render. */
     update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, tilt = 0) {

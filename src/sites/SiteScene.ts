@@ -52,7 +52,11 @@ export function createSiteScene(labelsEl: HTMLElement, o: Options) {
   sun.shadow.needsUpdate = true;
 
   // ---------- labels ----------
-  const labelObjs: { obj: CSS2DObject; place: Place }[] = [];
+  // Same rules as the globe's names: placed in rank order, a name that would overlap one already placed is hidden (faded,
+  // not popped), and the fine kinds only show once the camera is near. Box sizes are estimated, never read from layout.
+  const RANK = ['castle', 'keep', 'sept', 'pit', 'district', 'hill', 'water', 'gate', 'wood', 'square'], SHOWN_WITHIN: Record<string, number> = { street: 1500, road: 1500 };
+  const rank = (k: string) => { const i = RANK.indexOf(k); return i < 0 ? RANK.length : i; };
+  const labelObjs: { obj: CSS2DObject; place: Place; w: number }[] = [];
   function addPlaces(places: Place[]) {
     for (const p of places) {
       const el = document.createElement('div');
@@ -62,7 +66,23 @@ export function createSiteScene(labelsEl: HTMLElement, o: Options) {
       const obj = new CSS2DObject(el);
       obj.position.set(p.pos[0], p.pos[2], p.pos[1]);
       scene.add(obj);
-      labelObjs.push({ obj, place: p });
+      labelObjs.push({ obj, place: p, w: p.name.length * 8.5 + 14 });
+    }
+    labelObjs.sort((a, b) => rank(a.place.kind) - rank(b.place.kind));
+  }
+  const pt = new THREE.Vector3();
+  /** Hides the names that are too far for their kind or overlap a more important one. Call each frame, after the camera is placed. */
+  function updateLabels() {
+    camera.updateMatrixWorld();
+    const taken: number[][] = [];
+    for (const { obj, place, w } of labelObjs) {
+      pt.copy(obj.position).project(camera);
+      const x = ((pt.x + 1) / 2) * innerWidth, y = ((1 - pt.y) / 2) * innerHeight;
+      const b = [x - w / 2, y - 12, x + w / 2, y + 12];
+      let on = pt.z < 1 && camera.position.distanceTo(obj.position) < (SHOWN_WITHIN[place.kind] ?? 8000);
+      on &&= !taken.some((t) => b[0] < t[2] + 4 && t[0] < b[2] + 4 && b[1] < t[3] + 2 && t[1] < b[3] + 2);
+      if (on) taken.push(b);
+      obj.element.classList.toggle('off', !on);
     }
   }
 
@@ -87,7 +107,7 @@ export function createSiteScene(labelsEl: HTMLElement, o: Options) {
   };
 
   const site = {
-    scene, camera, labels, labelObjs, addPlaces, setFade,
+    scene, camera, labels, labelObjs, addPlaces, updateLabels, setFade,
     get fade() { return fade; },
     onPick: (_p: Place) => {},
   };

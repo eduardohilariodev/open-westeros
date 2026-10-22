@@ -423,7 +423,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // Shift-drag tilts and turns instead, about the ground point at the screen centre: up/down tilts, left/right turns.
   let grab: THREE.Vector3 | null = null, dragging = false, tilting = false, down = { x: 0, y: 0 };
   const release = () => (grab = null, dragging = tilting = false);
-  for (const t of [el, labelsEl]) {
+  const attachInput = (t: HTMLElement) => {
     t.addEventListener('pointerdown', (e) => {
       if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
       anim = anchor = null;
@@ -446,7 +446,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     t.addEventListener('pointerup', release);
     t.addEventListener('pointercancel', release);
     t.addEventListener('wheel', onWheel, { passive: false });
-  }
+  };
+  [el, labelsEl].forEach(attachInput);
 
   // ---------- flights ----------
   let anim: { t0: number; d0: THREE.Vector3; d1: THREE.Vector3; a0: number; a1: number } | null = null;
@@ -458,7 +459,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const ray = new THREE.Raycaster(), planet = new THREE.Sphere(new THREE.Vector3(), R), hit = new THREE.Vector3();
 
   const view = {
-    scene, camera, controls, labels, ocean, terrain, relief,
+    scene, camera, controls, labels, attachInput, ocean, terrain, relief,
     nav: {
       heading: () => heading,
       resetNorth() { heading = 0; },
@@ -537,7 +538,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       if (tilt) { // swing about the ground point below, around the camera's right axis
         const g = camera.position.clone().setLength(R), right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const swing = (a: number) => camera.position.clone().sub(g).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right, a)).add(g);
-        const buried = (p: THREE.Vector3) => { const ll = latLon(p); return p.length() - R < relief.groundAt(ll.lon, ll.lat) + Math.min(CLEARANCE, alt * 0.15); };
+        const buried = (p: THREE.Vector3) => p.length() - R < relief.groundAt(p) + Math.min(CLEARANCE, alt * 0.15);
         if (buried(swing(tilt))) { // the terrain is in the way: stop at the steepest tilt that clears it
           let lo = 0, hi = tilt;
           for (let i = 0; i < 8; i++) { const mid = (lo + hi) / 2; if (buried(swing(mid))) hi = mid; else lo = mid; }

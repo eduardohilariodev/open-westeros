@@ -124,6 +124,8 @@ body:not(.drawer-open) #ui { display: none; }
 /* ---------- map labels ---------- */
 .lbl { pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 1px 6px; border-radius: 3px; font: 400 16px var(--font-map); color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
 .lbl:hover { background: #0006; }
+.lbl { transition: opacity 0.25s; }
+.lbl.off { opacity: 0; pointer-events: none; }
 .lbl.gate { color: #c6d4ff; }
 .lbl.street, .lbl.road { color: #ffe9b8; font-style: italic; font-weight: normal; }
 .lbl.hill, .lbl.district, .lbl.water { color: #d8f0d0; font-size: 17px; letter-spacing: 2px; font-weight: normal; }

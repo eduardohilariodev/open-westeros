@@ -140,6 +140,7 @@ function loadSite(id: SiteId) {
     const labels = document.createElement('div'); // one label layer per site, faded in with the site
     labels.className = 'labels';
     document.body.append(labels);
+    globe.attachInput(labels); // dragging and zooming over a name steers the globe's camera too
     return SITE_VIEWS[id](renderer, labels).then((view) => {
       view.camera.aspect = innerWidth / innerHeight;
       view.camera.updateProjectionMatrix();
@@ -236,6 +237,7 @@ renderer.setAnimationLoop((now) => {
   if (site && site.fade > 0) {
     renderer.clearDepth(); // the site has its own ground; the globe's depth would hide its low parts under the globe's surface
     renderer.render(site.scene, site.camera);
+    site.updateLabels();
     site.labels.render(site.scene, site.camera);
   }
   nav.update();
