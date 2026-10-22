@@ -7,6 +7,8 @@ export interface PlaceInfo {
   image?: string;
   /** The gallery: file names of the article's pictures, as in awoiaf's thumb.php?f=. */
   images?: string[];
+  /** The wiki's caption for each picture in `images`, same order; '' where it has none. */
+  captions?: string[];
   summary?: string;
   /** Rows under the summary, [label, value]: ['Ruler', 'House Stark'], ['Founded', 'Age of Heroes']. */
   facts?: [string, string][];

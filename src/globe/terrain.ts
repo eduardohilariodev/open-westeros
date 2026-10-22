@@ -7,7 +7,7 @@ import type { Ring } from './viewLayer';
 // The vector map: sea, land, lakes and rivers from the Known World SVG maps (src/vector-world.json), with terrain (plains,
 // forest, swamp, desert, hills, mountains, snow) from src/terrain.json, as GPU geometry draped on the planet. The layers are
 // drawn bottom to top by renderOrder and sit 7 m under the surface, just below the ground of the 3D sites.
-export const TERRAIN_SEA = 0x0f2f30;
+export const TERRAIN_SEA = 0x0f2f4c;
 // Parchment and gold on a deep teal sea, illuminated-manuscript style, drawn bottom to top.
 const TERRAIN: [id: string, fill: string, stroke?: string][] = [
   ['desert', '#d4b06a'], ['hills', '#c9b483'], ['mountains', '#b39a68', '#6b5a3a'], ['forest', '#4f7a70'], ['swamp', '#6f8a72'], ['snow', '#f1ead6'],

@@ -34,19 +34,20 @@ export const SITES = {
     // "roughly square", several miles across. At medieval densities that is ~10-20 sq mi inside the walls,
     // i.e. ~3-4 mi a side. tools/sites/kingsLanding/plan.mjs scales the consensus city plan to this area.
     walledAreaSqMi: 12.25, // a 3.5 mi square's worth
+    drawDistance: 60_000, // the model is drawn closer than this (about 7x its width), so it never pops in as a speck
   },
   winterfell: {
     name: 'Winterfell',
     kind: 'capital',
+    drawDistance: 8_000, // about 5x its width
   },
 };
 export type SiteId = keyof typeof SITES;
 
 // A site's 3D scene is drawn into the globe's frame (same camera pose, same depth buffer), so zooming in is one continuous
-// view. What changes with distance is only who steers the camera and when the scene is loaded and drawn. Metres.
+// view. What changes with distance is only who steers the camera and when the scene is loaded and drawn (SITES[id].drawDistance). Metres.
 export const SITE_SWITCH = {
-  loadDistance: 3_000_000, // start loading the scene
-  drawDistance: 1_500_000, // draw it over the globe
+  loadDistance: 350_000, // start loading the scene
   enterDistance: 350_000, // the camera is steered by the site's map controls (tilt, WASD, orbit) closer than this
   exitDistance: 400_000, // and by the globe's controls farther than this
 };

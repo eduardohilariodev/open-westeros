@@ -12,6 +12,19 @@ import type { Nav } from '../ui/nav';
 /** A named, clickable place. pos = [x, z, groundHeight] in the site frame. */
 export type Place = { name: string; kind: string; pos: [number, number, number]; radius?: number };
 
+/** Dissolves the edge of a ground patch into the globe's ground below (the site is drawn over the globe, see main.ts). */
+export function edgeFade<M extends THREE.MeshStandardMaterial>(m: M, width = 0.15) {
+  const N = 64, px = new Uint8Array(N * N * 4);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const u = (i + 0.5) / N, v = (j + 0.5) / N, e = Math.min(u, 1 - u, v, 1 - v) / width;
+    px.set([255, Math.round(255 * THREE.MathUtils.smoothstep(e, 0, 1)), 255, 255], (j * N + i) * 4);
+  }
+  m.alphaMap = new THREE.DataTexture(px, N, N);
+  m.alphaMap.minFilter = m.alphaMap.magFilter = THREE.LinearFilter;
+  m.alphaMap.needsUpdate = true;
+  return m;
+}
+
 /** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the camera goes for a place. */
 export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; flyTo(p: Place): void };
 
@@ -139,9 +152,29 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     metresPerPixel: () => (2 * controls.getDistance() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / innerHeight,
   };
 
+  // ---------- fade in ----------
+  // The whole scene fades in as the camera comes within the site's draw distance, so it never pops over the globe. Alpha
+  // hashing dithers the opacity (no sorting, writes depth); it is on only while fading, except on edge-faded ground.
+  const base = new Map<THREE.Material, { opacity: number; transparent: boolean }>();
+  let fade = -1;
+  const setFade = (f: number) => {
+    if (f === fade) return;
+    fade = f;
+    if (!base.size) scene.traverse((o) => {
+      for (const m of [(o as THREE.Mesh).material].flat()) if (m && !base.has(m)) base.set(m, { opacity: m.opacity, transparent: m.transparent });
+    });
+    for (const [m, b] of base) {
+      const hash = f < 1 || (!!(m as THREE.MeshStandardMaterial).alphaMap && !b.transparent), transparent = f < 1 ? false : b.transparent;
+      if (m.alphaHash !== hash || m.transparent !== transparent) { m.alphaHash = hash; m.transparent = transparent; m.needsUpdate = true; }
+      m.opacity = b.opacity * f;
+    }
+    labelsEl.style.opacity = String(f);
+  };
+
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const site = {
-    scene, camera, controls, labels, labelObjs, addPlaces, flyToPoint, setSun, nav,
+    scene, camera, controls, labels, labelObjs, addPlaces, flyToPoint, setSun, setFade, nav,
+    get fade() { return fade; },
     onPick: (_p: Place) => {},
     flyHome: () => animateTo(o.home.position.clone(), o.home.target.clone(), 3500),
     enter(position: THREE.Vector3, target: THREE.Vector3) {
@@ -169,7 +202,7 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       controls.update();
       const d = camera.position.distanceTo(controls.target);
       site.setFog(d);
-      labelsEl.style.visibility = d > o.labelMaxDistance ? 'hidden' : '';
+      labelsEl.style.visibility = d > o.labelMaxDistance || fade < 0.05 ? 'hidden' : '';
     },
     /** Haze that thickens with the camera's distance d, so a high view is not lost in it. */
     setFog(d: number) {

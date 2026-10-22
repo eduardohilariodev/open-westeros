@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { inject } from '@vercel/analytics';
-import { SITE_SWITCH, type SiteId } from './config';
+import { SITE_SWITCH, SITES, type SiteId } from './config';
 import { createGlobeView, type Card } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { PLACE_INFO } from './place-info';
@@ -52,6 +52,7 @@ const showCard = (c: Card) => {
     return li;
   }));
   files = info.images ?? [];
+  captions = info.captions ?? [];
   q('.photos').hidden = !files.length;
   if (files.length) { q<HTMLImageElement>('.tile img').src = thumb(files[0], 400); q('.tile span').textContent = `Images (${files.length})`; }
   place.scrollTop = 0;
@@ -61,15 +62,16 @@ q<HTMLImageElement>('.hero').onerror = () => { q('.hero').hidden = true; }; // h
 // Gallery: the place's pictures from its wiki article (file names in place-info), opened by the panel's picture or its
 // Images tile. thumb.php resizes by width but refuses to upscale (400), so the big picture tries the widest first and
 // steps down. Arrows or ←/→ browse, the strip jumps, click outside the picture or Esc closes.
-let files: string[] = [], at = 0, widths: number[] = [];
+let files: string[] = [], captions: string[] = [], at = 0, widths: number[] = [];
 const thumb = (f: string, w: number) => `https://awoiaf.westeros.org/thumb.php?f=${f}&width=${w}`;
-const viewer = $('viewer'), big = viewer.querySelector<HTMLImageElement>('.big')!, strip = viewer.querySelector<HTMLElement>('.strip')!;
+const viewer = $('viewer'), big = viewer.querySelector<HTMLImageElement>('.big')!, strip = viewer.querySelector<HTMLElement>('.strip')!, caption = viewer.querySelector<HTMLElement>('.caption')!;
 const tryWidth = () => { big.src = thumb(files[at], widths.shift()!); };
 big.onerror = () => { if (widths.length) tryWidth(); };
 const showImage = (i: number) => {
   at = (i + files.length) % files.length;
   widths = [1600, 1200, 800, 400, 200];
   tryWidth();
+  caption.textContent = captions[at] ?? ''; caption.hidden = !caption.textContent;
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === at));
   strip.children[at].scrollIntoView({ inline: 'center', block: 'nearest' });
 };
@@ -154,7 +156,10 @@ $('legendNone').onclick = () => setAllKinds(false);
 
 // Edit mode (dev server only, it saves through it): the panel swaps to name-editing tools.
 const ed = globe.editor, $in = (id: string) => $(id) as HTMLInputElement;
-if (import.meta.env.DEV) $('editStart').hidden = false;
+if (import.meta.env.DEV) {
+  $('editStart').hidden = false;
+  document.title += ' (dev)';
+}
 $('editStart').onclick = () => ed.setActive(true);
 $('editDone').onclick = () => { if (!ed.dirty() || confirm('Leave with unsaved changes?')) ed.setActive(false); };
 $('rotL').onclick = () => ed.setRot((ed.state()?.rot ?? 0) - 5);
@@ -202,7 +207,6 @@ $('menuBtn').onclick = () => { // with a place open, the menu closes it and brin
   if (!place.hidden) { globe.deselect(); document.body.classList.add('drawer-open'); }
   else document.body.classList.toggle('drawer-open');
 };
-if (innerWidth < 700) document.body.classList.remove('drawer-open');
 const nav = initNav(renderer.domElement, () => (active ? sites[active]!.nav : globe.nav));
 
 // Search: every place name on the map.
@@ -223,42 +227,66 @@ search.addEventListener('change', () => {
 $('loadMsg').textContent = 'Loading terrain…';
 await globe.relief.ready;
 
+(window as any).__d = { globe, sites, renderer, enterSite }; // TEMP debug
 let ready = false;
 let last = performance.now();
+const debug = $('debug');
+debug.hidden = !import.meta.env.DEV;
+let fps = 60;
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   // The planet and the nearby site's scene are drawn into one frame with the same camera pose: whoever steers (the globe
   // controls far away, the site's map controls close up), the other camera follows.
-  let drawn: SiteId | null = active;
+  // A site's model is drawn only within its drawDistance, even while its controls steer.
+  let drawn: SiteId | null = null;
   if (!active) {
     globe.update(dt, now);
     const load = globe.siteWithin(SITE_SWITCH.loadDistance);
     if (load && !sites[load]) loadSite(load);
     const enter = globe.siteWithin(SITE_SWITCH.enterDistance);
-    if (enter && sites[enter]) { enterSite(enter); drawn = enter; }
-    else drawn = globe.siteWithin(SITE_SWITCH.drawDistance) ?? null;
-    $('loadHint').hidden = !(enter && !sites[enter]);
+    if (enter && sites[enter]) enterSite(enter);
+    drawn = globe.siteWithin((id) => SITES[id].drawDistance) ?? null;
+    $('loadHint').hidden = !(drawn && !sites[drawn]);
   } else {
     sites[active]!.update(dt, now);
-    if (sites[active]!.camera.position.length() > SITE_SWITCH.exitDistance) { exitSite(active); drawn = null; }
+    if (sites[active]!.camera.position.length() > SITE_SWITCH.exitDistance) exitSite(active);
+    else if (sites[active]!.camera.position.length() < SITES[active].drawDistance) drawn = active;
     $('loadHint').hidden = true;
   }
   const site = drawn && sites[drawn];
-  if (site && drawn) {
-    if (active) globe.followSite(drawn, site.camera);
-    else { const c = globe.siteCamera(drawn); site.camera.position.copy(c.position); site.camera.quaternion.copy(c.quaternion); }
+  if (active) globe.followSite(active, sites[active]!.camera);
+  else if (site && drawn) { const c = globe.siteCamera(drawn); site.camera.position.copy(c.position); site.camera.quaternion.copy(c.quaternion); }
+  // A drawn site fades in over the last stretch of its draw distance.
+  for (const [id, s] of Object.entries(sites) as [SiteId, SiteView][]) {
+    const D = SITES[id].drawDistance;
+    s.setFade(id === drawn ? 1 - THREE.MathUtils.smoothstep(s.camera.position.length(), D * 0.55, D) : 0);
   }
   globe.setSky();
-  renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it, depth-tested against it
-  if (site) {
+  renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it
+  if (site && drawn && site.fade > 0) {
     site.scene.fog!.color.copy(globe.scene.background as THREE.Color);
     if (!active) site.setFog(site.camera.position.length());
+    renderer.clearDepth(); // the site has its own ground; the globe's depth would hide its low parts under the globe's surface
     renderer.render(site.scene, site.camera);
   }
   const v = active ? sites[active]! : globe;
   v.labels.render(v.scene, v.camera);
   nav.update();
+  if (import.meta.env.DEV) {
+    fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
+    const n = active ? sites[active]!.nav : globe.nav, c = n.pick(new THREE.Vector2(0, 0)), deg = THREE.MathUtils.radToDeg;
+    debug.textContent = [
+      active ?? 'globe',
+      c ? `centre ${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°` : 'centre: sky',
+      `alt ${(n.altitude() / 1000).toFixed(1)} km`,
+      `tilt ${deg(n.tilt()).toFixed(1)}°`,
+      `heading ${((deg(n.heading()) % 360) + 360) % 360 | 0}°`,
+      `${n.metresPerPixel().toFixed(0)} m/px`,
+      `${fps.toFixed(0)} fps`,
+      `${renderer.info.render.calls} calls`,
+    ].join('  |  ');
+  }
   if (!ready) { // first frame is on screen: reveal the world
     ready = true;
     $('loadFill').style.width = '100%';

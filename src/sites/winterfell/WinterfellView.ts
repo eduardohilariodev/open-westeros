@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createSiteScene, type Place, type SiteView } from '../SiteScene';
+import { createSiteScene, edgeFade, type Place, type SiteView } from '../SiteScene';
 import { LORE } from './lore';
 import { createProceduralWinterfellView } from './procedural';
 
@@ -38,7 +38,7 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
 
   const terrain = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1, T.cols - 1, T.rows - 1),
-    new THREE.MeshStandardMaterial({ color: 0x6f7552, roughness: 1 }),
+    edgeFade(new THREE.MeshStandardMaterial({ color: 0x6f7552, roughness: 1 })),
   );
   {
     const pos = terrain.geometry.attributes.position as THREE.BufferAttribute;

@@ -7,8 +7,9 @@ import type { Ring } from './viewLayer';
 // baked height, and drawn as a ribbon that widens from source to mouth. The width is real (metres), so a river grows as
 // you zoom in, but never gets thinner than MIN_PX on screen. The water lies at the height of its centre line, so rising
 // banks hide its edges; relief.ts's RIVER_FRAG shades it deep in the middle and shallow at the banks.
-const MIN_PX = 1.3;
-const SOURCE_KM = 0.25, MOUTH_KM = 3; // width at a source, and at the mouth of the longest river
+const MIN_PX = 2;
+const SOURCE_KM = 0.4, MOUTH_KM = 4.5; // width at a source, and at the mouth of the longest river
+const SNAP_DEG = 0.12; // how far (degrees, ~14 km) a river end may reach to join another river or a lake
 
 export const chaikin = (pts: Ring, rounds = 3): Ring => {
   for (let k = 0; k < rounds; k++) {
@@ -46,9 +47,26 @@ void main() {
 }`;
 
 /** Ribbons for the river polylines at radius r, oriented downhill by `heightAt` (km at lon, lat). */
-export function riverGeometry(rivers: Ring[], r: number, heightAt: (lon: number, lat: number) => number) {
-  const lines = rivers.filter((l) => l.length > 1).map((l) => {
-    const pts = chaikin(l);
+export function riverGeometry(rivers: Ring[], r: number, heightAt: (lon: number, lat: number) => number, lakes: Ring[] = []) {
+  const smooth = rivers.filter((l) => l.length > 1).map((l) => chaikin(l));
+  // An end within SNAP_DEG of another river or a lake shore is pulled onto it, so branches join and mouths reach the water.
+  const snap = (p: [number, number], self: Ring) => {
+    let best = p, bd = SNAP_DEG;
+    const scan = (line: Ring) => {
+      for (let i = 0; i < line.length - 1; i++) {
+        const [ax, ay] = line[i], dx = line[i + 1][0] - ax, dy = line[i + 1][1] - ay, len2 = dx * dx + dy * dy;
+        const t = len2 ? Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / len2)) : 0;
+        const q: [number, number] = [ax + t * dx, ay + t * dy], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+        if (d < bd) { bd = d; best = q; }
+      }
+    };
+    for (const l of smooth) if (l !== self) scan(l);
+    for (const l of lakes) scan(l);
+    return best;
+  };
+  const lines = smooth.map((orig) => {
+    const pts = [...orig];
+    pts[0] = snap(pts[0] as [number, number], orig); pts[pts.length - 1] = snap(pts[pts.length - 1] as [number, number], orig);
     if (heightAt(...pts[0]) < heightAt(...pts[pts.length - 1])) pts.reverse(); // source first
     const xyz = pts.map(([lon, lat]) => toVector(lat, lon, r));
     const s = [0];

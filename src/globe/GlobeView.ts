@@ -4,15 +4,19 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { PLANET, SITE_SWITCH, SITES, type SiteId } from '../config';
 import { eastNorth, enuFrame, siteLatLon, toVector } from '../geo';
 import { PLACE_EDITS, type PlaceEdit } from '../place-edits';
+import world from '../vector-world.json';
 import { PLACES } from '../world-data';
-import { PLACE_ICONS, PLACE_KINDS } from './placeIcons';
+import { chaikin } from './rivers';
+import type { Ring } from './viewLayer';
+import { PIN_BOX, PLACE_ICONS, PLACE_KINDS } from './placeIcons';
 import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
+import B from './relief-bounds.json';
 import { createTerrain, TERRAIN_SEA } from './terrain';
 
 // Planet-centred frame, metres. The vector map (terrain.ts, regions.ts) is draped as lat/lon patches over an ocean sphere.
 const R = PLANET.radius;
-const MIN_ALT = 150_000, MAX_ALT = 40_000_000;
+const MIN_ALT = 1_000, MAX_ALT = 40_000_000;
 const rad = THREE.MathUtils.degToRad;
 
 export type GlobeView = ReturnType<typeof createGlobeView>;
@@ -22,7 +26,7 @@ const KIND_NAME = Object.fromEntries(PLACE_KINDS.map(([k, , one]) => [k, one]));
 
 export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLElement, showCard: (c: Card) => void) {
   const scene = new THREE.Scene();
-  const SPACE = new THREE.Color(0x041011), SKY = new THREE.Color(0xc4d3c8);
+  const SPACE = new THREE.Color(0x041011), SKY = new THREE.Color(0x86b6e8);
   scene.background = SPACE.clone();
   const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 100, 3e8);
   const HOME = { dir: toVector(30, 27, 1), alt: 22_000_000 }; // over the Known World
@@ -35,33 +39,51 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
 
   // ---------- planet ----------
   const ocean = new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false }));
-  const atmosphere = new THREE.Mesh(
-    new THREE.SphereGeometry(R * 1.035, 96, 48),
-    new THREE.ShaderMaterial({
-      side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: `#include <common>
-        #include <logdepthbuf_pars_vertex>
-        varying vec3 vN; varying vec3 vV;
-        void main() {
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
-          gl_Position = projectionMatrix * mv;
-          #include <logdepthbuf_vertex>
-        }`,
-      fragmentShader: `#include <logdepthbuf_pars_fragment>
-        varying vec3 vN; varying vec3 vV;
-        void main() {
-          #include <logdepthbuf_fragment>
-          float rim = pow(1.0 - abs(dot(vN, vV)), 2.5);
-          gl_FragColor = vec4(0.3, 0.65, 0.6, 1.0) * rim * 0.9;
-        }`,
-    }),
-  );
-  const stars = (() => {
-    const p = new Float32Array(6000 * 3), v = new THREE.Vector3();
-    for (let i = 0; i < 6000; i++) v.randomDirection().multiplyScalar(2e8).toArray(p, i * 3);
-    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p, 3));
-    return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xf0e2b8, size: 1.6, sizeAttenuation: false }));
+  // Haze: the shell's far side is drawn over everything, and each pixel's ray is marched through it for the air it crosses
+  // (up to the ground if it hits the planet). From space that is a glow round the limb; from low down it fades the distant
+  // ground into the sky and gives the horizon a gradient above it. Colour goes from teal to SKY as the camera comes down.
+  const atmoMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, transparent: true, depthTest: false, depthWrite: false,
+    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4f86e6) }, uSky: { value: SKY }, uLow: { value: 0 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
+    vertexShader: `varying vec3 vW;
+      void main() { vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
+    fragmentShader: `uniform float uGround, uTop, uLow, uNight; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
+      const float HS = 15000.0, TAU0 = 60000.0; // scale height of the air (Earth's 8.5 km, stretched for looks); the path (m of sea-level air) that is ~63% haze
+      void main() {
+        vec3 ro = cameraPosition, rd = normalize(vW - cameraPosition);
+        float b = dot(ro, rd), c = dot(ro, ro);
+        float h = sqrt(max(b * b - (c - uTop * uTop), 0.0));
+        float t0 = max(-b - h, 0.0), t1 = -b + h;
+        float g = b * b - (c - uGround * uGround);
+        float night = 0.0;
+        if (g > 0.0 && -b - sqrt(g) > 0.0) { // the ground ends the ray
+          t1 = -b - sqrt(g);
+          vec3 p = normalize(ro + rd * t1);
+          night = 0.97 * uNight * smoothstep(0.0, -0.2, dot(p, uSun)); // the unlit half: N.L < 0, with a soft terminator
+        }
+        // only sunlit air glows: each sample counts by the sun at its own point, so the night air is clear, not a dark veil
+        float dt = (t1 - t0) / 32.0, tau = 0.0;
+        for (int i = 0; i < 32; i++) {
+          vec3 q = ro + rd * (t0 + (float(i) + 0.5) * dt);
+          float lit = mix(1.0, smoothstep(-0.25, 0.05, dot(q, uSun) / length(q)), uNight);
+          tau += exp((uGround - length(q)) / HS) * lit * dt;
+        }
+        float a = 1.0 - exp(-tau / TAU0);
+        vec3 haze = mix(mix(uTeal, vec3(0.55, 0.72, 1.0), a * a), uSky, uLow);
+        float A = 1.0 - (1.0 - a) * (1.0 - night); // the night veil lies under the haze
+        gl_FragColor = vec4(haze * a / max(A, 1e-4), A);
+        #include <colorspace_fragment>
+      }`,
+  });
+  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.025, 96, 48), atmoMat);
+  atmosphere.renderOrder = 300; // after the relief, its lines and its clouds (200), which it veils
+  atmosphere.frustumCulled = false;
+  const stars = (() => { // Milky Way panorama on a sphere round the scene
+    const map = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/milky_way.jpg`);
+    map.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(2e8, 64, 32), new THREE.MeshBasicMaterial({ map, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }));
+    m.renderOrder = -1;
+    return m;
   })();
   const headlight = new THREE.DirectionalLight(0xffffff, 1.6);
   const regions = createRegions(R), terrain = createTerrain(R);
@@ -88,7 +110,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // (oceans, regions) gives way to the places inside it once you are well within it, like Google Maps.
   // The whole Known World is ~17,000 km across; at 22,000 km up it all fits the screen, at 3,000 km about Westeros-and-a-half.
   const LOD: Record<string, [number, number, number?]> = {
-    continent: [MAX_ALT * 2, 12_000_000, 6_000_000], ocean: [30_000_000, 8_000_000, 500_000], region: [6_000_000, 3_500_000, 500_000], city: [3_500_000, 900_000], capital: [4_000_000, 700_000],
+    continent: [10_000_000, 8_000_000, 6_000_000], ocean: [10_000_000, 8_000_000, 500_000], region: [6_000_000, 3_500_000, 500_000], city: [3_500_000, 900_000], capital: [4_000_000, 700_000],
     island: [3_000_000, 1_300_000], mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000],
     sea: [3_500_000, 1_500_000], lake: [1_600_000, 1_000_000], river: [1_600_000, 1_400_000],
     castle: [1_200_000, 550_000], town: [1_200_000, 550_000], ruin: [1_200_000, 600_000], landmark: [1_500_000, 700_000],
@@ -99,15 +121,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const edits: Record<string, PlaceEdit> = JSON.parse(JSON.stringify(PLACE_EDITS));
   type Gen = (typeof PLACES)[number];
   /** At most two words a line, not counting "the": "Tower of / the Hand". */
-  const wrap = (name: string) => {
+  const wrap = (name: string, per = 2, skip = ['the']) => {
     let out = '', n = 0;
     for (const w of name.split(' ')) {
-      if (n === 2) { out += '\n'; n = 0; } else if (out) out += ' ';
+      if (n === per) { out += '\n'; n = 0; } else if (out) out += ' ';
       out += w;
-      if (w.toLowerCase() !== 'the') n++;
+      if (!skip.includes(w.toLowerCase())) n++;
     }
     return out;
   };
+  const WATER = new Set(['ocean', 'sea', 'lake']); // one word a line, every word counted
   const layout = ([, , lat, lon]: Gen, e: PlaceEdit) => ({ up: toVector(...(e.p ?? [lat, lon]), 1), rot: e.rot ?? 0, scale: e.s ?? 1 });
   const places = PLACES.map((g, i) => {
     const [name, kind] = g;
@@ -119,7 +142,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     const area = AREA_KINDS.has(kind);
     el.className = `globe-place k-${kind}${area ? ' globe-area' : ''}`;
     el.innerHTML = `<span></span>${area ? '' : `<svg viewBox="0 0 512 512">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`}`;
-    el.firstElementChild!.textContent = area ? name : wrap(name);
+    el.firstElementChild!.textContent = WATER.has(kind) ? wrap(name, 1, []) : area ? name : wrap(name);
     el.onclick = () => {
       if (editing) return;
       if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
@@ -129,9 +152,30 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     scene.add(obj);
     labelsEl.append(el); // in the page from the start, so it can be measured before it is first shown
     el.style.display = 'none';
-    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, size: [0, 0, 0, 0], offAt: 0 };
+    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], offAt: 0, river: null as RiverLabel | null };
   });
   type Place = (typeof places)[number];
+  /** A river name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
+  type RiverCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
+  type RiverLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: RiverCopy[] };
+  /**
+   * Type size by altitude, in px per kind: an exponential ease (base FONT_B) from the small end at the top of a kind's
+   * height band to the large end at its bottom, so names grow gently as you come down, like zoom-interpolated text-size in
+   * a vector style. Oceans and continents are the biggest lettering, water bodies and regions next, rivers and small places least.
+   */
+  const FONT_B = 1.3;
+  const FONT_PX: Record<string, [number, number]> = {
+    continent: [18, 32], ocean: [18, 32], sea: [14, 24], region: [14, 24], lake: [12, 18], capital: [13, 19], city: [12, 18],
+    river: [11, 16], ruin: [10, 13], minor: [10, 13],
+  };
+  const FONT_DEFAULT: [number, number] = [11, 15];
+  const basePx = new Map<string, number>(); // the CSS size of each kind (style.css), which `zoomScale` divides out
+  const zoomScale = (p: Place, h: number) => {
+    if (!basePx.has(p.kind)) basePx.set(p.kind, parseFloat(getComputedStyle((p.obj as CSS2DObject).element.firstElementChild!).fontSize) || 16);
+    const [min, max] = FONT_PX[p.kind] ?? FONT_DEFAULT, hi = p.lod[0], lo = p.lod[2] ?? p.lod[1] / 2, span = Math.log2(hi / lo);
+    const t = (FONT_B ** THREE.MathUtils.clamp(Math.log2(hi / h), 0, span) - 1) / (FONT_B ** span - 1);
+    return Math.round((THREE.MathUtils.lerp(min, max, t) / basePx.get(p.kind)!) * 50) / 50; // 2% steps, so the style isn't rewritten every frame
+  };
   /** [symbol w, h, text w, h] in px, unscaled. All names at once, so it is one reflow; again once the web font is in. */
   const measure = () => {
     const els = places.map((p) => (p.obj as CSS2DObject).element), shown = els.map((e) => e.style.display);
@@ -149,7 +193,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   /** A name's box on screen: [left, top, right, bottom], px. */
   const screenBox = (p: Place) => {
     pt.copy(p.obj.position).project(camera);
-    const x = ((pt.x + 1) / 2) * innerWidth, y = ((1 - pt.y) / 2) * innerHeight, s = p.scale * p.fit, [w, h, tw, th] = p.size;
+    const x = ((pt.x + 1) / 2) * innerWidth, y = ((1 - pt.y) / 2) * innerHeight, s = p.scale * p.fit * p.zs, [w, h, tw, th] = p.size;
     if (AREA_KINDS.has(p.kind)) return [x - (tw * s) / 2, y - (th * s) / 2, x + (tw * s) / 2, y + (th * s) / 2];
     const hh = Math.max(h, th * s) / 2;
     return [x - w / 2, y - hh, x + w / 2 + 4 + tw * s, y + hh]; // text 4px right of the symbol (style.css)
@@ -166,15 +210,139 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       p.obj.scale.set(p.scale, p.scale, 1);
     } else { // scale only the text, so the symbol stays on the spot
       const text = (p.obj as CSS2DObject).element.firstElementChild as HTMLElement;
-      const s = p.scale * p.fit;
+      const s = p.scale * p.fit * p.zs;
       text.style.cssText = s === 1 ? '' : `display:inline-block;transform-origin:${AREA_KINDS.has(p.kind) ? '50% 50%' : '0 50%'};transform:scale(${s})`;
     }
   };
   places.forEach(put);
+  // Each river name rides on the map polyline nearest its spot (Chaikin-smoothed, as the water ribbon is). One SVG layer
+  // holds all the texts; `update` bends each along the part of its river that is on screen.
+  const NS = 'http://www.w3.org/2000/svg', riverLayer = document.createElementNS(NS, 'svg'), riverDefs = document.createElementNS(NS, 'defs');
+  riverLayer.setAttribute('class', 'river-labels');
+  riverLayer.append(riverDefs);
+  labelsEl.append(riverLayer);
+  const polylines = (world.rivers as Ring[]).filter((l) => l.length > 1).map((l) => ({ raw: l.map(([lon, lat]) => toVector(lat, lon, 1)), line: l }));
+  const MATCH_COS = Math.cos(rad(2)); // a river name must sit within 2° (~240 km) of its line
+  const RIVER_COPIES = 3; // a long river carries its name up to this many times
+  const RIVER_ANCHORS = [0.5, 0.25, 0.75, 0.375, 0.625, 0.125, 0.875]; // where along a river (0 source, 1 mouth) its name may hang, in order of preference
+  places.forEach((p, i) => {
+    if (p.kind !== 'river') return;
+    let best: (typeof polylines)[number] | null = null, bestCos = MATCH_COS;
+    for (const l of polylines) for (const v of l.raw) { const c = v.dot(p.up); if (c > bestCos) { bestCos = c; best = l; } }
+    if (!best) return; // no line near it: stays a plain label
+    const pos = chaikin(best.line, 2).map(([lon, lat]) => toVector(lat, lon, R + 3000));
+    const copies = Array.from({ length: RIVER_COPIES }, (_, c): RiverCopy => {
+      const path = document.createElementNS(NS, 'path'), text = document.createElementNS(NS, 'text'), tp = document.createElementNS(NS, 'textPath');
+      path.id = `river-path-${i}-${c}`;
+      tp.setAttribute('href', `#${path.id}`);
+      tp.setAttribute('startOffset', '50%');
+      tp.setAttribute('text-anchor', 'middle');
+      tp.textContent = p.name;
+      text.setAttribute('class', 'river-text off');
+      text.append(tp);
+      text.onclick = () => { if (!editing) view.flyToPlace(i); };
+      riverDefs.append(path);
+      riverLayer.append(text);
+      return { path, text, tp };
+    });
+    p.river = { pos, dirs: pos.map((v) => v.clone().normalize()), copies };
+  });
+  /** Douglas-Peucker: drop points within `eps` px of the chord. Screen-space, so the tolerance is the same at every altitude. */
+  const simplify = (pts: Ring, eps: number): Ring => {
+    const keep = new Uint8Array(pts.length), stack: [number, number][] = [[0, pts.length - 1]];
+    keep[0] = keep[pts.length - 1] = 1;
+    while (stack.length) {
+      const [a, b] = stack.pop()!, [ax, ay] = pts[a], [bx, by] = pts[b], len = Math.hypot(bx - ax, by - ay) || 1;
+      let far = 0, at = -1;
+      for (let k = a + 1; k < b; k++) {
+        const d = Math.abs((bx - ax) * (ay - pts[k][1]) - (ax - pts[k][0]) * (by - ay)) / len;
+        if (d > far) { far = d; at = k; }
+      }
+      if (far > eps) { keep[at] = 1; stack.push([a, at], [at, b]); }
+    }
+    return pts.filter((_, k) => keep[k]);
+  };
+  const MAX_BEND = rad(30); // largest turn between neighbouring stretches of a name (Mapbox's text-max-angle)
+  const RIVER_SPACING = 350; // px of clear line between repeats of a name (symbol-spacing)
+  const Q_W = { curve: 1, offset: 0.5, orient: 0.3, spacing: 0.3 }; // weights of Q(L) = w1 C + w2 O + w3 I + w4 S
+  /**
+   * Where a river's name goes on screen: up to RIVER_COPIES stretches of the on-screen line, best first. The line is
+   * simplified (Douglas-Peucker, 1.5 px) and re-smoothed (Chaikin) in screen space, then windows the width of the name
+   * (`tw` px, `th` tall) are scored by Q(L): C curvature (turns between samples, none over MAX_BEND), O the baseline
+   * offset `off` px above the line leaving the screen, I slant from horizontal, S distance from the middle of the visible
+   * line. Repeats must be RIVER_SPACING px apart. Samples run left to right so the text reads upright.
+   * ponytail: windows every tw/4 and a greedy pick; a global optimiser if names still sit badly
+   */
+  const riverStretches = (r: RiverLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3) => {
+    let run: Ring = [], bestRun = run; // the longest run of vertices on the near side, in screen px
+    const v = new THREE.Vector3();
+    r.pos.forEach((q, k) => {
+      if (cam.dot(r.dirs[k]) <= cosLimit) { run = []; return; }
+      v.copy(q).project(camera);
+      run.push([((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight]);
+      if (run.length > bestRun.length) bestRun = run;
+    });
+    if (bestRun.length < 2) return [];
+    const line = chaikin(simplify(bestRun, 1.5), 2), s = [0];
+    for (let k = 1; k < line.length; k++) s.push(s[k - 1] + Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]));
+    const L = s[s.length - 1];
+    if (L < tw * 1.1) return [];
+    const at = (d: number): [number, number] => {
+      let k = 1;
+      while (k < line.length - 1 && s[k] < d) k++;
+      const f = (d - s[k - 1]) / ((s[k] - s[k - 1]) || 1);
+      return [line[k - 1][0] + (line[k][0] - line[k - 1][0]) * f, line[k - 1][1] + (line[k][1] - line[k - 1][1]) * f];
+    };
+    const N = 12, inside = (x: number, y: number) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight;
+    const picked: Ring[] = [], pickedS: number[] = [];
+    // Names hang on fixed anchors along the whole river (not on whatever stretch is visible), tried in a fixed order, so
+    // a name stays on its spot of the river as the globe turns or zooms and only fades in or out.
+    for (const f of RIVER_ANCHORS) {
+      if (picked.length === RIVER_COPIES) break;
+      const k = Math.round(f * (r.pos.length - 1));
+      if (cam.dot(r.dirs[k]) <= cosLimit) continue;
+      v.copy(r.pos[k]).project(camera);
+      const ax = ((v.x + 1) / 2) * innerWidth, ay = ((1 - v.y) / 2) * innerHeight;
+      let near = 0, nd = Infinity; // the anchor's place on the screen line
+      line.forEach(([x, y], j) => { const d = (x - ax) ** 2 + (y - ay) ** 2; if (d < nd) { nd = d; near = j; } });
+      if (nd > 25 ** 2) continue; // the simplified line has left the anchor behind
+      const sc = s[near];
+      let best: { s0: number; q: number; pts: Ring } | null = null;
+      for (const shift of [-tw / 4, 0, tw / 4]) { // a little give around the anchor, for the best fit
+        const s0 = sc - tw / 2 + shift;
+        if (s0 < 0 || s0 > L - tw) continue;
+        const c = score(s0);
+        if (c && (!best || c.q < best.q)) best = c;
+      }
+      if (best && pickedS.every((p) => Math.abs(best!.s0 - p) >= tw + RIVER_SPACING)) { picked.push(best.pts); pickedS.push(best.s0); }
+    }
+    function score(s0: number) {
+      const pts = Array.from({ length: N + 1 }, (_, k) => at(s0 + (tw * k) / N));
+      if (pts[N][0] < pts[0][0]) pts.reverse(); // keep upright: never read right to left
+      if (pts.some(([x, y]) => !inside(x, y))) return null; // the whole name on screen
+      let max = 0, sum = 0;
+      for (let k = 2; k <= N; k++) {
+        const a = Math.atan2(pts[k][1] - pts[k - 1][1], pts[k][0] - pts[k - 1][0]) - Math.atan2(pts[k - 1][1] - pts[k - 2][1], pts[k - 1][0] - pts[k - 2][0]);
+        const t = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+        max = Math.max(max, t); sum += t;
+      }
+      if (max > MAX_BEND) return null;
+      let out = 0; // samples whose text-centre (off + th/2 above the line, "above" being left of the way it runs) is off screen
+      for (let k = 1; k <= N; k++) {
+        const dx = pts[k][0] - pts[k - 1][0], dy = pts[k][1] - pts[k - 1][1], d = Math.hypot(dx, dy) || 1, h = off + th / 2;
+        if (!inside(pts[k][0] + (dy / d) * h, pts[k][1] - (dx / d) * h)) out++;
+      }
+      const C = (0.5 * max + (0.5 * sum) / (N - 1)) / MAX_BEND;
+      const O = out / N, I = Math.abs(Math.atan2(pts[N][1] - pts[0][1], pts[N][0] - pts[0][0])) / (Math.PI / 2);
+      const S = Math.abs(s0 + tw / 2 - L / 2) / (L / 2);
+      return { s0, pts, q: Q_W.curve * C + Q_W.offset * O + Q_W.orient * I + Q_W.spacing * S };
+    }
+    return picked;
+  };
   // map pin on the place a search or a click flew to
   const pinEl = document.createElement('div');
   pinEl.className = 'globe-pin';
-  pinEl.innerHTML = `<svg viewBox="0 0 512 512">${PLACE_ICONS.pin}</svg>`;
+  pinEl.innerHTML = `<svg viewBox="${PIN_BOX}">${PLACE_ICONS.pin}</svg>`;
   const pin = new CSS2DObject(pinEl);
   pin.center.set(0.5, 1); // the tip
   pin.visible = false;
@@ -203,7 +371,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   let alt = HOME.alt, altGoal = alt;
   let tilt = 0; // radians from straight down; alt is then the distance to the ground point at the screen centre
   let heading = 0; // radians clockwise from north
-  const MAX_TILT = rad(70);
+  const CLEARANCE = 200; // m the camera keeps above the ground
+  const MAX_TILT = rad(85); // short of 90°, where the camera would sit on the ground
   // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
   let anchor: THREE.Vector3 | null = null;
   const anchorNdc = new THREE.Vector2();
@@ -307,8 +476,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       showCard({ kind: KIND_NAME[p.kind] ?? p.kind, name: p.name, lat, lon, region: p.outline ? undefined : regionAt(lat, lon)?.name });
       flyToDir(p.up, ids.some((id) => SITES[id].name === p.name) ? SITE_SWITCH.enterDistance * 0.8 : p.lod[1]);
     },
-    /** The site whose centre the camera is within `d` metres of, if any. */
-    siteWithin: (d: number) => ids.find((id) => camera.position.distanceTo(frames[id].origin) < d),
+    /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
+    siteWithin: (d: number | ((id: SiteId) => number)) =>
+      ids.find((id) => camera.position.distanceTo(frames[id].origin) < (typeof d === 'number' ? d : d(id))),
     /** Current camera expressed in a site frame (x east, y up, z south), looking at the point below it. */
     siteCamera(id: SiteId) {
       const f = frames[id], o = tmp.copy(camera.position).sub(f.origin);
@@ -324,12 +494,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       camera.position.copy(f.origin).addScaledVector(f.east, p.x).addScaledVector(f.up, p.y).addScaledVector(f.north, -p.z);
       camera.quaternion.copy(frameQuat[id]).multiply(site.quaternion);
       alt = altGoal = Math.max(camera.position.length() - R, 1);
+      const near = Math.min(100, alt / 20); // update() is not running here, so keep the near plane in step too
+      if (camera.near !== near) { camera.near = near; camera.updateProjectionMatrix(); }
     },
     /** Sky: blue near the ground, space above the atmosphere, by camera altitude. */
     setSky() {
-      const f = THREE.MathUtils.clamp(Math.log(300_000 / Math.max(alt, 1)) / Math.log(300_000 / 20_000), 0, 1);
+      const f = THREE.MathUtils.clamp(Math.log(600_000 / Math.max(alt, 1)) / Math.log(600_000 / 150_000), 0, 1);
       (scene.background as THREE.Color).copy(SPACE).lerp(SKY, f);
-      stars.visible = atmosphere.visible = f === 0;
+      atmoMat.uniforms.uLow.value = f;
+      stars.visible = f < 1; // dimmed by the sky as it brightens
+      (stars.material as THREE.MeshBasicMaterial).opacity = 1 - f;
     },
     update(dt: number, now: number) {
       if (tilt) { // undo last frame's tilt: back above the ground point at the screen centre
@@ -346,17 +520,27 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         alt = Math.exp(THREE.MathUtils.lerp(Math.log(alt), Math.log(altGoal), Math.min(1, dt * 8)));
       }
       camera.position.setLength(R + alt);
+      const near = Math.min(100, alt / 20); // close to the ground, a 100 m near plane would clip it
+      if (camera.near !== near) { camera.near = near; camera.updateProjectionMatrix(); }
       controls.rotateSpeed = THREE.MathUtils.clamp(alt / 10_000_000, 0.02, 1);
       controls.update();
       if (heading) camera.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(camera.position.clone().normalize(), -heading));
       if (tilt) { // swing about the ground point below, around the camera's right axis
-        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), tilt);
-        const g = camera.position.clone().setLength(R);
-        camera.position.sub(g).applyQuaternion(q).add(g);
+        const g = camera.position.clone().setLength(R), right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const swing = (a: number) => camera.position.clone().sub(g).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right, a)).add(g);
+        const buried = (p: THREE.Vector3) => { const ll = latLon(p); return p.length() - R < relief.groundAt(ll.lon, ll.lat) + CLEARANCE; };
+        if (buried(swing(tilt))) { // the terrain is in the way: stop at the steepest tilt that clears it
+          let lo = 0, hi = tilt;
+          for (let i = 0; i < 8; i++) { const mid = (lo + hi) / 2; if (buried(swing(mid))) hi = mid; else lo = mid; }
+          tilt = lo;
+        }
+        const q = new THREE.Quaternion().setFromAxisAngle(right, tilt);
+        camera.position.copy(swing(tilt));
         camera.quaternion.premultiply(q);
       }
       if (anim) anchor = null; else holdAnchor(); // after the tilt, so the wheel's anchor stays under the cursor
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
+      atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
@@ -365,12 +549,35 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
       for (const p of order) {
         let on = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && alt > (p.lod[2] ?? 0) && cam.dot(p.up) > cosLimit;
+        const zs = zoomScale(p, alt);
+        if (on && zs !== p.zs) { p.zs = zs; put(p); }
         if (on && p.outline) {
           // keep a region's name inside its borders: shrink it to the area's on-screen width (at most its natural size)
           const room = (p.outline.span * rad(1) * R * Math.cos(rad(p.outline.center[0]))) / view.nav.metresPerPixel();
-          const fit = Math.min(1, Math.max(0.1, (0.9 * room) / (p.size[2] * p.scale || 1)));
+          const fit = Math.min(1, Math.max(0.1, (0.9 * room) / (p.size[2] * p.scale * p.zs || 1)));
           if (Math.abs(fit - p.fit) > 0.01) { p.fit = fit; put(p); }
         }
+        if (p.river && !editing) { // a river with a line is named along it, not at a point (its plain label stays off)
+          const shown: number[][][] = [];
+          if (on) {
+            const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
+            // the line is a few px wide this far out (km of a typical river over metres per pixel); the name sits just above it
+            const off = Math.max(1.3, 1500 / view.nav.metresPerPixel()) / 2 + 2;
+            for (const pts of riverStretches(p.river, tw, th, off, cosLimit, cam)) {
+              const h = off + th, xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+              const b = [Math.min(...xs), Math.min(...ys) - h, Math.max(...xs), Math.max(...ys) + h];
+              if (taken.some((t) => overlaps(t, b))) continue;
+              taken.push(b);
+              const c = p.river.copies[shown.length];
+              c.path.setAttribute('d', `M${pts.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join('L')}`);
+              c.tp.setAttribute('dy', String(-off));
+              c.text.style.fontSize = `${basePx.get(p.kind)! * p.scale * p.zs}px`;
+              shown.push(pts);
+            }
+          }
+          p.river.copies.forEach((c, k) => c.text.classList.toggle('off', k >= shown.length));
+          on = false;
+        } else if (p.river) p.river.copies.forEach((c) => c.text.classList.add('off')); // edit mode drags the plain label instead
         if (on && !editing) { // edit mode shows every name, so a hidden one can still be picked
           const b = screenBox(p);
           on = !taken.some((t) => overlaps(t, b));

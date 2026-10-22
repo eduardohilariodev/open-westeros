@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import B from './relief-bounds.json';
 import { PLANET } from '../config';
-import { DISPLACE, LIFT, LIFT_GLSL, NOISE_GLSL } from './lift';
+import { DISPLACE, PEAKS, LIFT, LIFT_GLSL, NOISE_GLSL } from './lift';
 import { createReliefMesh, MESH_VERT } from './reliefMesh';
 import { RIVER_VERT, riverGeometry, syncPixel } from './rivers';
 import type { Ring } from './viewLayer';
@@ -49,11 +49,13 @@ vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 ${NOISE_GLSL}
 uniform float uCloud;           // cloud opacity for the camera's height: 0 once below them
 float detail(vec3 p);
-// wisps of cloud ~60 km up, stretched east-west by a warped fbm: mostly clear sky
+uniform sampler2D tCloud;       // Earth's cloud cover (equirectangular), projected onto this planet ~60 km up
 float clouds(vec3 d) {
-  vec3 q = d * 6915.0 / 380.0;
-  q += vec3(detail(q * 0.5), detail(q * 0.5 + 7.3), detail(q * 0.5 + 3.1)) * 1.6;
-  return smoothstep(0.62, 0.86, detail(q * vec3(1.0, 2.6, 1.0)));
+  vec2 uv = vec2(atan(d.x, d.z) / 6.2831853 + 0.5, asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.5);
+  vec2 uv2 = vec2(fract(uv.x + 0.5) - 0.5, uv.y); // continuous across the date line, so the mip level has no seam
+  vec2 dx = dFdx(uv), dy = dFdy(uv), dx2 = dFdx(uv2), dy2 = dFdy(uv2);
+  bool seam = dot(dx, dx) + dot(dy, dy) > dot(dx2, dx2) + dot(dy2, dy2);
+  return smoothstep(0.2, 0.8, textureGrad(tCloud, uv, seam ? dx2 : dx, seam ? dy2 : dy).r);
 }
 // the ground under a cloud's shadow, cast along the sun from 60 km up
 float cloudShade(vec3 d) {
@@ -192,6 +194,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   let swaps: { mesh: THREE.Mesh; flat: THREE.Material; relief: THREE.Material }[] = [];
   const object = new THREE.Group();
   let updateMesh: ((camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) => void) | null = null;
+  let bakedHeight: ((lon: number, lat: number) => number) | null = null;
   const uCloud = { value: 0 };
   const apply = () => {
     const on = enabled && swaps.length > 0;
@@ -211,13 +214,16 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     t.needsUpdate = true;
     return t;
   });
+  const cloudTexture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/earth_clouds.jpg`);
+  cloudTexture.wrapS = THREE.RepeatWrapping;
+  cloudTexture.anisotropy = 8;
   const ready = Promise.all(['relief-a', 'relief-b', 'relief-c', 'relief-d'].map(load)).then(([tA, tB, tC, tD]) => {
     LIFT.uBounds.value.set(B.lon0, B.lon1, B.lat0, B.lat1);
     LIFT.uHeightMax.value = B.heightMax;
     const uniforms = {
       ...LIFT, tA: { value: tA }, tB: { value: tB }, tC: { value: tC }, tD: { value: tD },
       uExaggeration: { value: B.exaggeration }, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
-      uSun: { value: new THREE.Vector3(...B.sun) }, uCloud,
+      uSun: { value: new THREE.Vector3(...B.sun) }, uCloud, tCloud: { value: cloudTexture },
     };
     swaps = [...CLASSES.map((id) => fills[id]), fills.lakes, ocean].map((mesh) => {
       const flat = mesh.material as THREE.Material;
@@ -234,8 +240,9 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     return createReliefMesh(`${import.meta.env.BASE_URL}world/relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
       LIFT.tH.value = texture;
       updateMesh = update;
+      bakedHeight = heightAt;
       const uPixel = { value: 0 };
-      const rivers = new THREE.Mesh(riverGeometry(world.rivers as Ring[], PLANET.radius - 7, heightAt), new THREE.ShaderMaterial({
+      const rivers = new THREE.Mesh(riverGeometry(world.rivers as Ring[], PLANET.radius - 7, heightAt, world.lakes.flatMap((l) => l.rings as Ring[])), new THREE.ShaderMaterial({
         uniforms: { ...uniforms, uPixel }, vertexShader: RIVER_VERT, fragmentShader: RIVER_FRAG,
         transparent: true, depthWrite: false, side: THREE.DoubleSide,
       }));
@@ -256,11 +263,17 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   }).catch((e) => console.warn('relief: staying on the flat map,', e));
   return {
     object, ready, setEnabled(on: boolean) { enabled = on; apply(); },
+    /** Height of the drawn ground above sea level (m) at a lon/lat in degrees; the baked height as raise() lifts it, without the fine detail. */
+    groundAt(lon: number, lat: number) {
+      if (!enabled || !bakedHeight) return 0;
+      const km = bakedHeight(lon, lat);
+      return km * (1 + PEAKS * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * DISPLACE;
+    },
     /** Picks the mesh's detail for the camera; call before each render. */
     update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
       if (!enabled) return;
       updateMesh?.(camera, renderer);
-      uCloud.value = THREE.MathUtils.smoothstep(camera.position.length() - PLANET.radius, 600e3, 3000e3); // clear below them
+      uCloud.value = THREE.MathUtils.smoothstep(camera.position.length() - PLANET.radius, 2000e3, 2500e3); // clear below them
     },
   };
 }

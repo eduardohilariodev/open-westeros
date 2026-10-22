@@ -31,15 +31,24 @@ export function parse(md) {
   // The lead's first picture (the infobox's, else a location map); the wiki's "red pog" marker is not one.
   const image = [...lead.matchAll(/!\[[^\]]*\]\((https:\/\/awoiaf\.westeros\.org\/thumb\.php\?[^)\s]+)\)/g)].map((m) => m[1]).find((u) => !/f=Red_pog/.test(u));
   // The gallery: every picture in the article (file names for thumb.php), not icons or the red pog; document order, no repeats.
-  const images = [...new Set([...body.matchAll(/!\[[^\]]*\]\(https:\/\/awoiaf\.westeros\.org\/thumb\.php\?f=([^&)\s]+)&width=(\d+)\)/g)]
-    .filter((m) => +m[2] >= 200 && !/^Red_pog/.test(m[1])).map((m) => m[1]))].slice(0, 40);
-  return { title, summary, facts, image, images };
+  // A picture's caption is the text after its <br> in an infobox cell, else the paragraph under it (none if that is a table, a heading or
+  // another picture, or too long to be one). captions[i] belongs to images[i]; '' when it has none.
+  const found = new Map();
+  for (const m of body.matchAll(/!\[[^\]]*\]\(https:\/\/awoiaf\.westeros\.org\/thumb\.php\?f=([^&)\s]+)&width=(\d+)\)/g)) {
+    if (+m[2] < 200 || /^Red_pog/.test(m[1]) || found.has(m[1])) continue;
+    const tail = body.slice(m.index + m[0].length).replace(/^\]\([^)]*\)/, '');
+    const raw = tail.startsWith('<br>') ? tail.slice(4).split(/ \|\s*(?:\n|$)|\n/)[0] : (tail.match(/^\s*\n\n([^\n]+)/)?.[1] ?? '');
+    const caption = /^[|#!]|^\[!\[/.test(raw) ? '' : plain(raw).replace(/\s*-?\s*Click to zoom$/i, '');
+    found.set(m[1], caption.length > 160 ? '' : caption);
+  }
+  const images = [...found.keys()].slice(0, 40), captions = images.map((f) => found.get(f));
+  return { title, summary, facts, image, images, captions };
 }
 
 const out = {};
 for (const [name, file] of Object.entries(places)) {
-  const { title, summary, facts, image, images } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
-  out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(summary && { summary }), ...(facts.length && { facts }) };
+  const { title, summary, facts, image, images, captions } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
+  out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(captions.some(Boolean) && { captions }), ...(summary && { summary }), ...(facts.length && { facts }) };
 }
 writeFileSync('src/place-wiki.json', JSON.stringify(out));
 console.log(`${Object.keys(out).length} places, ${Object.values(out).filter((p) => !p.summary).length} without a summary, ${Object.values(out).filter((p) => !p.image).length} without an image`);

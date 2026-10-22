@@ -6,19 +6,21 @@
   <title>The Known World</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=IM+Fell+French+Canon:ital@0;1&family=Signika+Negative:wght@300..700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,400;0,700;1,400&family=Signika+Negative:wght@300..700&display=swap" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
-<body data-mode="globe" class="drawer-open">
+<body data-mode="globe">
   <div id="loading"><h1>The Known World</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
   <div id="globeLabels" class="labels"></div>
   <div id="viewer" hidden>
     <button class="close" aria-label="Close" title="Close (Esc)">×</button>
     <img class="big" alt="" />
+    <p class="caption" hidden></p>
     <button class="nav prev" aria-label="Previous" title="Previous (←)">‹</button>
     <button class="nav next" aria-label="Next" title="Next (→)">›</button>
     <div class="strip"></div>
   </div>
+  <div id="debug" hidden></div>
   <div id="loadHint" hidden>Loading 3D models…</div>
 
   <!-- top left: search pill + drawer -->
@@ -27,7 +29,7 @@
       <button id="menuBtn" class="icon" aria-label="Menu" title="Menu">
         <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
       </button>
-      <input id="search" type="search" list="places" placeholder="Search Westeros" autocomplete="off" />
+      <input id="search" type="search" list="places" placeholder="Search the known world" autocomplete="off" />
       <datalist id="places"></datalist>
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
     </div>

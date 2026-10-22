@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createSiteScene, type Place, type SiteView } from '../SiteScene';
+import { createSiteScene, edgeFade, type Place, type SiteView } from '../SiteScene';
 import { BOX, CONE, CYL, ROOF, TREE, instanced, mat, part, type Instance } from '../primitives';
 import { LABEL_LIFT, LANDMARK_BUILDERS } from './landmarks';
 import { LORE } from './lore';
@@ -48,7 +48,7 @@ export async function createKingsLandingView(renderer: THREE.WebGLRenderer, labe
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
     return t;
   };
-  const terrainMat = mat(0xffffff, { map: loadTex(`${DIR}/ground.png`), roughness: 1 });
+  const terrainMat = edgeFade(mat(0xffffff, { map: loadTex(`${DIR}/ground.png`), roughness: 1 }));
   const terrain = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, T.cols - 1, T.rows - 1), terrainMat);
   {
     const g = terrain.geometry;
@@ -63,7 +63,7 @@ export async function createKingsLandingView(renderer: THREE.WebGLRenderer, labe
   }
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(SW, SH).rotateX(-Math.PI / 2),
-    mat(0x4f7584, { roughness: 0.2, metalness: 0.25, transparent: true, opacity: 0.9 }),
+    edgeFade(mat(0x4f7584, { roughness: 0.2, metalness: 0.25, transparent: true, opacity: 0.9 })),
   );
   water.receiveShadow = true;
   scene.add(terrain, water);

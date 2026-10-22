@@ -108,6 +108,7 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
   };
   const frustum = new THREE.Frustum(), sphere = new THREE.Sphere(), m4 = new THREE.Matrix4(), cam = new THREE.Vector3(), camDir = new THREE.Vector3(), size = new THREE.Vector2();
   const raised = b.heightMax * 1000 * DISPLACE * (1 + PEAKS);
+  const peakHorizon = Math.acos(r / (r + raised)); // a peak shows this much farther round the curve than the ground
 
   function update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
     frustum.setFromProjectionMatrix(m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
@@ -121,7 +122,7 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
       centre(Math.min(x0 + S / 2, W - 1), Math.min(y0 + S / 2, H - 1), sphere.center);
       sphere.radius = S * cellKm * 1000 * 0.75 + raised;
       if (!frustum.intersectsSphere(sphere)) return;
-      if (Math.acos(THREE.MathUtils.clamp(sphere.center.dot(camDir) / r, -1, 1)) > horizon + sphere.radius / r + 0.02) return; // behind the planet
+      if (Math.acos(THREE.MathUtils.clamp(sphere.center.dot(camDir) / r, -1, 1)) > horizon + sphere.radius / r + peakHorizon) return; // behind the planet
       const dist = Math.max(1, cam.distanceTo(sphere.center) - sphere.radius);
       if (d < MAX_DEPTH && (S / N) * cellKm * 1000 > TARGET_PX * dist * pxAngle) {
         for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) visit(d + 1, nx * 2 + cx, ny * 2 + cy);

@@ -41,7 +41,8 @@ To keep the original image with this note, save it as `docs/geology-map.png`.
 
 ## Areas of interest
 
-The source map numbers these, but this tracing doesn't include its notes.
+The source map marks nine numbered areas ("click to learn more"), but the author's explanations weren't available.
+These one-liners are my reading of the rock units and faults under each number, not the author's text.
 1. North of the Wall: granite-cored ranges and Precambrian basement.
 2. The Narrow Sea: the spreading rift between the continents.
 3. Salt Shore: salt flats and coastal sands.
