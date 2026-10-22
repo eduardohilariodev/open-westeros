@@ -3,36 +3,10 @@
 // The image is the article's first picture, hot-linked from awoiaf's thumb.php (browsers load it; scripts get a 403).
 // Usage: node tools/wiki/place-info.mjs
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { plain, rich, titleOf } from './md.mjs';
 
 const DIR = 'docs/wiki';
 const { places } = JSON.parse(readFileSync(`${DIR}/_places.json`, 'utf8'));
-
-// No citation marks, emphasis or escapes.
-const strip = (md) => md
-  .replace(/\\\[[^\]]*\\\]/g, '')
-  .replace(/\*\*|(?<!\w)_|_(?!\w)/g, '')
-  .replace(/\\(.)/g, '$1')
-  .replace(/\s+([,.;:])/g, '$1').trim();
-// Markdown -> plain text: link text only.
-const plain = (md) => strip(md.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1'));
-const parens = (s) => s.replace(/[()]/g, (c) => (c === '(' ? '%28' : '%29'));
-// Markdown -> text that keeps its wiki links as [text](Page_title#section), the part after awoiaf.westeros.org/index.php/, which the
-// panel turns into links. Other links and pictures lose their markup.
-const rich = (md) => {
-  const kept = [];
-  const text = md.replace(/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, href) => {
-      const doc = href.match(/^(.+?)\.md(#.*)?$/), abs = href.match(/^https:\/\/awoiaf\.westeros\.org\/index\.php\/(.+)$/);
-      const target = doc ? parens(decodeURIComponent(doc[1])) + (doc[2] ?? '') : abs?.[1];
-      const text = strip(label);
-      if (!target || !text) return label;
-      kept.push(`[${text}](${target})`);
-      return `\u0001${kept.length - 1}\u0002`;
-    });
-  return strip(text).replace(/\u0001(\d+)\u0002/g, (_, i) => kept[i]);
-};
-// An article title from a link target ("Great_Keep_%28Winterfell%29" -> "Great Keep (Winterfell)").
-const titleOf = (target) => decodeURIComponent(target.split('#')[0]).replaceAll('_', ' ');
 
 export function parse(md) {
   const body = md.replace(/^---[\s\S]*?---\s*/, '');

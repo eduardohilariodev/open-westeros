@@ -25,6 +25,14 @@ body[data-mode=site] .globe-only, body[data-mode=site] #globeLabels, .labels[hid
 .searchbox { display: flex; align-items: center; height: 48px; padding: 0 12px 0 4px; background: var(--surface); border-radius: 24px; box-shadow: var(--shadow); }
 .searchbox input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 18px; background: none; min-width: 0; }
 .searchbox .search-icon { width: 22px; height: 22px; fill: var(--muted); }
+#results { z-index: 5; position: absolute; top: 54px; left: 0; right: 0; margin: 0; padding: 6px 0; list-style: none; max-height: 60vh; overflow: auto; }
+#results li { display: flex; align-items: center; gap: 12px; padding: 8px 16px; cursor: pointer; }
+#results li.on { background: #e4d5ab; }
+#results li svg { width: 18px; height: 18px; flex: none; }
+#results .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+#results mark { background: none; color: var(--accent); font-weight: 600; }
+#results .kd { font-size: 12px; color: var(--muted); letter-spacing: .3px; text-transform: uppercase; }
+#results .none { color: var(--muted); cursor: default; font-size: 14px; }
 .icon { width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; cursor: pointer; display: grid; place-items: center; color: var(--muted); }
 .icon:hover { background: #e4d5ab; }
 .icon svg { width: 24px; height: 24px; }
@@ -91,27 +99,27 @@ body:not(.drawer-open) #ui { display: none; }
 #place .facts:empty { display: none; }
 
 /* ---------- navigation stack ---------- */
-#nav { position: fixed; right: 16px; bottom: 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; }
-.fab { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
+#nav { --ctl: 48px; position: fixed; right: 16px; bottom: 44px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; }
+.fab { width: var(--ctl); height: var(--ctl); border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
 .fab:hover { background: #e4d5ab; }
-.fab svg { width: 22px; height: 22px; }
+.fab svg { width: 24px; height: 24px; }
 .fab.text { font-size: 15px; font-weight: 500; }
-.layer { position: relative; width: 56px; height: 56px; padding: 0; overflow: hidden; border: 2px solid #fff; border-radius: 12px; box-shadow: var(--shadow); cursor: pointer; background: #0f2f30; }
+.layer { order: 1; position: relative; width: var(--ctl); height: var(--ctl); padding: 0; overflow: hidden; border: 2px solid #fff; border-radius: 12px; box-shadow: var(--shadow); cursor: pointer; background: #0f2f30; }
 .layer .thumb { position: absolute; inset: 0; width: 100%; height: 100%; }
 .layer[aria-pressed=true] .relief, .layer[aria-pressed=false] .flat { display: none; }
 .layer .name { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 0 3px; font: 600 11px/1 var(--font); color: #fff; background: linear-gradient(transparent, #000a); }
 .layer:hover { border-color: #e4d5ab; }
 .fab[hidden] { display: none; }
-.compass { width: 48px; height: 48px; }
+.compass { width: var(--ctl); height: var(--ctl); }
 .compass svg { width: 40px; height: 40px; transition: transform .1s linear; }
 .compass .n { font: 400 8px var(--font-map); fill: #8b2a1e; }
 .compass .north { fill: #8b2a1e; }
 .compass .south { fill: #a89a78; }
-.zoom { display: flex; flex-direction: column; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
-.zoom button { width: 40px; height: 40px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
+.zoom { display: flex; flex-direction: column; background: var(--surface); border-radius: calc(var(--ctl) / 2); box-shadow: var(--shadow); overflow: hidden; }
+.zoom button { width: var(--ctl); height: var(--ctl); border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: #1d2f2d; padding: 0; }
 .zoom button + button { border-top: 1px solid #ddcca0; }
 .zoom button:hover { background: #e4d5ab; }
-.zoom svg { width: 22px; height: 22px; }
+.zoom svg { width: 24px; height: 24px; }
 
 /* ---------- status bar ---------- */
 #status { position: fixed; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 4px 12px; background: #0c2224d9; color: #e8d9b0; font-size: 11.5px; border-top-left-radius: 6px; font-variant-numeric: tabular-nums; z-index: 2; }
@@ -122,15 +130,6 @@ body:not(.drawer-open) #ui { display: none; }
 #scaleKm { border: 1px solid #e8d9b0; border-bottom: 0; }
 
 /* ---------- map labels ---------- */
-.lbl { pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 1px 6px; border-radius: 3px; font: 400 16px var(--font-map); color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
-.lbl:hover { background: #0006; }
-.lbl { transition: opacity 0.25s; }
-.lbl.off { opacity: 0; pointer-events: none; }
-.lbl.gate { color: #c6d4ff; }
-.lbl.street, .lbl.road { color: #ffe9b8; font-style: italic; font-weight: normal; }
-.lbl.hill, .lbl.district, .lbl.water { color: #d8f0d0; font-size: 17px; letter-spacing: 2px; font-weight: normal; }
-.lbl.castle, .lbl.sept, .lbl.pit, .lbl.keep { font-size: 17px; color: #ffd27a; }
-.lbl.wood { color: #b9f0a8; }
 
 /* names of places on the maps; larger kinds are drawn bigger. Dark lettering with a white stroke, readable on every map style */
 .globe-place { position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #f3ead0; font: 700 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 3px #101c1b; paint-order: stroke fill; }
@@ -181,8 +180,7 @@ body:not(.drawer-open) #ui { display: none; }
 .k-wild { color: #f5cd6a; }
 .k-landmark { color: #ff9db8; }
 .globe-place:hover { color: #ffe9a6; }
-.line-text:hover { fill: #ffe9a6; }
-/* names fade in and out (height bands, overlaps) instead of popping */
+.line-text:hover { fill: #ffe9a6; }/* names fade in and out (height bands, overlaps) instead of popping */
 .globe-place { transition: opacity .25s; }
 .globe-place.off { opacity: 0; pointer-events: none; }
 @starting-style { .globe-place { opacity: 0; } }
@@ -214,3 +212,46 @@ body:not(.drawer-open) #ui { display: none; }
 #loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #071416cc; color: #e8e4d8; font-size: 13px; }
 #loadHint[hidden] { display: none; }
 #status .credit a { color: inherit; text-decoration: underline; }
+#creditsBtn { background: none; border: 0; padding: 0; font: inherit; color: #c9b88a; text-decoration: underline; cursor: pointer; }
+#credits { max-width: min(420px, 90vw); border: 0; border-radius: 8px; padding: 18px 22px; background: #0c2224; color: #e8d9b0; }
+#credits::backdrop { background: #0008; }
+#credits h2 { margin: 0 0 8px; font-weight: 400; }
+#credits ul { margin: 0 0 14px; padding-left: 18px; line-height: 1.5; }
+#credits a { color: inherit; }
+#credits form button { padding: 4px 14px; cursor: pointer; }
+
+/* ---------- measuring wool (src/globe/measure.ts, src/ui/measurePanel.ts) ---------- */
+.fab[aria-pressed=true] { background: var(--accent); color: #f6ead0; }
+.fab[aria-pressed=true]:hover { background: #a2362a; }
+/* while measuring the pointer is a crosshair; over the ground it gives way to the push pin drawn in the scene (measure.ts) */
+body.measuring canvas, body.measuring .globe-place, body.measuring .line-text { cursor: crosshair !important; }
+body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-text { cursor: none !important; }
+#measure { position: fixed; left: 12px; bottom: 44px; width: 300px; max-width: calc(100% - 96px); max-height: calc(100% - 140px); overflow: auto; padding: 10px 14px 12px; z-index: 2; font-size: 14px; }
+#measure[hidden] { display: none; }
+#measure .m-head { display: flex; align-items: center; gap: 4px; }
+#measure h2 { flex: 1; margin: 0; font-size: 18px; font-weight: 400; }
+#measure .m-head button { border: 0; background: none; padding: 2px 6px; border-radius: 4px; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 600; }
+#measure .m-head button:hover { background: #e4d5ab; }
+#measure #measureClose { font-size: 20px; line-height: 1; color: var(--muted); }
+#measure .m-hint { margin: 6px 0 0; color: var(--muted); }
+#measure .m-hint[hidden] { display: none; }
+#measure ol { margin: 8px 0 0; padding: 0; list-style: none; }
+#measure ol li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid #ddcca0; }
+#measure ol li span { min-width: 0; overflow-wrap: anywhere; }
+#measure ol li b, #measure dd { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#measure ol li.live { color: var(--muted); font-style: italic; }
+#measure .m-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding-top: 6px; border-top: 2px solid var(--accent); font: 400 18px var(--font-title); }
+#measure h3 { margin: 10px 0 2px; font: 400 15px var(--font-title); color: var(--muted); }
+#measure dl { margin: 0; }
+#measure dl div { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+#measure dt { color: var(--muted); }
+#measure dd { margin: 0; }
+#measure .m-note { margin: 8px 0 0; font-size: 12px; line-height: 1.35; color: var(--muted); }
+/* the length written above the middle of each leg of wool */
+.measure-tag { pointer-events: none; padding: 1px 7px; border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font: 600 12px/1.5 var(--font); white-space: nowrap; translate: 0 -16px; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { #measure { bottom: 64px; } }
+#measure { width: 330px; max-width: calc(100% - 96px); }
+#measure dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+#measure dl div { flex-direction: column; gap: 0; padding: 3px 0; border-top: 1px solid #ddcca0; }
+#measure dd { font-size: 14px; }
+#measure dt { font-size: 12px; }

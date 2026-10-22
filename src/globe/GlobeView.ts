@@ -10,8 +10,10 @@ import { PLACES } from '../world-data';
 import { chaikin } from './rivers';
 import roadData from '../roads.json';
 import type { Ring } from './viewLayer';
+import { AREA_KINDS, easeFont, FONT_DEFAULT, FONT_PX, wrap } from './labelText';
 import { PIN_BOX, PLACE_ICONS, PLACE_KINDS } from './placeIcons';
 import { createCameraRig } from './cameraRig';
+import { createMeasure } from './measure';
 import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
 import B from './relief-bounds.json';
@@ -47,11 +49,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // ground into the sky and gives the horizon a gradient above it. Colour goes from teal to SKY as the camera comes down.
   const atmoMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, transparent: true, depthTest: false, depthWrite: false,
-    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4f86e6) }, uSky: { value: SKY }, uLow: { value: 0 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
+    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4a8af0) }, uSky: { value: SKY }, uLow: { value: 0 }, uFade: { value: 1 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
     vertexShader: `varying vec3 vW;
       void main() { vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
-    fragmentShader: `uniform float uGround, uTop, uLow, uNight; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
-      const float HS = 15000.0, TAU0 = 60000.0; // scale height of the air (Earth's 8.5 km, stretched for looks); the path (m of sea-level air) that is ~63% haze
+    fragmentShader: `uniform float uGround, uTop, uLow, uFade, uNight; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
+      const float HS = 15000.0, TAU0 = 30000.0; // scale height of the air (Earth's 8.5 km, stretched for looks); the path (m of sea-level air) that is ~63% haze
       void main() {
         vec3 ro = cameraPosition, rd = normalize(vW - cameraPosition);
         float b = dot(ro, rd), c = dot(ro, ro);
@@ -72,7 +74,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
           tau += exp((uGround - length(q)) / HS) * lit * dt;
         }
         // The veil knows only the smooth planet, not the relief standing on it, so near the ground it is capped: no fog wall at the horizon for mountains to sink into.
-        float a = mix(0.95, 0.35, uLow) * (1.0 - exp(-tau / TAU0));
+        float a = mix(0.95, 0.35, uLow) * mix(0.25, 1.0, uFade) * (1.0 - exp(-tau / TAU0)); // uFade: the glow thins below ~1,500 km
         vec3 haze = mix(mix(uTeal, vec3(0.55, 0.72, 1.0), a * a), uSky, uLow);
         float A = 1.0 - (1.0 - a) * (1.0 - night); // the night veil lies under the haze
         gl_FragColor = vec4(haze * a / max(A, 1e-4), A);
@@ -120,22 +122,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     castle: [1_200_000, 550_000], town: [1_200_000, 550_000], ruin: [1_200_000, 600_000], landmark: [1_500_000, 700_000],
     minor: [700_000, 450_000],
   };
-  const ROADS_BELOW = 8_000_000, TRACKS_BELOW = 2_500_000; // main roads and the tracks to places are drawn from these altitudes down; road names come in at 1,600 km (LOD)
-  const AREA_KINDS = new Set(['continent', 'ocean','sea', 'lake', 'river', 'road', 'region']);
+  const ROADS_BELOW = 8_000_000, TRACKS_BELOW = LOD.castle[0]; // main roads and the tracks to places are drawn from these altitudes down (tracks with the castles); road names come in at 1,600 km (LOD)
   type Gen = (typeof PLACES)[number];
-  /** At most two words a line, not counting "the": "Tower of / the Hand". */
-  const wrap = (name: string, per = 2, skip = ['the']) => {
-    let out = '', n = 0;
-    for (const w of name.split(' ')) {
-      if (n === per) { out += '\n'; n = 0; } else if (out) out += ' ';
-      out += w;
-      if (!skip.includes(w.toLowerCase())) n++;
-    }
-    return out;
-  };
   const WATER = new Set(['ocean', 'sea', 'lake']); // one word a line, every word counted
   // the castles of the Wall stand on it (wall.ts)
-  const layout = ([name, , lat, lon]: Gen) => ({ up: toVector(...(WALL_CASTLES[name] ?? PLACE_SNAP[name] ?? [lat, lon]), 1), rot: 0, scale: 1 });
+  const layout = ([name, kind, lat, lon]: Gen) => ({ up: toVector(...((kind === "island" ? undefined : WALL_CASTLES[name]) ?? PLACE_SNAP[name] ?? [lat, lon]), 1), rot: 0, scale: 1 });
   const places = PLACES.map((g, i) => {
     const [name, kind] = g;
     const outline = kind === 'region' ? regionNamed(name) : undefined; // a region with an outline is named at its centre
@@ -147,7 +138,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     el.className = `globe-place k-${kind}${area ? ' globe-area' : ''}`;
     el.innerHTML = `<span></span>${area ? '' : `<svg viewBox="0 0 512 512">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`}`;
     el.firstElementChild!.textContent = WATER.has(kind) ? wrap(name, 1, []) : area ? name : wrap(name);
-    el.onclick = () => {
+    el.onclick = (e) => {
+      if (pickForMeasure(i, e)) return;
       view.flyToPlace(i);
       if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
     };
@@ -160,24 +152,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   type Place = (typeof places)[number];
   /** A river's or road's name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
   type LineCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
-  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[] };
+  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[]; pts: Ring; mid: THREE.Vector3 };
   /**
    * Type size by altitude, in px per kind: an exponential ease (base FONT_B) from the small end at the top of a kind's
    * height band to the large end at its bottom, so names grow gently as you come down, like zoom-interpolated text-size in
    * a vector style. Oceans and continents are the biggest lettering, water bodies and regions next, rivers and small places least.
    */
-  const FONT_B = 1.3;
-  const FONT_PX: Record<string, [number, number]> = {
-    continent: [18, 32], ocean: [18, 32], sea: [14, 24], region: [14, 24], lake: [12, 18], capital: [13, 19], city: [12, 18],
-    river: [11, 16], road: [11, 16], ruin: [10, 13], minor: [10, 13],
-  };
-  const FONT_DEFAULT: [number, number] = [11, 15];
   const basePx = new Map<string, number>(); // the CSS size of each kind (style.css), which `zoomScale` divides out
   const zoomScale = (p: Place, h: number) => {
     if (!basePx.has(p.kind)) basePx.set(p.kind, parseFloat(getComputedStyle((p.obj as CSS2DObject).element.firstElementChild!).fontSize) || 16);
-    const [min, max] = FONT_PX[p.kind] ?? FONT_DEFAULT, hi = p.lod[0], lo = p.lod[2] ?? p.lod[1] / 2, span = Math.log2(hi / lo);
-    const t = (FONT_B ** THREE.MathUtils.clamp(Math.log2(hi / h), 0, span) - 1) / (FONT_B ** span - 1);
-    return Math.round((THREE.MathUtils.lerp(min, max, t) / basePx.get(p.kind)!) * 50) / 50; // 2% steps, so the style isn't rewritten every frame
+    return Math.round((easeFont(FONT_PX[p.kind] ?? FONT_DEFAULT, p.lod[0], p.lod[2] ?? p.lod[1] / 2, h) / basePx.get(p.kind)!) * 50) / 50; // 2% steps, so the style isn't rewritten every frame
   };
   /** [symbol w, h, text w, h] in px, unscaled. All names at once, so it is one reflow; again once the web font is in. */
   const measure = () => {
@@ -249,12 +233,19 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       tp.textContent = p.name;
       text.setAttribute('class', `line-text k-${p.kind} off`);
       text.append(tp);
-      text.onclick = () => view.flyToPlace(i);
+      text.onclick = (e) => { if (!pickForMeasure(i, e)) view.flyToPlace(i); };
       lineDefs.append(path);
       lineLayer.append(text);
       return { path, text, tp };
     });
-    p.line = { pos, dirs: pos.map((v) => v.clone().normalize()), copies };
+    const len = pos.reduce((s, v, k) => s + (k ? v.distanceTo(pos[k - 1]) : 0), 0);
+    let run = 0, mid = pos[0].clone();
+    for (let k = 1; k < pos.length; k++) { // the point half the road's length along it
+      const seg = pos[k].distanceTo(pos[k - 1]);
+      if (run + seg >= len / 2) { mid = pos[k - 1].clone().lerp(pos[k], (len / 2 - run) / (seg || 1)); break; }
+      run += seg;
+    }
+    p.line = { pos, dirs: pos.map((v) => v.clone().normalize()), copies, pts: best.line, mid: mid.normalize() };
   });
   /** Douglas-Peucker: drop points within `eps` px of the chord. Screen-space, so the tolerance is the same at every altitude. */
   const simplify = (pts: Ring, eps: number): Ring => {
@@ -362,12 +353,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     if (pinned) (pinned.obj as CSS2DObject).element.classList.remove('pinned');
     pinned = p;
     order = p ? [p, ...ranked.filter((q) => q !== p)] : ranked;
-    pin.visible = !!p && !AREA_KINDS.has(p.kind); // area lettering marks itself
+    pin.visible = !!p && (!AREA_KINDS.has(p.kind) || !!p.line); // area lettering marks itself; a river or road with a line gets a pin at its middle
     if (!p) return;
     pinName.textContent = p.name;
-    pin.position.copy(p.up).multiplyScalar(R + 3000);
-    (p.obj as CSS2DObject).element.classList.add('pinned');
-  };
+    pin.position.copy(p.line?.mid ?? p.up).multiplyScalar(R + 3000);
+    (p.obj as CSS2DObject).element.classList.add('pinned');  };
   let showNames = true;
   const hiddenKinds = new Set<string>();
 
@@ -376,8 +366,23 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
 
   [renderer.domElement, labelsEl].forEach(rig.attachInput);
 
+  // Measuring wool (measure.ts). While it is on, a click on a place's name lays a point on that place instead of flying to it.
+  const wool = createMeasure(scene, renderer.domElement, labelsEl, R, (p) => relief.groundAt(p), rig.pick, B.sun);
+  const pickForMeasure = (i: number, e: MouseEvent) => {
+    if (!wool.active) return false;
+    const p = places[i];
+    let at = p.up; // a point's name is at its own spot; an area's lettering at its centre
+    if (p.line) { // a river's or road's name sits on its line: the pin goes on the line's own point nearest the click
+      const hit = rig.pick(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1));
+      const d = hit ? toVector(hit.lat, hit.lon, 1) : p.line.mid;
+      at = p.line.dirs.reduce((best, v) => (v.dot(d) > best.dot(d) ? v : best));
+    }
+    wool.add(at, p.name);
+    return true;
+  };
+
   const view = {
-    scene, camera, controls, labels, attachInput: rig.attachInput, ocean, terrain, relief,
+    scene, camera, controls, labels, attachInput: rig.attachInput, ocean, terrain, relief, wool,
     nav: {
       heading: () => rig.heading,
       resetNorth() { rig.heading = 0; },
@@ -402,10 +407,20 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const p = places[i];
       regions.selected = null; // a region's own click sets it again after this
       setPin(p);
-      const { lat, lon } = rig.latLon(p.up);
+      // a river or road is lit along its whole length; a river's water is drawn smoothed (rivers.ts), so the light follows that curve
+      terrain.highlight(p.line ? (p.kind === 'river' ? chaikin(p.line.pts) : p.line.pts) : null);
+      const at = p.line?.mid ?? p.up;
+      const { lat, lon } = rig.latLon(at);
       showCard({ kind: KIND_NAME[p.kind] ?? p.kind, name: p.name, lat, lon, region: p.outline ? undefined : regionAt(lat, lon)?.name });
       const site = ids.find((id) => SITES[id].name === p.name);
-      rig.flyToDir(p.up, site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
+      const extent = p.line ? p.line.pts : p.outline?.shapes.flatMap((s) => s.ring); // a road, river or bordered region is framed whole
+      if (extent && !site) {
+        const side = document.getElementById('side')!.getBoundingClientRect(); // the card, as it is now: a column on the left, or a band on top on a narrow screen
+        const wide = side.width > innerWidth * 0.6, free = side.width > 0;
+        rig.flyToFit(extent.map(([lon, lat]) => toVector(lat, lon, 1)), { l: free && !wide ? side.right : 0, r: 0, t: free && wide ? side.bottom : 0, b: 0 }, 16);
+        return;
+      }
+      rig.flyToDir(at,site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
     },
     /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
     siteWithin: (d: number | ((id: SiteId) => number)) =>
@@ -427,6 +442,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const f = THREE.MathUtils.clamp(Math.log(600_000 / Math.max(rig.alt, 1)) / Math.log(600_000 / 150_000), 0, 1);
       (scene.background as THREE.Color).copy(SPACE).lerp(SKY, f);
       atmoMat.uniforms.uLow.value = f;
+      atmoMat.uniforms.uFade.value = THREE.MathUtils.smoothstep(Math.log(rig.alt), Math.log(600_000), Math.log(1_500_000));
       stars.visible = f < 1; // dimmed by the sky as it brightens
       (stars.material as THREE.MeshBasicMaterial).opacity = 1 - f;
     },
@@ -436,6 +452,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
       atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
+      wool.update(camera, view.nav.metresPerPixel());
       terrain.roads.visible = alt < ROADS_BELOW; // from this far out the roads are a tangle
       terrain.tracks.visible = alt < TRACKS_BELOW;
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
@@ -454,7 +471,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         }
         if (p.line) { // a river or road with a line is named along it, not at a point (its plain label stays off)
           const shown: number[][][] = [];
-          if (on) {
+          if (on && p !== pinned) { // the focused river's or road's name is on its pin
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
             // the line is a few px wide this far out (metres of a typical river over metres per pixel); the name sits just above it
             const off = Math.max(1.3, LINE_WIDTH_M[p.kind] / view.nav.metresPerPixel()) / 2 + 2;
@@ -483,7 +500,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   };
   // ---------- region borders: click the region's name to select it ----------
   let bordersOn = true;
-  const deselect = () => { regions.selected = null; setPin(null); showCard(null); };
+  const deselect = () => { regions.selected = null; setPin(null); terrain.highlight(null); showCard(null); };
   addEventListener('keydown', (e) => { if (e.key === 'Escape') deselect(); });
   view.setBordersVisible = (v: boolean) => { bordersOn = v; regions.object.visible = v; if (!v) regions.selected = null; };
 

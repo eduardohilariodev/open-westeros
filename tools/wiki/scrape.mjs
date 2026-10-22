@@ -15,7 +15,7 @@ const SITE = 'https://awoiaf.westeros.org';
 const OUT = 'docs/wiki';
 // Map names the wiki spells differently (checked by hand; the wiki's search guessed wrong about half the time).
 const ALIASES = {
-  'Old Stonebridge': 'Old Stone Bridge', 'Celtigar Keep': 'Claw Isle', 'Green Shield': 'Greenshield', 'Grey Shield': 'Greyshield',
+  'Old Stonebridge': 'Old Stone Bridge', 'Celtigar Keep': 'Claw Isle', 'Green Shield': 'Greenshield', 'Oakenshield (castle)': 'Oakenshield (Wall)', 'Oakenshield (island)': 'Oakenshield', 'Grey Shield': 'Greyshield',
   'South Shield': 'Southshield', 'Old Andalos': 'Andalos', 'The Fallen Kingdom of Sarnor': 'Kingdom of Sarnor', 'Sarne Delta': 'Sarne',
   'The Fallen Valyrian Freehold': 'Valyrian Freehold', 'The Mouths of the Rhoyne': 'Rhoyne', 'The Fallen Kingdom of Hyrkoon': 'Patrimony of Hyrkoon',
   'Lake Zamoyos': 'Zamoyos', 'Upper Zamoyos': 'Zamoyos', 'Lower Zamoyos': 'Zamoyos', 'The Jungles of Yi Ti': 'Yi Ti', 'The Straits of Leng': 'Leng',
@@ -84,7 +84,10 @@ let titles = process.argv.length > 2 ? process.argv.slice(2) : index.articles;
 // wiki title is case-insensitive, and the map often says "The Frostfangs" where the wiki says "Frostfangs".
 if (titles[0] === '--places') {
   const src = readFileSync('src/world-data.ts', 'utf8');
-  const names = JSON.parse(src.slice(src.indexOf('[['), src.lastIndexOf(']') + 1)).map(([name]) => name);
+  const rowsAll = JSON.parse(src.slice(src.indexOf('[['), src.lastIndexOf(']') + 1));
+  // a name shared by two places (Oakenshield: Wall castle and Shield island) gets a 'Name (kind)' key per place, the bare name stays the first
+  const dup = new Set(rowsAll.map(([n]) => n).filter((n, i, a) => a.indexOf(n) !== i));
+  const names = rowsAll.flatMap(([name, kind]) => dup.has(name) ? [name, `${name} (${kind})`] : [name]);
   const lower = new Map();
   for (const t of index.articles) lower.set(t.toLowerCase(), t);
   for (const [from, to] of Object.entries(redirects)) if (!lower.has(from.toLowerCase())) lower.set(from.toLowerCase(), to.split('#')[0]);

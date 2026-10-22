@@ -18,14 +18,15 @@ The Nightfort|castle|-|0_0 1437,1748
 Castle Black|castle|1795,985|0_0 1492,1733
 Eastwatch-by-the-Sea|castle|1925,985|0_0 1600,1733
 The Wall|landmark|1860,940|0_0 1555,1743
-Mole's Town|town|-|0_0 1508,1755
+Mole's Town|town|ll:62.09,-8.28|0_0 1508,1755
 Whitetree|minor|-|0_0 1470,1715
 Brandon's Gift|region|1760,1050|0_0 1578,1768
 The New Gift|region|1770,1100|0_0 1578,1853
 Queenscrown|minor|-|0_0 1411,1830
-Hardhome|town|-|0_0 1675,1555
+Hardhome|town|ll:64.554,-3.187|0_0 1675,1555
+Storrold's Point|landmark|ll:64.38,-3.55|-
 Craster's Keep|minor|-|0_0 1422,1665
-Fist of the First Men|landmark|-|0_0 1315,1572
+Fist of the First Men|landmark|ll:64.06,-13.58|0_0 1315,1572
 Skane|island|2070,900|0_0 1755,1635
 Skagos|island|2190,980|0_0 1925,1827
 Deepdown|castle|-|0_0 1847,1840
@@ -46,7 +47,7 @@ Long Barrow|castle|-|0_0 1562,1733
 The Torches|castle|-|0_0 1573,1733
 Greenguard|castle|-|0_0 1586,1733
 Bridge of Skulls|landmark|-|0_0 1313,1783
-Kingshouse (Skagos)|castle|-|0_0 1877,1746
+Kingshouse (Skagos)|castle|ll:61.912,1.587|0_0 1877,1746
 Bay of Seals|sea|2060,1100|0_0 1760,1855
 # --- the North ---
 Sea Dragon Point|landmark|1080,1400|0_2500 692,113
@@ -71,13 +72,13 @@ The Stony Shore|region|860,1710|0_2500 735,435
 The Rills|region|1020,1890|0_2500 925,500
 The Barrowlands|region|1400,1890|0_2500 1250,523
 Barrowton|castle|1275,1865|0_2500 1052,575
-White Harbor|city|1732,1905|0_2500 1432,623
+White Harbor|city|1732,1905>ll:50.12,-9.69|0_2500 1432,623
 The White Knife|river|1680,1780|0_2500 1375,365
-The Kingsroad|road|1560,1800|0_2500 1268,435
+The Kingsroad|road|1560,1800>ll:43.135,-11.896|0_2500 1268,435
 Ramsgate|town|-|0_2500 1660,543
 Widow's Watch|castle|-|0_2500 1900,590
 Moat Cailin|castle|1550,1985|0_2500 1290,687
-Oldcastle|castle|-|0_2500 1478,752
+Oldcastle|castle|ll:48.200,-8.528|0_2500 1478,752
 Blazewater Bay|sea|960,2040|0_2500 700,718
 The Saltspear|river|1140,2010|0_2500 900,712
 The Neck|region|1400,2150|0_2500 1205,812
@@ -107,18 +108,18 @@ Harlaw|island|1160,2530|0_2500 950,1155
 Saltcliffe|island|880,2580|0_2500 685,1192
 Pyke|capital|1015,2552|0_2500 812,1190
 Lonely Light|island|450,2510|0_2500 330,1135
-Ten Towers|castle|-|0_2500 913,1125
+Ten Towers|castle|ll:42.605,-18.930|0_2500 913,1125
 Lordsport|town|-|0_2500 848,1187
 Hammerhorn|castle|-|0_2500 740,1150
-Riverrun|capital|1415,2683|0_2500 1175,1285
-Harrenhal|ruin|1705,2768|0_2500 1407,1377
+Riverrun|capital|ll:40.239,-13.567|0_2500 1175,1285
+Harrenhal|ruin|ll:38.789,-9.646|0_2500 1407,1377
 God's Eye|lake|1640,2900|0_2500 1350,1385
 The Isle of Faces|island|1710,2830|0_2500 1397,1432
-The Trident|river|1650,2590|0_2500 1424,1245
+The Trident|river|ll:40.023,-8.944|0_2500 1424,1245
 The Red Fork|river|1590,2640|0_2500 1270,1255
 The Blue Fork|river|1545,2575|0_2500 1330,1210
 The Green Fork|river|1540,2530|0_2500 1268,1090
-The Tumblestone|river|1260,2665|0_2500 1345,1318
+The Tumblestone|river|ll:39.852,-16.092|0_2500 1345,1318
 The Riverlands|region|-|0_2500 1360,1340
 Maidenpool|town|-|0_2500 1600,1402
 Stoney Sept|town|-|0_2500 1215,1495
@@ -136,14 +137,14 @@ The Mountains of the Moon|mountain|1830,2550|0_2500 1540,1280
 The Vale of Arryn|region|2100,2440|0_2500 1648,1212
 Gulltown|city|2228,2585|0_2500 1868,1210
 The Bloody Gate|castle|-|0_2500 1527,1215
-Runestone|castle|-|0_2500 1900,1180
+Runestone|castle|ll:41.972,-0.537|0_2500 1900,1180
 Strongsong|castle|-|0_2500 1512,1052
 Ironoaks|castle|-|0_2500 1725,1167
 Redfort|castle|-|0_2500 1688,1240
 Longbow Hall|castle|-|0_2500 1830,1060
-Old Anchor|castle|-|0_2500 1840,1105
-Coldwater|castle|-|0_2500 1715,945
-Snakewood|castle|-|0_2500 1715,990
+Old Anchor|castle|ll:42.554,-1.680|0_2500 1840,1105
+Coldwater|castle|ll:45.177,-3.436|0_2500 1715,945
+Snakewood|castle|ll:44.485,-3.801|0_2500 1715,990
 Sisterton|town|-|0_2500 1500,793
 Bay of Crabs|sea|2150,2730|0_2500 1760,1360
 # --- Crownlands / Dragonstone ---
@@ -156,24 +157,24 @@ Blackwater Bay|sea|1960,3040|0_2500 1685,1565
 The Blackwater Rush|river|1650,3035|0_2500 1342,1555
 Rosby|castle|-|0_2500 1550,1610
 Stokeworth|castle|-|0_2500 1545,1558
-Duskendale|town|-|0_2500 1610,1520
+Duskendale|town|ll:36.559,-5.762|0_2500 1610,1520
 Hayford|castle|-|0_2500 1475,1608
 The Crownlands|region|-|0_2500 1568,1497
 Rook's Rest|castle|-|0_2500 1693,1448
 Sow's Horn|castle|-|0_2500 1457,1455
 Brindlewood|castle|-|0_2500 1500,1482
 Old Stonebridge|castle|-|0_2500 1590,1590
-Sharp Point|castle|-|0_2500 1800,1553
-Stonedance|castle|-|0_2500 1825,1590
-Dyre Den|castle|-|0_2500 1815,1360
+Sharp Point|castle|ll:36.294,-2.823|0_2500 1800,1553
+Stonedance|castle|ll:35.756,-2.469|0_2500 1825,1590
+Dyre Den|castle|ll:39.113,-2.410|0_2500 1815,1360
 Brownhollow|castle|-|0_2500 1760,1400
 Celtigar Keep|castle|-|0_2500 1893,1385
 # --- Westerlands ---
-Lannisport|city|1002,2968|0_2500 791,1545
-Casterly Rock|capital|1002,2937|0_2500 793,1527
+Lannisport|city|1002,2968>ll:36.699,-20.324|0_2500 791,1545
+Casterly Rock|capital|1002,2937>ll:36.712,-20.324|0_2500 793,1527
 Faircastle|castle|968,2797|0_2500 772,1395
 Fair Isle|island|910,2760|0_2500 697,1435
-The Crag|castle|1063,2722|0_2500 837,1328
+The Crag|castle|1063,2722>ll:39.594,-19.850|0_2500 837,1328
 Banefort|castle|-|0_2500 856,1235
 The Pendric Hills|mountain|-|0_2500 1005,1275
 The Westerlands|region|-|0_2500 865,1597
@@ -185,23 +186,23 @@ Castamere|ruin|-|0_2500 865,1388
 Tarbeck Hall|castle|-|0_2500 862,1410
 Kayce|castle|-|0_2500 693,1500
 Feastfires|castle|-|0_2500 665,1540
-Crakehall|castle|-|0_2500 693,1700
+Crakehall|castle|ll:34.202,-21.284|0_2500 693,1700
 Clegane's Keep|castle|-|0_2500 870,1555
 Silverhill|castle|-|0_2500 985,1578
 Hornvale|castle|-|0_2500 998,1472
 Deep Den|castle|-|0_2500 998,1520
 Cornfield|castle|-|0_2500 855,1668
-The Ocean Road|road|1000,3270|0_2500 765,1750
-The Gold Road|road|1420,3060|0_2500 1170,1620
+The Ocean Road|road|1000,3270>ll:32.146,-20.322|0_2500 765,1750
+The Gold Road|road|1420,3060>ll:35.472,-13.257|0_2500 1170,1620
 # --- Reach / Stormlands / Kingswood ---
 The Reach|region|1450,3200|0_2500 1108,1810
 The Stormlands|region|-|0_2500 1685,1860
 The Kingswood|forest|1920,3190|0_2500 1555,1757
-Storm's End|capital|2090,3305|0_2500 1743,1898
+Storm's End|capital|2090,3305>ll:31.156,-3.96|0_2500 1743,1898
 The Wendwater|river|1930,3290|0_2500 1700,1720
 The Blueburn|river|1560,3330|0_2500 1440,1830
 The Mander|river|1320,3415|0_2500 1325,1760
-The Roseroad|road|1390,3290|0_2500 1105,1850
+The Roseroad|road|1390,3290>ll:32.339,-13.846|0_2500 1105,1850
 Shield Islands|island|860,3400|0_2500 578,1960
 Bitterbridge|town|-|0_2500 1225,1790
 Longtable|castle|-|0_2500 1175,1860
@@ -226,7 +227,7 @@ The Red Mountains|mountain|1350,3745|0_5000 1250,225
 Dorne|region|1600,3860|0_5000 1370,380
 The Dornish Desert|wild|-|0_5000 1205,435
 The Red Dunes|wild|-|0_5000 1386,478
-Sunspear|capital|2240,3945|0_5000 1857,462
+Sunspear|capital|2240,3945>ll:23.894,-2.348|0_5000 1857,462
 Planky Town|town|-|0_5000 1783,483
 Yronwood|castle|-|0_5000 1380,305
 Skyreach|castle|-|0_5000 1205,317
@@ -270,7 +271,7 @@ The Prince's Pass|landmark|1465,3680|-
 The Boneway|landmark|1640,3720|-
 Tarth|island|2330,3320|-
 Bloodstone|island|2400,3640|-
-River Road|road|1330,2780|-
+River Road|road|1330,2780>ll:38.625,-16.194|-
 # --- Braavos .. Pentos ---
 Braavos|city|2662,2275|2500_2500 310,935
 Lorath|city|3020,2368|2500_2500 617,1025
@@ -286,7 +287,7 @@ The Velvet Hills|mountain|2830,2950|2500_2500 425,1535
 The Little Rhoyne|river|2830,2885|2500_2500 432,1490
 The Upper Rhoyne|river|2885,2825|2500_2500 475,1430
 Ghoyan Drohe|ruin|2935,3060|2500_2500 550,1580
-Pentos|city|2690,3045|2500_2500 330,1645
+Pentos|city|2690,3045>ll:35.054,4.928|2500_2500 330,1645
 Bay of Pentos|sea|2630,3080|2500_2500 285,1640
 The Flatlands|region|2790,3090|2500_2500 413,1670
 Ny Sar|ruin|3195,3128|2500_2500 770,1690
@@ -294,7 +295,7 @@ Ar Noy|ruin|3418,3190|2500_2500 955,1738
 The Golden Fields|region|3230,3340|2500_2500 780,1830
 Dagger Lake|lake|3330,3340|2500_2500 905,1830
 The Darkwash|river|3450,3050|2500_2500 985,1560
-Morosh|ruin|4222,2340|2500_2500 1660,988
+Morosh|ruin|4222,2340>ll:44.510,31.796|2500_2500 1660,988
 Saath|ruin|4072,2475|2500_2500 1547,1112
 Vaes Graddakh|ruin|4305,2462|2500_2500 1730,1110
 The Fallen Kingdom of Sarnor|region|4300,2800|2500_2500 1950,1750
@@ -323,21 +324,21 @@ The Rhoyne|river|3270,3640|2500_5000 835,130
 The Lhorulu|river|3150,3430|2500_5000 770,15
 The Orange Shore|region|3230,3950|2500_5000 810,470
 The Volaena|river|3610,3820|2500_5000 1075,360
-The Demon Road|road|4270,3800|-
+The Demon Road|road|4270,3800>ll:24.598,23.25|-
 Mantarys|city|4092,3882|2500_5000 1545,410
 The Painted Mountains|mountain|4000,3680|2500_5000 1730,152
 Tolos|city|4292,3992|2500_5000 1720,515
-Elyria|ruin|4177,4013|2500_5000 1615,515
+Elyria|ruin|4177,4013>ll:23.038,24.144|2500_5000 1615,515
 The Sea of Sighs|lake|3880,4180|2500_5000 1465,500
 The Lands of the Long Summer|region|3960,4200|2500_5000 1490,580
 Oros|ruin|4045,4385|2500_5000 1505,858
 The Smoking Sea|sea|3910,4430|2500_5000 1380,870
 Valyria|ruin|3937,4652|2500_5000 1415,1100
 Tyria|ruin|3995,4525|2500_5000 1475,945
-Ghozai|town|4410,4138|2500_5000 1815,625
+Ghozai|town|4410,4138>ll:21.457,26.930|2500_5000 1815,625
 Velos|town|4440,4285|2500_5000 1840,770
 The Isle of Cedars|island|4510,4220|2500_5000 1930,740
-Bhorash|ruin|4475,3795|2500_5000 1915,298
+Bhorash|ruin|4475,3795>ll:26.08,29.65|2500_5000 1915,298
 Slaver's Bay|sea|4440,4010|2500_5000 1830,540
 The Gulf of Grief|sea|4580,4600|2500_5000 1850,985
 The Fallen Valyrian Freehold|region|-|2500_5000 1400,1130
@@ -411,7 +412,7 @@ The Fallen Kingdom of Hyrkoon|region|-|5000_2500 1620,1800
 The Khyzai Pass|landmark|5070,3800|5000_5000 472,280
 Meereen|city|4915,3735|5000_5000 323,285
 Yunkai|city|4793,3845|5000_5000 225,383
-Astapor|city|4730,4137|5000_5000 168,645
+Astapor|city|4730,4137>ll:21.356,31.279|5000_5000 168,645
 Yaros|island|4720,3990|5000_5000 160,525
 Hesh|town|5223,3742|5000_5000 600,297
 Kosrak|town|5543,3743|5000_5000 880,285
@@ -420,7 +421,7 @@ Lhazar|region|5430,3850|5000_5000 710,355
 The Skahazadhan|river|5280,3690|5000_5000 880,137
 Krazaaj Has|ruin|5408,3518|5000_5000 775,95
 Vaes Mejhah|ruin|5560,3478|5000_5000 890,65
-The Black Cliffs|landmark|4330,3935|5000_5000 70,325
+The Black Cliffs|landmark|4330,3935>ll:24.70,27.64|5000_5000 70,325
 The Poison Sea|lake|6190,3665|5000_5000 1425,235
 Adakhakileki|ruin|6100,3538|5000_5000 1360,125
 Vaes Jini|ruin|6195,3448|5000_5000 1437,45
@@ -446,7 +447,7 @@ Skull Island|island|4670,5100|5000_5000 145,1495
 Ax Isle|island|4890,5210|5000_5000 318,1555
 Zamettar|city|4683,5327|5000_5000 125,1665
 Yeen|town|4768,5577|5000_5000 190,1890
-Gorosh|town|5623,5218|5000_5000 940,1565
+Gorosh|town|5623,5218>ll:7.582,41.007|5000_5000 940,1565
 Wyvern Point|landmark|5710,5310|5000_5000 1070,1600
 Lesser Moraq|island|5950,5100|5000_5000 1115,1465
 Great Moraq|island|6370,4900|5000_5000 1530,1255
@@ -501,7 +502,7 @@ Marahai|island|7130,5380|7500_5000 320,1727
 The Manticore Isles|island|7620,5420|7500_5000 748,1735
 The Jade Sea|ocean|7130,5090|-
 Ulos|island|8870,5380|7500_5000 1820,1730
-Asshai-by-the-Shadow|city|8018,5558|7500_5000 1085,1855
+Asshai-by-the-Shadow|city|8018,5558>ll:3.489,71.486|7500_5000 1085,1855
 Stygai|ruin|8207,5355|7500_5000 1230,1740
 The Shadow Lands|mountain|8440,5010|7500_5000 1550,1250
 The Saffron Straits|sea|8440,5490|-
@@ -509,7 +510,7 @@ Ulthos|continent|8630,5670|7500_7500 1780,127
 The Vale of Shadows|landmark|-|7500_5000 1285,1790
 The Straits of Leng|sea|-|7500_5000 590,1215
 # --- anchors (the 3D sites; used for alignment only) ---
-King's Landing|site|1821,3075|0_2500 1510,1637
+King's Landing|site|1821,3075>ll:34.93,-7.748|0_2500 1510,1637
 Winterfell|site|1544,1542|0_2500 1262,300
 # --- more names read off the political atlas (full-resolution atlas px) ---
 Ice River|river|-|@1200,2075
@@ -527,7 +528,7 @@ Broken Branch|river|-|@2062,3148
 Fevre River|river|-|@1490,3408
 Breakwater|castle|-|@2002,3542
 Pebble|island|-|@2225,3580
-Sealskin Point|castle|-|@938,3902
+Sealskin Point|castle|ll:43.134,-22.458|@938,3902
 Volmark|castle|-|@1147,4000
 Straits of Fair Isle|sea|-|@990,4340
 Nunn's Deep|minor|-|@1228,4228
@@ -542,7 +543,7 @@ Cobble Cove|minor|-|@1117,4937
 Hewett's Town|minor|-|@1072,4995
 Leafy Lake|lake|-|@1224,4875
 Chequy Water|river|-|@1208,4910
-Grimston|castle|-|@972,4988
+Grimston|castle|ll:30.812,-20.328|@972,4988
 Hag's Mire|wild|-|@1580,3910
 Oldstones|minor|-|@1595,3945
 Sevenstreams|minor|-|@1590,3965
@@ -584,16 +585,16 @@ Appleton|castle|-|@1321,4979
 Cider Hall|castle|-|@1433,4990
 Grassfield Keep|castle|-|@1730,4880
 Grassy Vale|region|-|@1707,4868
-Griffin's Roost|castle|-|@2205,4995
-Gates of the Moon|castle|-|@2125,4028
-Giant's Lance|landmark|-|@1988,3975
-Heart's Home|castle|-|@2139,3867
+Griffin's Roost|castle|ll:30.908,-4.589|@2205,4995
+Gates of the Moon|castle|ll:42.267,-6.15|@2125,4028
+Giant's Lance|landmark|ll:42.34,-6.18|@1988,3975
+Heart's Home|castle|ll:43.534,-4.937|@2139,3867
 Crackclaw Point|landmark|-|@2490,4172
 The Whispers|minor|-|@2375,4247
 Hull|minor|-|@2258,4433
 Spicetown|minor|-|@2255,4462
 High Tide|castle|-|@2297,4442
-Sweetport|castle|-|@2318,4566
+Sweetport|castle|ll:35.621,-3.004|@2318,4566
 Rambton|minor|-|@2298,4588
 Evenfall Hall|castle|-|@2412,4918
 Wickenden|minor|-|@2216,4250
@@ -659,5 +660,10 @@ Ash|river|-|@8970,7418
 # --- continents (painted-map px only: lettering spots, not on the atlas) ---
 Westeros|continent|1709,2092|-
 Essos|continent|5403,3084|-
-The Valyrian Road|road|ll:36.72,16.35|-
-The Steel Road|road|ll:31.59,66.52|-
+The Valyrian Road|road|ll:38.201,13.699|-
+The Steel Road|road|ll:37.93,59.387|-
+The High Road|road|ll:40.86,-7.793|-
+The Rosby Road|road|ll:35.415,-7.213|-
+The Ghiscari Coast Road|road|ll:24.362,32.738|-
+The Stone Road|road|ll:32.814,53.811|-
+The Sand Road|road|ll:21.177,46.332|-

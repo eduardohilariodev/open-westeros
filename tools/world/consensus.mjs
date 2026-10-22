@@ -3,11 +3,15 @@
 // Usage: node tools/world/consensus.mjs   (reads tools/world/places.raw.txt)
 import { writeFileSync } from 'node:fs';
 import { SITES } from '../../src/config.ts';
+import { MOLES_TOWN, WALL_CASTLES, WALL_MIDDLE } from '../../src/globe/wallLine.ts';
 import { at, atlasAt, rows } from './georef.mjs';
 
 const siteKind = Object.fromEntries(Object.values(SITES).map((s) => [s.name, s.kind])); // the zoomable places carry their site's kind
+// the Wall and what stands on it are placed off its own line (src/globe/wallLine.ts)
+const wall = { ...WALL_CASTLES, "Mole's Town": MOLES_TOWN, 'The Wall': WALL_MIDDLE };
 const out = rows.map((e) => {
-  const { lat, lon } = e.ll ? { lat: e.ll[0], lon: e.ll[1] } : e.a ? atlasAt(e.a) : at(e.p);
+  const w = e.kind === "island" ? undefined : wall[e.name]; // the island Oakenshield shares its name with the Wall castle
+  const { lat, lon } = w ? { lat: w[0], lon: w[1] } : e.ll ? { lat: e.ll[0], lon: e.ll[1] } : e.a ? atlasAt(e.a) : at(e.p);
   return [e.name, siteKind[e.name] ?? e.kind, +lat.toFixed(2), +lon.toFixed(2)];
 });
 

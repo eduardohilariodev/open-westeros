@@ -1,6 +1,6 @@
 // Traces the road network off the blog's master map into src/roads.json: { roads, named }, each [{ miles, pts: [[lon, lat], ...] }]:
 // `roads` has one entry per stretch between junctions / ends (the network, drawn), `named` one line per road in
-// roads-named.json (which carries the name on the globe). Roads are the map's only yellow pixels; thin them to one pixel,
+// tools/books/lore-roads.json (which carries the name on the globe). Roads are the map's only yellow pixels; thin them to one pixel,
 // walk the skeleton, simplify, and place with the fit from roads-fit.mjs (blog px -> flat lon/lat -> globe lon/lat).
 // Usage: node tools/blog/roads-trace.mjs   (run roads-fit.mjs first)
 import sharp from 'sharp';
@@ -9,6 +9,7 @@ import { flatten, unflatten, METRES_PER_DEGREE, MILE } from '../../src/config.ts
 import { PLACES } from '../../src/world-data.ts';
 import { IMAGE, FIT } from './roads-fit.mjs';
 import { source } from './roads-sources.mjs';
+import { WALL_CASTLES } from '../../src/globe/wallLine.ts';
 
 const { fits, split } = JSON.parse(readFileSync(FIT, 'utf8'));
 const { data, info } = await sharp(IMAGE).removeAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -355,25 +356,62 @@ const line = (px) => {
   return { miles: +(lengthPx(s) * pxMiles).toFixed(1), pts: out };
 };
 
-// Named roads (roads-named.json): the shortest way along the network through each road's places, as one line, so the name
-// can ride on it like a river's. Each place is snapped to the nearest point of the network, which becomes a junction there
-// (the edge is split), so a road can start at a castle it only passes.
-const SNAP_PX = 45; // ~105 miles: a place the painted road passes by, or a city its road stops short of
-const spec = JSON.parse(readFileSync('tools/blog/roads-named.json', 'utf8'));
-const cut = new Map(); // place -> pixel of the network nearest it
+// Named roads (tools/books/lore-roads.json, with the book and wiki passages each is drawn from): the shortest way along the
+// network through each road's places, as one line, so the name can ride on it like a river's. A place on the painted road
+// (within ON_PX) becomes a junction there (the edge is split). A place the painted road passes by, or a city its road stops
+// short of, gets a spur: a short road from the place to the nearest point of the network, drawn with the network, so the road
+// begins and ends at the place and roads that canon meets there meet. Spurs are the "branch roads".
+const ON_PX = 2, SPUR_PX = 45; // ~5 miles; ~110 miles (a place further off is a road the map does not draw: list it in `far`)
+const spec = JSON.parse(readFileSync('tools/books/lore-roads.json', 'utf8'));
+const far = new Set(spec.flatMap((r) => r.far ?? []));
+const cut = new Map(); // place -> the pixel its road ends at (the place itself, at the end of its spur)
+const pass = new Map(); // place -> the pixel of the network its road passes by on the way through
+const snaps = new Set(); // pixels of the network where spurs join, to split the edges at
+const spurs = [];
+// A hub is a place the painted roads pass by but canon runs them through (Casterly Rock: the Gold, Ocean and River roads all meet at it).
+// The painted trunk between `ends` that passes the hub is dropped and redrawn through it; `joins` are places whose road leaves the network at the hub.
+const hubs = JSON.parse(readFileSync('tools/books/hubs.json', 'utf8')), hubPx = new Map();
+const endNear = ([lon, lat]) => { const [x, y] = toPx(lon, lat); let b = [null, Infinity]; for (const e of edges) for (const q of [e[0], e.at(-1)]) { const d = Math.hypot(q[0] - x, q[1] - y); if (d < b[1]) b = [q, d]; } return b[0]; };
+for (const h of hubs) {
+  const p = PLACES.find((q) => q[0] === h.place && q[1] !== 'road'), at = toPx(p[3], p[2]).map(Math.round), id = (q) => q[0] + q[1] * W;
+  const ends = h.ends.map(endNear), set = new Set([...h.drop.map(endNear), ...ends].map(id)), mid = new Set(h.drop.map(endNear).map(id));
+  for (let k = edges.length - 1; k >= 0; k--) { const a = id(edges[k][0]), b = id(edges[k].at(-1)); if (set.has(a) && set.has(b) && (mid.has(a) || mid.has(b))) edges.splice(k, 1); }
+  ends.forEach((q, i) => { const bend = h.endBends?.[i] ?? 0; edges.push([at, [(at[0] + q[0]) / 2 - (q[1] - at[1]) * bend, (at[1] + q[1]) / 2 + (q[0] - at[0]) * bend], q]); }); // bend: inland, off the shore
+  hubPx.set(h.place, { at, aliases: h.aliases ?? [], joins: h.joins ?? [], joinBend: h.joinBend ?? 0 });
+}
 for (const name of new Set(spec.flatMap((r) => r.via))) {
   const p = PLACES.find((q) => q[0] === name && q[1] !== 'road');
   if (!p) throw new Error(`no place "${name}"`);
-  const [x, y] = toPx(p[3], p[2]);
-  let best = [null, Infinity];
-  for (const e of edges) for (const [qx, qy] of e) { const d = Math.hypot(qx - x, qy - y); if (d < best[1]) best = [qx + qy * W, d]; }
-  if (best[1] > SNAP_PX) throw new Error(`"${name}" is ${Math.round(best[1])} px from any road`);
-  cut.set(name, best[0]);
+  const [x, y] = toPx(p[3], p[2]).map(Math.round);
+  let best = [null, Infinity, null];
+  for (const e of edges) for (const [qx, qy] of e) { const d = Math.hypot(qx - x, qy - y); if (d < best[1]) best = [qx + qy * W, d, [qx, qy]]; }
+  pass.set(name, best[0]);
+  if (best[1] <= ON_PX) { cut.set(name, best[0]); snaps.add(best[0]); continue; }
+  if (best[1] > SPUR_PX && !far.has(name)) throw new Error(`"${name}" is ${Math.round(best[1])} px from any road: list it in "far" in lore-roads.json if the books put a road there`);
+  const q = best[2], bend = ([...name].reduce((n, c) => n + c.charCodeAt(0), 0) % 2 ? 1 : -1) * 0.1; // a gentle bend, so a spur is a track and not a ruler line
+  spurs.push([[x, y], [(x + q[0]) / 2 - (q[1] - y) * bend, (y + q[1]) / 2 + (q[0] - x) * bend], q]);
+  cut.set(name, nodeId([x, y])); snaps.add(best[0]);
 }
-const at = new Set(cut.values());
-for (let k = 0; k < edges.length; k++) { // split edges at the cut pixels
-  const e = edges[k], i = e.findIndex((p, j) => j > 0 && j < e.length - 1 && at.has(p[0] + p[1] * W));
+for (const [place, h] of hubPx) { // the hub's own node is where its roads end, and the joins run to it from the network
+  for (const n of [place, ...h.aliases]) cut.set(n, nodeId(h.at));
+  for (const j of h.joins) { // a straight track from the network at the place, with the same gentle bend as a spur
+    const [jx, jy] = toPx(...PLACES.find((q) => q[0] === j).slice(2).reverse()).map(Math.round); let b = [null, Infinity]; // nearest pixel of the network to the place
+    for (const e of edges) for (const t of e) { const d = Math.hypot(t[0] - jx, t[1] - jy); if (d < b[1] && !(t[0] === h.at[0] && t[1] === h.at[1])) b = [t, d]; }
+    const q = b[0];
+    edges.push([q, [(q[0] + h.at[0]) / 2 - (h.at[1] - q[1]) * h.joinBend, (q[1] + h.at[1]) / 2 + (h.at[0] - q[0]) * h.joinBend], h.at]); snaps.add(q[0] + q[1] * W);
+  }
+}
+for (let k = 0; k < edges.length; k++) { // split edges where places and spurs meet them
+  const e = edges[k], i = e.findIndex((p, j) => j > 0 && j < e.length - 1 && snaps.has(p[0] + p[1] * W));
   if (i > 0) edges.splice(k, 1, e.slice(0, i + 1), e.slice(i)), k--;
+}
+edges.push(...spurs);
+// A road the books name between two places that the painted map does not draw (a leg that would wind far round) is drawn straight
+// between them, with the same gentle bend: lore-roads.json `direct`, pairs of neighbouring places.
+const px = (id) => [id % W, (id / W) | 0];
+for (const [a, b] of spec.flatMap((r) => r.direct ?? [])) {
+  const [pa, pb] = [px(cut.get(a)), px(cut.get(b))], bend = ([...a].reduce((n, c) => n + c.charCodeAt(0), 0) % 2 ? 1 : -1) * 0.1;
+  edges.push([pa, [(pa[0] + pb[0]) / 2 - (pb[1] - pa[1]) * bend, (pa[1] + pb[1]) / 2 + (pb[0] - pa[0]) * bend], pb]);
 }
 const roads = edges.map(line); // short edges stay: they join the pixels of one junction
 const adj = new Map();
@@ -395,19 +433,27 @@ const route = (from, to) => { // Dijkstra over junctions; the edges walked, in o
   for (let n = to; n !== from; n = via.get(n).u) walk.unshift(via.get(n).a);
   return walk;
 };
-const named = spec.flatMap(({ name, via, blog }) => {
-  const px = [], nodes = via.map((v) => cut.get(v));
+const named = spec.flatMap(({ name, via, miles: stated }) => {
+  const px = [], nodes = via.map((v, i) => (i === 0 || i === via.length - 1 ? cut : pass).get(v)); // a road ends at its places and passes the ones between (no detour into a spur and back)
   for (let i = 1; i < nodes.length; i++) {
     let walk;
     try { walk = route(nodes[i - 1], nodes[i]); } catch { console.warn(`${name}: no road from ${via[i - 1]} to ${via[i]}, left out`); return []; }
-    for (const a of walk) px.push(...(a.rev ? [...edges[a.k]].reverse() : edges[a.k]));
+    for (const a of walk) px.push(a.rev ? { miles: roads[a.k].miles, pts: [...roads[a.k].pts].reverse() } : roads[a.k]); // the drawn edges as they are: smoothing the joined path again rounds every junction into a bend the network does not have
     if (process.env.DBG === '5') {
       console.log(`  ${name}: ${via[i - 1]} -> ${via[i]} ${Math.round(walk.reduce((n, a) => n + a.w, 0) * pxMiles)} mi over ${walk.length} stretches`);
       for (const a of walk) console.log('    ', Math.round(a.w * pxMiles), 'mi', edges[a.k][0].join(','), '->', edges[a.k].at(-1).join(','), a.rev ? 'rev' : '');
     }
   }
-  const r = line(px.filter((p, i) => !i || p[0] !== px[i - 1][0] || p[1] !== px[i - 1][1]));
-  console.log(`${name}: ${Math.round(r.miles)} mi${blog ? ` (blog ${blog})` : ''}, midpoint ${r.pts[r.pts.length >> 1]}`);
+  const r = { miles: px.reduce((n, e) => n + e.miles, 0), pts: px.flatMap((e) => e.pts).filter((p, i, a) => !i || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]) };
+  // a road ends at its places, not at the pixel of the network they snapped to (a pixel is ~2.4 mi): run it on to each end place
+  for (const [i, v] of [[0, via[0]], [1, via.at(-1)]]) {
+    const p = PLACES.find((q) => q[0] === v && q[1] !== 'road'), end = r.pts[i ? r.pts.length - 1 : 0], k = Math.cos((p[2] * Math.PI) / 180);
+    const mi = Math.hypot((p[3] - end[0]) * k, p[2] - end[1]) * MILES_PER_DEG;
+    if (mi < 0.3 || mi > 5 || wet(end, [p[3], p[2]])) continue;
+    r.pts[i ? 'push' : 'unshift']([p[3], p[2]]);
+    r.miles = +(r.miles + mi).toFixed(1);
+  }
+  console.log(`${name}: ${Math.round(r.miles)} mi${stated ? ` (stated ${stated})` : ''}, midpoint ${r.pts[r.pts.length >> 1]}`);
   return [{ name, ...r }];
 });
 
@@ -425,7 +471,7 @@ const segs = roads.flatMap((r) => r.pts.slice(1).map((p, i) => [r.pts[i], p]));
 const minor = [];
 for (const p of PLACES) {
   const reach = REACH_MI[p[1]], at = [p[3], p[2]], k = Math.cos((p[2] * Math.PI) / 180);
-  if (!reach) continue;
+  if (!reach || WALL_CASTLES[p[0]]) continue; // the Wall's castles are joined by the Watch's track along the Wall (wiki Wall), not by roads of their own
   let best = { mi: Infinity, q: null };
   for (const [a, b] of segs) {
     const dx = (b[0] - a[0]) * k, dy = b[1] - a[1], len2 = dx * dx + dy * dy;

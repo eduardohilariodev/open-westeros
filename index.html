@@ -44,8 +44,8 @@
       <button id="menuBtn" class="icon" aria-label="Menu" title="Menu">
         <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
       </button>
-      <input id="search" type="search" list="places" placeholder="Search the known world" autocomplete="off" />
-      <datalist id="places"></datalist>
+      <input id="search" type="search" placeholder="Search the known world" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="results" />
+      <ul id="results" class="card" role="listbox" hidden></ul>
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
     </div>
     <!-- place panel, like Google Maps: shown instead of the drawer while a place is open -->
@@ -82,6 +82,25 @@
   </div>
 
 
+  <!-- bottom left: measuring wool -->
+  <div id="measure" class="card" hidden>
+    <div class="m-head">
+      <h2>Measure</h2>
+      <button id="measureUndo" type="button" title="Remove the last point (Ctrl+Z)">Undo</button>
+      <button id="measureClear" type="button">Clear</button>
+      <button id="measureClose" type="button" aria-label="Close" title="Close (Esc stops measuring)">×</button>
+    </div>
+    <p class="m-hint"></p>
+    <ol class="m-legs"></ol>
+    <div class="m-body" hidden>
+      <div class="m-total"></div>
+      <dl class="m-units"></dl>
+      <h3>Travel time</h3>
+      <dl class="m-paces"></dl>
+      <p class="m-note">Measured along the ground of this planet (radius 6,915 km). Paces are rule-of-thumb estimates for a travel day of 8 hours; the books give few speeds, and the dragon's is an assumption. A league is 3 miles on land and 3 nautical miles at sea.</p>
+    </div>
+  </div>
+
   <!-- bottom right: navigation -->
   <div id="nav">
     <button id="reliefBtn" class="layer" aria-pressed="true" title="Switch to the flat map" aria-label="Switch terrain between 3D relief and flat map">
@@ -100,6 +119,9 @@
       </svg>
     </button>
     <button id="tiltBtn" class="fab text" title="Toggle 2D / 3D view">3D</button>
+    <button id="measureBtn" class="fab" aria-pressed="false" title="Measure a distance with wool" aria-label="Measure a distance">
+      <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z" /></svg>
+    </button>
     <div class="zoom">
       <button id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" /></svg></button>
       <button id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14z" /></svg></button>
@@ -111,8 +133,21 @@
     <div class="scale"><span id="scaleMi"></span><span id="scaleKm"></span></div>
     <span id="coords"></span>
     <span id="altitude"></span>
-    <span class="credit">Maps © George R. R. Martin · Winterfell: Shadiversity / The True Winterfell SE · Icons: <a href="https://game-icons.net/" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0) · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <span class="credit">Maps © George R. R. Martin · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <button id="creditsBtn" type="button">Credits</button>
   </div>
+
+  <dialog id="credits">
+    <h2>Credits</h2>
+    <ul>
+      <li>Maps © George R. R. Martin</li>
+      <li>Winterfell: Shadiversity / The True Winterfell SE</li>
+      <li>Icons: <a href="https://game-icons.net/" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0)</li>
+      <li>Place text: <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>; coats of arms by its contributors</li>
+      <li>Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></li>
+    </ul>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

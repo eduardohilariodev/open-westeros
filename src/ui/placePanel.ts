@@ -25,7 +25,7 @@ const fill = (el: HTMLElement, text: string) => {
 export const showCard = (c: Card) => {
   place.hidden = !c;
   if (!c) return;
-  const info = PLACE_INFO[c.name] ?? {};
+  const info = PLACE_INFO[`${c.name} (${c.kind.toLowerCase()})`] ?? PLACE_INFO[c.name] ?? {};
   const hero = q<HTMLImageElement>('.hero');
   hero.hidden = !info.image;
   hero.src = info.image ?? '';

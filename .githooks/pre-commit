@@ -1,0 +1,3 @@
+#!/bin/sh
+# Block commits that leave a place against its lore: place checks, sea sweep, stated distances (npm run lore -- check).
+npm run -s lore:check -- --quiet || { echo 'lore check failed: commit aborted (npm run lore -- check)'; exit 1; }

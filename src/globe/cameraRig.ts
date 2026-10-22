@@ -10,7 +10,7 @@ const rad = THREE.MathUtils.degToRad;
  * `groundAt(p)` is the drawn ground's height (m) under a point, so a tilt never buries the camera. `step` once a frame.
  */
 export function createCameraRig(camera: THREE.PerspectiveCamera, controls: OrbitControls, el: HTMLElement, R: number, home: { dir: THREE.Vector3; alt: number }, groundAt: (p: THREE.Vector3) => number) {
-  const toNdc = (e: MouseEvent) => {
+  const toNdc = (e: { clientX: number; clientY: number }) => {
     const r = el.getBoundingClientRect();
     return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   };
@@ -58,9 +58,23 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   // moved a few px, so a plain click on a name still reaches the name.
   // Shift-drag tilts and turns instead, about the ground point at the screen centre: up/down tilts, left/right turns.
   let grab: THREE.Vector3 | null = null, dragging = false, tilting = false, down = { x: 0, y: 0 };
-  const release = () => (grab = null, dragging = tilting = false);
+  // Two fingers pinch-zoom about their midpoint, the same anchored altitude zoom as the wheel.
+  const touches = new Map<number, { x: number; y: number }>();
+  let pinchDist = 0;
+  const pinchSpan = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  const pinchMid = () => { const [a, b] = [...touches.values()]; return toNdc({ clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 }); };
+  const release = (e?: PointerEvent) => {
+    if (e && touches.delete(e.pointerId) && touches.size === 1) pinchDist = 0; // the rest of the pinch is not a drag
+    if (touches.size === 0) pinchDist = 0;
+    grab = null; dragging = tilting = false;
+  };
   const attachInput = (t: HTMLElement) => {
+    t.style.touchAction = 'none'; // the browser must not pan or page-zoom over the globe
     t.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch' && controls.enabled) {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size === 2) { grab = null; dragging = false; anim = anchor = null; pinchDist = pinchSpan(); return; }
+      }
       if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
       anim = anchor = null;
       down = { x: e.clientX, y: e.clientY };
@@ -69,6 +83,20 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
       grab = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
     });
     t.addEventListener('pointermove', (e) => {
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2 && pinchDist) {
+        const d = pinchSpan();
+        if (d < 1) return;
+        if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001) {
+          const ndc = pinchMid();
+          ray.setFromCamera(ndc, camera);
+          anchor = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
+          anchorNdc.copy(ndc);
+        }
+        zoomTo(altGoal * pinchDist / d); // fingers apart (d grows) lowers the altitude
+        pinchDist = d;
+        return;
+      }
       if (tilting) {
         tilt = THREE.MathUtils.clamp(tilt - e.movementY * 0.005, 0, MAX_TILT);
         heading = (heading + e.movementX * 0.005) % (2 * Math.PI);
@@ -84,12 +112,45 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     t.addEventListener('wheel', onWheel, { passive: false });
   };
 
+  // Arrow keys roll the globe under the camera: up moves the view north (or toward the top of the screen once turned), down back, left/right sideways.
+  const held = new Set<string>();
+  addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement;
+    if (e.ctrlKey || e.metaKey || e.altKey || t.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.code.startsWith('Arrow')) { held.add(e.code); e.preventDefault(); }
+  });
+  addEventListener('keyup', (e) => held.delete(e.code));
+  addEventListener('blur', () => held.clear());
+
   // ---------- flights ----------
   let anim: { t0: number; d0: THREE.Vector3; d1: THREE.Vector3; a0: number; a1: number } | null = null;
   const tmp = new THREE.Vector3();
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const flyToDir = (dir: THREE.Vector3, a: number) =>
     (anim = { t0: performance.now(), d0: camera.position.clone().normalize(), d1: dir.clone().normalize(), a0: alt, a1: a });
+  /**
+   * Fly so the unit directions `pts` fill the part of the screen that the overlays leave free: `inset` is the px each side
+   * is covered (the sidebar), `pad` the gap kept round the points. Flat approximation of the ground: good for areas up to a few thousand km.
+   */
+  const flyToFit = (pts: THREE.Vector3[], inset: { l: number; r: number; t: number; b: number }, pad: number) => {
+    const n = pts.reduce((s, p) => s.add(p), new THREE.Vector3()).normalize();
+    const east = new THREE.Vector3(0, 1, 0).cross(n).normalize(), north = n.clone().cross(east);
+    const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)); // screen up and right, as the arrow keys use
+    const right = n.clone().cross(up).multiplyScalar(-1).normalize();
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      const x = R * p.dot(right), y = R * p.dot(up);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    const vw = el.clientWidth, vh = el.clientHeight;
+    const w = Math.max(vw - inset.l - inset.r - 2 * pad, 100), h = Math.max(vh - inset.t - inset.b - 2 * pad, 100);
+    const k = 2 * Math.tan(rad(camera.fov / 2)); // altitude -> ground height on screen
+    const a = THREE.MathUtils.clamp((Math.max((x1 - x0) / w, (y1 - y0) / h) * vh) / k, MIN_ALT, MAX_ALT);
+    const mpp = (a * k) / vh; // metres per pixel on arrival
+    // the points' centre goes to the centre of the free area, not of the screen
+    const tx = (x0 + x1) / 2 - ((inset.l - inset.r) / 2) * mpp, ty = (y0 + y1) / 2 + ((inset.t - inset.b) / 2) * mpp;
+    flyToDir(n.clone().addScaledVector(right, tx / R).addScaledVector(up, ty / R), a);
+  };
   const latLon = (v: THREE.Vector3) => ({ lat: THREE.MathUtils.radToDeg(Math.asin(v.y / v.length())), lon: THREE.MathUtils.radToDeg(Math.atan2(v.x, v.z)) });
   const ray = new THREE.Raycaster(), planet = new THREE.Sphere(new THREE.Vector3(), R), hit = new THREE.Vector3();
 
@@ -103,7 +164,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     /** Back to straight down and north up, flying to `home`. */
     goHome() { tilt = heading = 0; flyToDir(home.dir, home.alt); },
     zoomBy: (f: number) => zoomTo(altGoal * f),
-    flyToDir,
+    flyToDir, flyToFit,
     /** The lat/lon of the ground under a screen point, if it is on the planet. */
     pick(ndc: THREE.Vector2) {
       ray.setFromCamera(ndc, camera);
@@ -123,6 +184,17 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
         if (t === 1) anim = null;
       } else {
         alt = Math.exp(THREE.MathUtils.lerp(Math.log(alt), Math.log(altGoal), Math.min(1, dt * 8)));
+      }
+      const fwd = +held.has('ArrowUp') - +held.has('ArrowDown'), side = +held.has('ArrowRight') - +held.has('ArrowLeft');
+      if (controls.enabled && (fwd || side)) {
+        anim = anchor = null;
+        const n = camera.position.clone().normalize();
+        const east = new THREE.Vector3(0, 1, 0).cross(n).normalize(), north = n.clone().cross(east);
+        const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)); // screen up on the ground
+        const right = n.clone().cross(up).multiplyScalar(-1).normalize(); // screen right
+        const dir = up.multiplyScalar(fwd).addScaledVector(right, side).normalize();
+        // about 0.8 altitudes a second, so it crosses the screen in the same time at any height
+        camera.position.applyAxisAngle(n.cross(dir).normalize(), dt * Math.min(0.8 * alt / R, 1));
       }
       camera.position.setLength(R + alt);
       const near = Math.min(100, alt / 20); // close to the ground, a 100 m near plane would clip it

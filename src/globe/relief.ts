@@ -210,7 +210,10 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   };
   // data, not pictures: no premultiplied alpha, no colour management
   const loader = new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  let done = 0; // loading bar: 5 maps, the height mesh, then the rivers and clouds
+  const STEPS = 7;
   const load = (name: string) => loader.loadAsync(`${import.meta.env.BASE_URL}world/${name}.webp`).then((bitmap) => {
+    done++;
     const t = new THREE.Texture(bitmap);
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.anisotropy = 8;
@@ -239,6 +242,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     apply();
     const material = new THREE.ShaderMaterial({ uniforms: { ...uniforms }, vertexShader: MESH_VERT, fragmentShader: LAND_FRAG, defines: { COVER: '' } });
     return createReliefMesh(`${import.meta.env.BASE_URL}world/relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
+      done++;
       bindBake(texture, B);
       updateMesh = update;
       bakedHeight = heightAt;
@@ -263,7 +267,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     });
   }).catch((e) => console.warn('relief: staying on the flat map,', e));
   return {
-    object, ready, setEnabled(on: boolean) { enabled = on; apply(); },
+    object, ready, progress: () => Math.min(1, done / STEPS), setEnabled(on: boolean) { enabled = on; apply(); },
     /** Height of the drawn ground above sea level (m) under a point; the baked height as raise() lifts it (flat at the 3D sites), without the fine detail. */
     groundAt(p: THREE.Vector3) {
       if (!enabled || !bakedHeight) return 0;

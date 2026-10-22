@@ -1,6 +1,6 @@
 // World scale — the single source of truth for sizes, shared by src/ and tools/.
 // Planet size and latitudes follow the fan reconstruction (atlasoficeandfireblog, "The size and extent of
-// Westeros", 2016): a planet ~8% larger than Earth, the Wall at ~66.6°N, ~3,000 mi from the Wall to the
+// Westeros", 2016): a planet ~8% larger than Earth, the Wall at ~62°N (the blog's latitude post gives 61.97°N; 66.6°N is the Arctic Circle, which lies north of it), ~3,000 mi from the Wall to the
 // south coast of Dorne, and King's Landing used as the 0° meridian (there is no canonical one).
 // Keep this file free of imports and non-erasable TS syntax: Node runs it directly for the tools.
 

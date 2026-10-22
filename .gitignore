@@ -19,3 +19,6 @@ docs/wiki/
 
 .vercel
 .env*
+
+# Books (copyrighted, local only) and their extracted text: node tools/books/extract.mjs
+docs/books/

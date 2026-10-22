@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { SITE_LOAD_DISTANCE, SITES, type SiteId } from '../config';
 import type { Card, GlobeView } from '../globe/GlobeView';
+import { PLACE_KINDS } from '../globe/placeIcons';
+import { PLACE_INFO } from '../place-info';
 import { SITE_VIEWS } from './index';
-import type { SiteView } from './SiteScene';
+import { GLOBE_KIND, type SiteView } from './SiteScene';
+
+const KIND_NAME = Object.fromEntries(PLACE_KINDS.map(([k, , one]) => [k, one]));
 
 // The hand-off between the globe and the 3D places: a place's scene loads on demand as the camera nears it, takes the
 // camera's own pose in its local frame, fades in over the last stretch of its draw distance and is drawn over the globe.
@@ -22,7 +26,8 @@ export function createSites(renderer: THREE.WebGLRenderer, globe: GlobeView, sho
         view.camera.updateProjectionMatrix();
         view.labels.setSize(innerWidth, innerHeight);
         view.onPick = (p) => {
-          showCard({ kind: p.kind, name: p.name, text: view.lore[p.name] });
+          // the wiki's passage (place-info.ts) when it has one; the hand-written lore is the fallback
+          showCard({ kind: KIND_NAME[GLOBE_KIND[p.kind]] ?? p.kind, name: p.name, text: PLACE_INFO[p.name]?.summary ? undefined : view.lore[p.name] });
           const f = view.focus(p);
           globe.flyToSite(id, f.x, f.z, f.alt);
         };

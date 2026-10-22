@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-22T23:11:28.362Z",
+        "reason": "pre-existing: the place panel's hero, gallery and tile <img> get their src from src/ui/placePanel.ts at runtime; not added by the measuring tool"
+      }
+    ]
+  }
+}

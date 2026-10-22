@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "node tools/lore/hook.mjs" }]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run lore:*)",
+      "Bash(npm run lore)",
+      "Bash(npm run -s lore:*)",
+      "Bash(node tools/lore/*)",
+      "Bash(node tools/books/*)"
+    ]
+  }
+}

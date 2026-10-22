@@ -45,7 +45,7 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - Roads are medieval: main roads pass near places and do not run through them. `src/roads.json` has `roads` (the network),
   `minor` (a track from a place to the nearest main road, within a reach that depends on its size, over land only) and
   `named`. Roads never cross themselves or hook back (no circles or knots), and stay on land.
-- Main roads draw below 8,000 km (`ROADS_BELOW`), tracks below 2,500 km (`TRACKS_BELOW`); names show below 1,600 km.
+- Main roads draw below 8,000 km (`ROADS_BELOW`), tracks below 1,200 km, the castles' height (`TRACKS_BELOW`); names show below 1,600 km.
 
 ## Fades, not pops
 

@@ -1,0 +1,16 @@
+{
+  "note": "Distances the books state. A league is 3 miles: the Wall is 'three hundred miles' (AGOT, Jon) and 'a hundred leagues' (ACOK, Jon; World of Ice & Fire). `how`: straight = as the crow flies, road = along a road, any = overland, mode unstated. Checked by tools/books/travel-check.mjs.",
+  "leagueMiles": 3,
+  "distances": [
+    { "from": "Deepwood Motte", "to": "Winterfell", "miles": 300, "how": "any", "quote": "One hundred leagues from Deepwood Motte to Winterfell.", "cite": "ADWD, The King's Prize" },
+    { "from": "Astapor", "to": "Yunkai", "miles": 300, "how": "road", "quote": "It was a hundred leagues from Astapor to Yunkai by the old Ghiscari coast road, and another fifty from Yunkai to Meereen.", "cite": "ADWD, The Windblown" },
+    { "from": "Yunkai", "to": "Meereen", "miles": 150, "how": "road", "quote": "and another fifty from Yunkai to Meereen.", "cite": "ADWD, The Windblown" },
+    { "from": "Meereen", "to": "Astapor", "miles": 600, "how": "straight", "quote": "Two hundred leagues divided Meereen from Astapor", "cite": "ADWD, Daenerys" },
+    { "from": "Volantis", "to": "Meereen", "miles": 1500, "how": "any", "quote": "Between Meereen and Volantis lay five hundred leagues of deserts, mountains, swamps, and ruins, plus Mantarys with its sinister repute.", "cite": "ADWD, Tyrion" },
+    { "from": "Sunspear", "to": "Water Gardens", "miles": 9, "how": "road", "quote": "Only three leagues of coast road divided Sunspear from the Water Gardens", "cite": "AFFC, The Captain of Guards" },
+    { "from": "Oldtown", "to": "Horn Hill", "miles": 300, "how": "straight", "quote": "The Tarly lands lay inland amidst thickly wooded foothills, a hundred leagues northeast of Oldtown", "cite": "AFFC, Samwell" },
+    { "from": "Castle Black", "to": "Mole's Town", "miles": 1.5, "how": "road", "quote": "Mole's Town, the little village half a league south along the kingsroad", "cite": "AGOT, Tyrion" },
+    { "from": "King's Landing", "to": "Tumbleton", "miles": 180, "how": "straight", "quote": "Only sixty leagues away, Tumbleton had been sacked in the most savage fashion", "cite": "World of Ice & Fire, the Dance of the Dragons (after King's Landing fell to Rhaenyra)" },
+    { "from": "Eastwatch-by-the-Sea", "to": "Shadow Tower", "miles": 300, "how": "straight", "quote": "The Watch had once manned seventeen castles along the hundred leagues of the Wall", "cite": "ACOK, Jon (the Wall's length; the two end castles stand at its ends, so a lower bound)" }
+  ]
+}

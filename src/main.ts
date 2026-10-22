@@ -5,6 +5,7 @@ import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, showCard } from './ui/placePanel';
 import { createSites } from './sites/handoff';
 import type { SiteView } from './sites/SiteScene';
+import { initMeasurePanel } from './ui/measurePanel';
 import { initNav } from './ui/nav';
 
 // Initialize Vercel Web Analytics
@@ -69,23 +70,63 @@ $('menuBtn').onclick = () => { // with a place open, the menu closes it and brin
   else document.body.classList.toggle('drawer-open');
 };
 const nav = initNav(renderer.domElement, () => globe.nav);
+initMeasurePanel(globe.wool);
 
 // Search: every place name on the map.
 const mapItems = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, i }));
-$('places').innerHTML = mapItems.map((m) => `<option value="${m.label.replace(/"/g, '&quot;')}" label="${m.kind}"></option>`).join('');
 const search = $('search') as HTMLInputElement;
-search.addEventListener('change', () => {
+const results = $('results');
+const kindLabel = Object.fromEntries(PLACE_KINDS);
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+let shown: typeof mapItems = [];
+let active = 0;
+const setActive = (n: number) => {
+  active = n;
+  [...results.children].forEach((li, k) => li.classList.toggle('on', k === n));
+  results.children[n]?.scrollIntoView({ block: 'nearest' });
+};
+const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); };
+const go = (m: (typeof mapItems)[number]) => { globe.flyToPlace(m.i); search.value = ''; search.blur(); closeResults(); };
+const renderResults = () => {
   const q = search.value.trim().toLowerCase();
-  // exact name first, then "contains"
-  const place = mapItems.find((m) => m.label.toLowerCase() === q) ?? (q && mapItems.find((m) => m.label.toLowerCase().includes(q)));
-  if (!place) return;
-  globe.flyToPlace(place.i);
-  search.value = ''; search.blur();
+  if (!q) return closeResults();
+  const at = (m: (typeof mapItems)[number]) => m.label.toLowerCase().indexOf(q);
+  // names starting with the query first, then those containing it, then alphabetical
+  shown = mapItems.filter((m) => at(m) >= 0)
+    .sort((a, b) => (at(a) > 0 ? 1 : 0) - (at(b) > 0 ? 1 : 0) || a.label.localeCompare(b.label)).slice(0, 8);
+  results.innerHTML = shown.length
+    ? shown.map((m, k) => {
+      const i = at(m), l = m.label;
+      return `<li role="option" data-k="${k}"><svg class="k-${m.kind}" viewBox="0 0 512 512">${PLACE_ICONS[m.kind]}</svg>` +
+        `<span class="nm">${esc(l.slice(0, i))}<mark>${esc(l.slice(i, i + q.length))}</mark>${esc(l.slice(i + q.length))}</span>` +
+        `<span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
+    }).join('')
+    : '<li class="none">No such place in the known world</li>';
+  results.hidden = false; search.setAttribute('aria-expanded', 'true');
+  setActive(0);
+};
+search.addEventListener('input', renderResults);
+search.addEventListener('focus', renderResults);
+search.addEventListener('blur', () => setTimeout(closeResults, 120)); // after a click on a row has landed
+search.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!shown.length) return;
+    e.preventDefault();
+    setActive((active + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length);
+  } else if (e.key === 'Enter' && shown[active] && !results.hidden) go(shown[active]);
+  else if (e.key === 'Escape') { closeResults(); search.blur(); }
+});
+results.addEventListener('mousedown', (e) => {
+  const li = (e.target as HTMLElement).closest<HTMLElement>('li[data-k]');
+  if (li) { e.preventDefault(); go(shown[+li.dataset.k!]); }
 });
 
 // Start in 3D: keep the loading screen up until the relief maps and mesh are in (on failure it resolves and stays flat).
 $('loadMsg').textContent = 'Loading terrain…';
+const bar = $('loadFill');
+const tick = setInterval(() => { bar.style.width = `${10 + 85 * globe.relief.progress()}%`; }, 100);
 await globe.relief.ready;
+clearInterval(tick);
 
 let ready = false;
 let last = performance.now();
@@ -136,3 +177,8 @@ addEventListener('resize', () => {
   }
 });
 globe.labels.setSize(innerWidth, innerHeight);
+
+// credits dialog
+const creditsDlg = document.getElementById("credits") as HTMLDialogElement;
+document.getElementById("creditsBtn")!.addEventListener("click", () => creditsDlg.showModal());
+creditsDlg.addEventListener("click", (e) => { if (e.target === creditsDlg) creditsDlg.close(); });
