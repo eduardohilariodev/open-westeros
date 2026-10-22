@@ -34,7 +34,7 @@ void main() {
 
 const COMMON = `#include <common>
 #include <logdepthbuf_pars_fragment>
-uniform sampler2D tA, tB, tC, tD; // A: slope east, slope north, sun light, ambient occlusion. B: height, flow, erosion, sea distance.
+uniform sampler2D tA, tB, tC, tD, tV; // A: slope east, slope north, sun light, ambient occlusion. B: height, flow, erosion, sea distance.
                                   // C: forest, moisture, snow. D: bare-rock colour (geology), erodibility
 uniform vec4 uBounds;           // lon0, lon1, lat0, lat1 (degrees) of the baked grid
 uniform float uExaggeration, uGradMax, uHeightMax, uSeaMax;
@@ -106,20 +106,22 @@ void main() {
   float lat = degrees(abs(asin(clamp(vDir.y, -1.0, 1.0))));
   float n1 = detail(p / 6.0), n2 = detail(p / 1.2), n3 = detail(p / 0.35); // breakup noise, ~6 km, ~1 km, ~350 m
 
-  // ground colour by rules (sRGB picks, made linear), like a painted satellite map: deep greens in the north warming to
-  // yellow-greens in the Reach, tan Dorne, pale rock on the ranges, grey-white ice beyond the Wall
-  float south = 1.0 - smoothstep(32.0, 50.0, lat + (n1 - 0.5) * 4.0);
-  vec3 lush = mix(srgb(vec3(0.2, 0.31, 0.13)), srgb(vec3(0.36, 0.43, 0.17)), south);
-  vec3 dry = mix(srgb(vec3(0.4, 0.44, 0.25)), srgb(vec3(0.6, 0.56, 0.3)), south);
-  vec3 c = mix(dry, lush, smoothstep(0.25, 0.7, moist + (n1 - 0.5) * 0.3)) * (0.82 + 0.22 * n2 + 0.14 * n3); // grain
-  c = mix(c, lush * 0.85, smoothstep(0.25, 0.8, flow) * 0.5);                                  // lush along water
-  c = mix(c, lush * vec3(0.72, 0.8, 0.7) * (0.7 + 0.3 * n2 + 0.4 * n3), smoothstep(0.3, 0.8, forest + (n1 - 0.5) * 0.5 + (n3 - 0.5) * 0.3) * 0.6);
-  float desert = smoothstep(0.24, 0.06, moist + (n1 - 0.5) * 0.15);
-  c = mix(c, srgb(vec3(0.76, 0.56, 0.34)) * (0.86 + 0.18 * n2 + 0.1 * n3), desert);
-  c = mix(c, srgb(vec3(0.25, 0.33, 0.2)), smoothstep(0.85, 0.97, moist));                      // swamp
+  // ground colour by biome (relief-v: the fan vegetation map's biomes as albedo, tools/world/vegetation.mjs), sampled
+  // through a ~30 km wobble so borders read as country rather than lines; then trees by the biome's cover, greener
+  // ground along water, stony uplands and the geology's rock on steep ground, reddened in arid lands
+  // the biome map's ~12 km pixels melt into ragged borders: a ~30 km and a ~5 km wobble, then four taps ~14 km apart
+  // (the grid spans about twice as many degrees east-west as north-south, hence r.y = 2 r.x)
+  vec2 w = uv + (vec2(n1, detail(p / 6.0 + 9.1)) - 0.5) * 0.002 + (vec2(n2, detail(p / 1.2 + 4.7)) - 0.5) * 0.0004;
+  vec2 r = vec2(0.0007, 0.0014);
+  vec3 v = 0.25 * (texture2D(tV, w + vec2(r.x, 0.0)).rgb + texture2D(tV, w - vec2(r.x, 0.0)).rgb
+                 + texture2D(tV, w + vec2(0.0, r.y)).rgb + texture2D(tV, w - vec2(0.0, r.y)).rgb);
+  float arid = smoothstep(0.02, 0.13, v.r - v.g);
+  vec3 c = srgb(v) * (0.82 + 0.22 * n2 + 0.14 * n3);                                          // grain
+  c = mix(c, c * vec3(0.75, 0.95, 0.7), smoothstep(0.25, 0.8, flow) * 0.5 * (1.0 - arid * 0.5));
+  c *= mix(1.0, 0.62 + 0.38 * n3 + 0.15 * n2, smoothstep(0.2, 0.9, forest + (n3 - 0.5) * 0.5)); // canopy: clumps and clearings
   vec3 rock = mix(srgb(texture2D(tD, uv).rgb * 0.85), srgb(vec3(0.68, 0.66, 0.62)), 0.55);    // the geology's rock, pale
-  rock = mix(rock, srgb(vec3(0.72, 0.5, 0.32)), max(desert, south * 0.4)) * (0.8 + 0.25 * n2 + 0.15 * n3); // red-brown in the south
-  c = mix(c, mix(c, rock, 0.5), smoothstep(0.7, 1.8, h + (n1 - 0.5) * 0.4) * 0.7);            // uplands go stony
+  rock = mix(rock, srgb(vec3(0.72, 0.5, 0.32)), arid) * (0.8 + 0.25 * n2 + 0.15 * n3);        // red-brown where dry
+  c = mix(c, mix(c, rock, 0.5), smoothstep(0.7, 1.8, h + (n1 - 0.5) * 0.4) * 0.5);            // uplands go stony
   float bare = smoothstep(0.05, 0.16, slope + (n1 - 0.5) * 0.05) * (1.0 - smoothstep(0.2, 0.7, flow));
   bare = max(bare, smoothstep(-0.2, -0.6, ero) * smoothstep(0.8, 1.8, h) * 0.6);              // scoured high ground
   c = mix(c, rock, clamp(bare + smoothstep(1.8, 2.6, h) * 0.6, 0.0, 1.0));
@@ -217,11 +219,11 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   const cloudTexture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/earth_clouds.jpg`);
   cloudTexture.wrapS = THREE.RepeatWrapping;
   cloudTexture.anisotropy = 8;
-  const ready = Promise.all(['relief-a', 'relief-b', 'relief-c', 'relief-d'].map(load)).then(([tA, tB, tC, tD]) => {
+  const ready = Promise.all(['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'].map(load)).then(([tA, tB, tC, tD, tV]) => {
     LIFT.uBounds.value.set(B.lon0, B.lon1, B.lat0, B.lat1);
     LIFT.uHeightMax.value = B.heightMax;
     const uniforms = {
-      ...LIFT, tA: { value: tA }, tB: { value: tB }, tC: { value: tC }, tD: { value: tD },
+      ...LIFT, tA: { value: tA }, tB: { value: tB }, tC: { value: tC }, tD: { value: tD }, tV: { value: tV },
       uExaggeration: { value: B.exaggeration }, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
       uSun: { value: new THREE.Vector3(...B.sun) }, uCloud, tCloud: { value: cloudTexture },
     };

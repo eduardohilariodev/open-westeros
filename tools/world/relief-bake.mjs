@@ -9,12 +9,14 @@
 //     is, lifts ridges along thrust faults, and shapes karst, cliffs, mesas and salt pans.
 //  3. Baked for a fixed sun in the north-west: slope, cast shadow, ambient occlusion; plus flow, erosion, class masks
 //     and bare-rock colour.
-// Output: public/world/relief-{a,b,c,d,h}.webp and src/globe/relief-bounds.json (grid extent and encodings).
+//  4. Ground colour and tree cover by biome, from a fan vegetation map (tools/world/vegetation.mjs).
+// Output: public/world/relief-{a,b,c,d,h,v}.webp and src/globe/relief-bounds.json (grid extent and encodings).
 // Usage: node tools/world/relief-bake.mjs [degrees per pixel = 0.035 (~4.2 km)] [preview.png]
 import sharp from 'sharp';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { METRES_PER_DEGREE } from '../../src/config.ts';
 import { PLACES } from '../../src/world-data.ts';
+import { BIOMES, loadBiomes } from './vegetation.mjs';
 
 const RES = +(process.argv[2] ?? 0.035), PREVIEW = process.argv[3];
 // the Known World plus a margin; BOUNDS="lon0,lon1,lat0,lat1" bakes a part of it, for quick tuning
@@ -295,8 +297,28 @@ for (let y = 0; y < H; y++) {
   }
 }
 const moist = blur(Float32Array.from({ length: N }, (_, i) => (desert[i] > 0.5 ? 0 : swamp[i] > 0.5 ? 1 : forest[i] > 0.5 ? 0.75 : 0.5)), 30);
-const forestB = blur(forest, 4), snowC = blur(snow, 6);
-for (let i = 0; i < N; i++) C.set([enc(forestB[i]), enc(moist[i]), enc(snowC[i]), 255], i * 4); // opaque: resizing premultiplies by alpha
+// vegetation (tools/world/vegetation.mjs): each pixel's biome from the fan vegetation map, for the ground's colour and tree cover
+const biomeAt = await loadBiomes(), biome = new Int16Array(N).fill(-1), named = (n) => BIOMES.findIndex((b) => b[0] === n);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (landRaw[y * W + x] > 0.02) biome[y * W + x] = biomeAt(LON0 + (x + 0.5) * RES, LAT1 - (y + 0.5) * RES);
+for (let pass = 0, changed = true; pass < 12 && changed; pass++) { // where the coasts differ a little: the nearest biome, ~50 km at most
+  changed = false;
+  const next = biome.slice();
+  for (let i = 0; i < N; i++) {
+    if (biome[i] >= 0) continue;
+    const x = i % W, k = [x > 0 ? biome[i - 1] : -1, x < W - 1 ? biome[i + 1] : -1, i >= W ? biome[i - W] : -1, i < N - W ? biome[i + W] : -1].find((v) => v >= 0);
+    if (k !== undefined) { next[i] = k; changed = true; }
+  }
+  biome.set(next);
+}
+for (let i = 0; i < N; i++) if (biome[i] < 0) biome[i] = named( // beyond the fan map (far Essos): from our own terrain classes
+  snow[i] > 0.5 ? 'permafrost' : desert[i] > 0.5 ? 'barren desert' : swamp[i] > 0.5 ? 'swamp' : mountain[i] > 0.5 ? 'rocks'
+    : forest[i] > 0.5 ? 'forest' : hills[i] > 0.5 ? 'mountain grassland' : 'grassland');
+const albedo = [0, 1, 2].map((c) => blur(Float32Array.from(biome, (b) => BIOMES[b][2][c]), 2)), canopy = blur(Float32Array.from(biome, (b) => BIOMES[b][3]), 3);
+const V = new Uint8Array(N * 4);
+for (let i = 0; i < N; i++) V.set([enc(albedo[0][i]), enc(albedo[1][i]), enc(albedo[2][i]), 255], i * 4);
+log('vegetation');
+const snowC = blur(snow, 6);
+for (let i = 0; i < N; i++) C.set([enc(canopy[i]), enc(moist[i]), enc(snowC[i]), 255], i * 4); // opaque: resizing premultiplies by alpha
 const D = new Uint8Array(N * 4); // bare-rock colour from the geology, and erodibility
 for (let i = 0; i < N; i++) D.set([enc(rockRGB[0][i]), enc(rockRGB[1][i]), enc(rockRGB[2][i]), enc(erodibility[i] / 2)], i * 4);
 log('bakes');
@@ -314,6 +336,7 @@ if (!process.env.BOUNDS) await write('relief-a', A, { lossless: true });
 if (!process.env.BOUNDS) await write('relief-b', B, { lossless: true });
 if (!process.env.BOUNDS) await write('relief-c', C, { lossless: true }, 0.5);
 if (!process.env.BOUNDS) await write('relief-d', D, { lossless: true }, 0.5);
+if (!process.env.BOUNDS) await write('relief-v', V, { lossless: true }, 0.5);
 // for the displaced mesh (reliefMesh.ts): 16-bit height (R high byte, G low byte) and antialiased land cover (B, lakes
 // count as land: they are drawn over the mesh), whose 0.5 contour is the coast to within a fraction of a pixel
 const Hh = new Uint8Array(N * 4);
