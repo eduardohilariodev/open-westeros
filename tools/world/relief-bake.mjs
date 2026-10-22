@@ -25,7 +25,8 @@ const W = Math.round((LON1 - LON0) / RES), H = Math.round((LAT1 - LAT0) / RES), 
 const KM = (METRES_PER_DEGREE / 1000) * RES; // km per pixel, north-south
 const cosRow = Float32Array.from({ length: H }, (_, y) => Math.cos(((LAT1 - (y + 0.5) * RES) * Math.PI) / 180));
 // shared with the shader (relief-bounds.json)
-const EXAGGERATION = 6, GRAD_MAX = 0.6, HEIGHT_MAX = 5, ERO_MAX = 0.15, SEA_MAX = 600;
+const EXAGGERATION = 6, GRAD_MAX = 0.6, HEIGHT_MAX = 8, ERO_MAX = 0.15, SEA_MAX = 600;
+const MOUNTAIN_HEIGHT = +(process.env.MOUNTAIN_HEIGHT ?? 1.9); // scales every range before erosion; tuned for the heights logged below
 const SUN = { east: -Math.SQRT1_2, north: Math.SQRT1_2, elevation: (32 * Math.PI) / 180 };
 const t0 = Date.now(), log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
 log(`grid ${W}×${H}, ${KM.toFixed(2)} km/px`);
@@ -155,6 +156,8 @@ for (const [u, ring] of geo.areas) {
 }
 const unitMask = (u) => blur(Float32Array.from(unitOf, (v) => +(UNITS[v] === u)), 10);
 const erodibility = blur(Float32Array.from(unitOf, (v) => geo.units[UNITS[v]].erodibility), 8); // how readily the ground wears away
+// young rock: high ranges; old rock: worn down (the power makes old ranges fall off faster than the raw factor)
+const uplift = blur(Float32Array.from(unitOf, (v) => (geo.units[UNITS[v]].uplift ?? 1) ** 1.6), 25);
 const rockRGB = [0, 1, 2].map((c) => blur(Float32Array.from(unitOf, (v) => geo.units[UNITS[v]].rock_rgb[c]), 6));
 const [karst, cliffs, sandstone, salt, alluvium, granite] = ['P', 'D', 'O', 'salt', 'Q', null].map((u) => u
   ? unitMask(u) : blur(Float32Array.from(unitOf, (v) => +(UNITS[v] === 'gK' || UNITS[v] === 'gC' || UNITS[v] === 'pC')), 8));
@@ -184,15 +187,18 @@ for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
   e += hillsB[i] * (0.25 + 0.8 * ridged(wx / 30, wy / 30, 5) + 0.2 * fbm(wx / 70, wy / 70, 3)); // hills
   // ranges: foothills reach ~45 km beyond the drawn outline; the crest rises towards the middle (medial axis), more
   // where the range is wide; ridged noise carries most of the height so tops are peaks and ridges, not plateaus
-  const t = mountIn[i] - mountOut[i], foot = smooth(-45, 10, t), spine = smooth(0, 70, t) ** 0.8;
-  e += (0.3 * foot + 1.3 * spine) * (0.75 + 0.5 * (0.5 + 0.5 * fbm(wx / 160, wy / 160, 3)));
-  e += 2.2 * foot * ridged(wx / 32, wy / 32, 6) * (0.3 + 0.7 * spine);
+  const t = mountIn[i] - mountOut[i], foot = smooth(-45, 10, t), spine = smooth(-5, 30, t) ** 0.8; // the drawn ranges are narrow (tens of km across)
+  // Heights are real: young ranges (Cretaceous, uplift 1) crest at 4-5 km with peaks to ~6.5, like the Alps, Rockies and
+  // Andes; ranges on old rock (Cambrian to Devonian, uplift 0.5-0.65) are worn down to 2-3 km, like the Appalachians.
+  const up = MOUNTAIN_HEIGHT * uplift[i];
+  e += up * (0.3 * foot + 1.3 * spine) * (0.75 + 0.5 * (0.5 + 0.5 * fbm(wx / 160, wy / 160, 3)));
+  e += up * 2.2 * foot * ridged(wx / 32, wy / 32, 6) * (0.3 + 0.7 * spine);
   e += snowB[i] * (0.55 + 0.1 * fbm(wx / 120, wy / 120, 3));                              // ice plateau
   e += desertB[i] * 0.06 * ridged(wx / 9, wy / 30, 2);                                     // dune fields
   // geology: ridges along the thrust fronts, granite peaks, karst plateaus, limestone sea cliffs, sandstone mesas,
   // flat salt pans, low alluvium
   e += 0.45 * Math.exp(-((thrustD[i] / 35) ** 2)) * (0.6 + 0.4 * ridged(wx / 20, wy / 20, 4)) * coastal;
-  e += granite[i] * 0.5 * ridged(wx / 15, wy / 15, 5);
+  e += granite[i] * 0.5 * uplift[i] * ridged(wx / 15, wy / 15, 5);
   e += (0.45 + 0.08 * fbm(wx / 50, wy / 50, 3) - e) * karst[i] * 0.6;
   e += cliffs[i] * 0.35 * smooth(0, 12, coastIn[i]);
   if (sandstone[i] > 0.05) { const tz = e * 8; e += ((Math.floor(tz) + smooth(0.75, 1, tz % 1)) / 8 - e) * sandstone[i] * 0.8; }
@@ -263,6 +269,16 @@ for (let n = 0; n < DROPS; n++) {
 }
 for (let i = 0; i < N; i++) if (land[i]) h[i] = Math.max(0.003, hu[i] / HS);
 log(`erosion done (${DROPS} droplets)`);
+{ // real heights, by rock: the crests of the drawn ranges (inside the mountain polygons, away from their edges)
+  const pct = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))].toFixed(1);
+  const by = {};
+  for (let i = 0; i < N; i++) if (mountain[i] > 0.5 && mountIn[i] - mountOut[i] > 20) (by[UNITS[unitOf[i]]] ??= []).push(h[i]);
+  const all = Object.values(by).flat().sort((a, b) => a - b);
+  log(`range crests (km): all p50 ${pct(all, 0.5)} p90 ${pct(all, 0.9)} max ${pct(all, 0.99999)};`,
+    Object.entries(by).filter(([, a]) => a.length > 30).map(([u, a]) => (a.sort((x, y) => x - y), `${u} p50 ${pct(a, 0.5)} max ${pct(a, 0.9999)}`)).join(', '));
+  const top = h.reduce((m, v, i) => (land[i] && v > h[m] ? i : m), 0);
+  log(`highest point ${h[top].toFixed(2)} km at ${(LON0 + (top % W) * RES).toFixed(1)}°, ${(LAT1 - Math.floor(top / W) * RES).toFixed(1)}°`);
+}
 
 // ---------- 4. bakes for the shader ----------
 const hb = (r) => blur(h, r);

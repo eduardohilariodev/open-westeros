@@ -33,6 +33,20 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - Box sizes come from `measure()`, run once at start-up and again when the web font loads. Never read layout
   (`offsetWidth`, `getBoundingClientRect`) per label per frame, because it forces a reflow.
 
+## Rivers and roads: names along a line
+
+- Kinds `river` and `road` are lettered along their line (`LINES` in `GlobeView.ts`), not at a point. A river rides on the
+  map polyline nearest its spot; a road on the named road in `src/roads.json` (`named`) with the same name as the place.
+- A new line kind needs an entry in `LINES` and `LINE_WIDTH_M`, a `.line-text.k-<kind>` colour, and the usual kind lists above.
+- Roads are read off Danny Selvag's Known World map (`assets/world/roads/`, not committed; `roads-sources.mjs` also keeps the
+  blog's master map): `tools/blog/roads-fit.mjs` (affine fit plus a local coast registration), `roads-trace.mjs` (names and
+  waypoints in `roads-named.json`), `roads-check.mjs` against the blog's quoted mileages, `roads-overlay.mjs` to look at a
+  trace. Their places are `road` rows in `places.raw.txt`; a spot given as `ll:lat,lon` is a globe position.
+- Roads are medieval: main roads pass near places and do not run through them. `src/roads.json` has `roads` (the network),
+  `minor` (a track from a place to the nearest main road, within a reach that depends on its size, over land only) and
+  `named`. Roads never cross themselves or hook back (no circles or knots), and stay on land.
+- Main roads draw below 8,000 km (`ROADS_BELOW`), tracks below 2,500 km (`TRACKS_BELOW`); names show below 1,600 km.
+
 ## Fades, not pops
 
 - Showing and hiding goes through the `.off` class: a 0.25 s opacity transition, and `@starting-style` for the fade-in.

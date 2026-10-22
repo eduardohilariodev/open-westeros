@@ -73,7 +73,7 @@ The Barrowlands|region|1400,1890|0_2500 1250,523
 Barrowton|castle|1275,1865|0_2500 1052,575
 White Harbor|city|1732,1905|0_2500 1432,623
 The White Knife|river|1680,1780|0_2500 1375,365
-The Kingsroad|landmark|1560,1800|0_2500 1268,435
+The Kingsroad|road|1560,1800|0_2500 1268,435
 Ramsgate|town|-|0_2500 1660,543
 Widow's Watch|castle|-|0_2500 1900,590
 Moat Cailin|castle|1550,1985|0_2500 1290,687
@@ -191,8 +191,8 @@ Silverhill|castle|-|0_2500 985,1578
 Hornvale|castle|-|0_2500 998,1472
 Deep Den|castle|-|0_2500 998,1520
 Cornfield|castle|-|0_2500 855,1668
-The Ocean Road|landmark|1000,3270|0_2500 765,1750
-The Gold Road|landmark|1420,3060|0_2500 1170,1620
+The Ocean Road|road|1000,3270|0_2500 765,1750
+The Gold Road|road|1420,3060|0_2500 1170,1620
 # --- Reach / Stormlands / Kingswood ---
 The Reach|region|1450,3200|0_2500 1108,1810
 The Stormlands|region|-|0_2500 1685,1860
@@ -201,7 +201,7 @@ Storm's End|capital|2090,3305|0_2500 1743,1898
 The Wendwater|river|1930,3290|0_2500 1700,1720
 The Blueburn|river|1560,3330|0_2500 1440,1830
 The Mander|river|1320,3415|0_2500 1325,1760
-The Roseroad|landmark|1390,3290|0_2500 1105,1850
+The Roseroad|road|1390,3290|0_2500 1105,1850
 Shield Islands|island|860,3400|0_2500 578,1960
 Bitterbridge|town|-|0_2500 1225,1790
 Longtable|castle|-|0_2500 1175,1860
@@ -270,7 +270,7 @@ The Prince's Pass|landmark|1465,3680|-
 The Boneway|landmark|1640,3720|-
 Tarth|island|2330,3320|-
 Bloodstone|island|2400,3640|-
-River Road|landmark|1330,2780|-
+River Road|road|1330,2780|-
 # --- Braavos .. Pentos ---
 Braavos|city|2662,2275|2500_2500 310,935
 Lorath|city|3020,2368|2500_2500 617,1025
@@ -323,7 +323,7 @@ The Rhoyne|river|3270,3640|2500_5000 835,130
 The Lhorulu|river|3150,3430|2500_5000 770,15
 The Orange Shore|region|3230,3950|2500_5000 810,470
 The Volaena|river|3610,3820|2500_5000 1075,360
-The Demon Road|landmark|4270,3800|-
+The Demon Road|road|4270,3800|-
 Mantarys|city|4092,3882|2500_5000 1545,410
 The Painted Mountains|mountain|4000,3680|2500_5000 1730,152
 Tolos|city|4292,3992|2500_5000 1720,515
@@ -659,3 +659,5 @@ Ash|river|-|@8970,7418
 # --- continents (painted-map px only: lettering spots, not on the atlas) ---
 Westeros|continent|1709,2092|-
 Essos|continent|5403,3084|-
+The Valyrian Road|road|ll:36.72,16.35|-
+The Steel Road|road|ll:31.59,66.52|-

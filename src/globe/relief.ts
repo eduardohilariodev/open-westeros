@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import B from './relief-bounds.json';
 import { PLANET } from '../config';
-import { DISPLACE, PEAKS, LIFT, LIFT_GLSL, NOISE_GLSL } from './lift';
+import { DISPLACE, exaggeration, LIFT, LIFT_GLSL, NOISE_GLSL } from './lift';
 import { createReliefMesh, MESH_VERT } from './reliefMesh';
 import { RIVER_VERT, riverGeometry, syncPixel } from './rivers';
 import type { Ring } from './viewLayer';
@@ -198,6 +198,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   let updateMesh: ((camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) => void) | null = null;
   let bakedHeight: ((lon: number, lat: number) => number) | null = null;
   const uCloud = { value: 0 };
+  const uExaggeration = { value: B.exaggeration }; // hillshade slope scale, eased with the camera by update()
   const apply = () => {
     const on = enabled && swaps.length > 0;
     for (const s of swaps) s.mesh.material = enabled ? s.relief : s.flat;
@@ -224,7 +225,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     LIFT.uHeightMax.value = B.heightMax;
     const uniforms = {
       ...LIFT, tA: { value: tA }, tB: { value: tB }, tC: { value: tC }, tD: { value: tD }, tV: { value: tV },
-      uExaggeration: { value: B.exaggeration }, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
+      uExaggeration, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
       uSun: { value: new THREE.Vector3(...B.sun) }, uCloud, tCloud: { value: cloudTexture },
     };
     swaps = [...CLASSES.map((id) => fills[id]), fills.lakes, ocean].map((mesh) => {
@@ -269,11 +270,15 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     groundAt(lon: number, lat: number) {
       if (!enabled || !bakedHeight) return 0;
       const km = bakedHeight(lon, lat);
-      return km * (1 + PEAKS * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * DISPLACE;
+      return km * (1 + LIFT.uPeaks.value * THREE.MathUtils.smoothstep(km, 0.3, 3)) * 1000 * LIFT.uDisplace.value; // as drawn now
     },
-    /** Picks the mesh's detail for the camera; call before each render. */
-    update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
+    /** Picks the mesh's detail and the height exaggeration for the camera (`tilt`: radians from straight down); call before each render. */
+    update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, tilt = 0) {
       if (!enabled) return;
+      if (object.children.length) { // the 3D relief is up: exaggerate to suit how it is seen
+        const e = exaggeration(camera.position.length() - PLANET.radius, tilt);
+        LIFT.uDisplace.value = e.displace; LIFT.uPeaks.value = e.peaks; uExaggeration.value = B.exaggeration * e.shade;
+      }
       updateMesh?.(camera, renderer);
       uCloud.value = THREE.MathUtils.smoothstep(camera.position.length() - PLANET.radius, 2000e3, 2500e3); // clear below them
     },

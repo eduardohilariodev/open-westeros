@@ -7,6 +7,7 @@ import { PLACE_SNAP } from '../place-snap';
 import world from '../vector-world.json';
 import { PLACES } from '../world-data';
 import { chaikin } from './rivers';
+import roadData from '../roads.json';
 import type { Ring } from './viewLayer';
 import { PIN_BOX, PLACE_ICONS, PLACE_KINDS } from './placeIcons';
 import { createRegions, regionAt, regionNamed } from './regions';
@@ -92,7 +93,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const regions = createRegions(R), terrain = createTerrain(R);
   const relief = createRelief(terrain.fills, terrain.strokes, ocean, terrain.rivers); // shaded canon relief; off = the flat parchment map
   relief.setEnabled(true);
-  scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r); // the relief's detail follows the camera drawn
+  scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r, tilt); // the relief's detail follows the camera drawn
   scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
   // ---------- sites: ordinary places on the map whose scene loads when the camera comes close ----------
@@ -115,11 +116,12 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const LOD: Record<string, [number, number, number?]> = {
     continent: [10_000_000, 8_000_000, 6_000_000], ocean: [10_000_000, 8_000_000, 500_000], region: [6_000_000, 3_500_000, 500_000], city: [3_500_000, 900_000], capital: [4_000_000, 700_000],
     island: [3_000_000, 1_300_000], mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000],
-    sea: [3_500_000, 1_500_000], lake: [1_600_000, 1_000_000], river: [1_600_000, 1_400_000],
+    sea: [3_500_000, 1_500_000], lake: [1_600_000, 1_000_000], river: [1_600_000, 1_400_000], road: [1_600_000, 1_400_000],
     castle: [1_200_000, 550_000], town: [1_200_000, 550_000], ruin: [1_200_000, 600_000], landmark: [1_500_000, 700_000],
     minor: [700_000, 450_000],
   };
-  const AREA_KINDS = new Set(['continent', 'ocean','sea', 'lake', 'river', 'region']);
+  const ROADS_BELOW = 8_000_000, TRACKS_BELOW = 2_500_000; // main roads and the tracks to places are drawn from these altitudes down; road names come in at 1,600 km (LOD)
+  const AREA_KINDS = new Set(['continent', 'ocean','sea', 'lake', 'river', 'road', 'region']);
   type Gen = (typeof PLACES)[number];
   /** At most two words a line, not counting "the": "Tower of / the Hand". */
   const wrap = (name: string, per = 2, skip = ['the']) => {
@@ -153,12 +155,12 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     scene.add(obj);
     labelsEl.append(el); // in the page from the start, so it can be measured before it is first shown
     el.style.display = 'none';
-    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], offAt: 0, river: null as RiverLabel | null };
+    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], offAt: 0, line: null as LineLabel | null };
   });
   type Place = (typeof places)[number];
-  /** A river name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
-  type RiverCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
-  type RiverLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: RiverCopy[] };
+  /** A river's or road's name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
+  type LineCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
+  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[] };
   /**
    * Type size by altitude, in px per kind: an exponential ease (base FONT_B) from the small end at the top of a kind's
    * height band to the large end at its bottom, so names grow gently as you come down, like zoom-interpolated text-size in
@@ -167,7 +169,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const FONT_B = 1.3;
   const FONT_PX: Record<string, [number, number]> = {
     continent: [18, 32], ocean: [18, 32], sea: [14, 24], region: [14, 24], lake: [12, 18], capital: [13, 19], city: [12, 18],
-    river: [11, 16], ruin: [10, 13], minor: [10, 13],
+    river: [11, 16], road: [11, 16], ruin: [10, 13], minor: [10, 13],
   };
   const FONT_DEFAULT: [number, number] = [11, 15];
   const basePx = new Map<string, number>(); // the CSS size of each kind (style.css), which `zoomScale` divides out
@@ -187,7 +189,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   measure();
   document.fonts.ready.then(measure);
   // When names overlap on screen, the higher tier keeps its spot: continents, oceans, regions, cities, then ever smaller places.
-  const RANK = ['continent', 'ocean', 'region', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'landmark', 'ruin', 'minor'];
+  const RANK = ['continent', 'ocean', 'region', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'landmark', 'ruin', 'minor'];
   const ranked = [...places].sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
   let order = ranked; // ranked, with the pinned place first
   const pt = new THREE.Vector3();
@@ -215,37 +217,46 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     }
   };
   places.forEach(put);
-  // Each river name rides on the map polyline nearest its spot (Chaikin-smoothed, as the water ribbon is). One SVG layer
-  // holds all the texts; `update` bends each along the part of its river that is on screen.
-  const NS = 'http://www.w3.org/2000/svg', riverLayer = document.createElementNS(NS, 'svg'), riverDefs = document.createElementNS(NS, 'defs');
-  riverLayer.setAttribute('class', 'river-labels');
-  riverLayer.append(riverDefs);
-  labelsEl.append(riverLayer);
-  const polylines = (world.rivers as Ring[]).filter((l) => l.length > 1).map((l) => ({ raw: l.map(([lon, lat]) => toVector(lat, lon, 1)), line: l }));
-  const MATCH_COS = Math.cos(rad(2)); // a river name must sit within 2° (~240 km) of its line
-  const RIVER_COPIES = 3; // a long river carries its name up to this many times
-  const RIVER_ANCHORS = [0.5, 0.25, 0.75, 0.375, 0.625, 0.125, 0.875]; // where along a river (0 source, 1 mouth) its name may hang, in order of preference
+  // Rivers and roads are named along their line, not at a point. A river's name rides on the map polyline nearest its spot, a
+  // road's on the named road of the same name (src/roads.json `named`, one line per road), both Chaikin-smoothed (a river's
+  // water ribbon is too). One SVG layer holds all the texts; `update` bends each along the part of its line that is on screen.
+  const NS = 'http://www.w3.org/2000/svg', lineLayer = document.createElementNS(NS, 'svg'), lineDefs = document.createElementNS(NS, 'defs');
+  lineLayer.setAttribute('class', 'line-labels');
+  lineLayer.append(lineDefs);
+  labelsEl.append(lineLayer);
+  const pool = (lines: { pts: Ring; name?: string }[]) => lines.filter((l) => l.pts.length > 1).map((l) => ({ raw: l.pts.map(([lon, lat]) => toVector(lat, lon, 1)), line: l.pts, name: l.name }));
+  /** The lines a kind of name can ride on. */
+  const LINES: Record<string, ReturnType<typeof pool>> = {
+    river: pool((world.rivers as Ring[]).map((pts) => ({ pts }))),
+    road: pool(roadData.named as unknown as { name: string; pts: Ring }[]),
+  };
+  /** How wide the line is drawn, metres: a river's ribbon grows with the zoom; a road is a hairline at any height. */
+  const LINE_WIDTH_M: Record<string, number> = { river: 1500, road: 0 };
+  const MATCH_COS = Math.cos(rad(2)); // a name without a line of its own must sit within 2° (~240 km) of one
+  const LINE_COPIES = 3; // a long line carries its name up to this many times
+  const LINE_ANCHORS = [0.5, 0.25, 0.75, 0.375, 0.625, 0.125, 0.875]; // where along a line (0 start, 1 end) its name may hang, in order of preference
   places.forEach((p, i) => {
-    if (p.kind !== 'river') return;
-    let best: (typeof polylines)[number] | null = null, bestCos = MATCH_COS;
-    for (const l of polylines) for (const v of l.raw) { const c = v.dot(p.up); if (c > bestCos) { bestCos = c; best = l; } }
+    const lines = LINES[p.kind];
+    if (!lines) return;
+    let best = lines.find((l) => l.name === p.name) ?? null, bestCos = MATCH_COS;
+    if (!best) for (const l of lines) for (const v of l.raw) { const c = v.dot(p.up); if (c > bestCos) { bestCos = c; best = l; } }
     if (!best) return; // no line near it: stays a plain label
     const pos = chaikin(best.line, 2).map(([lon, lat]) => toVector(lat, lon, R + 3000));
-    const copies = Array.from({ length: RIVER_COPIES }, (_, c): RiverCopy => {
+    const copies = Array.from({ length: LINE_COPIES }, (_, c): LineCopy => {
       const path = document.createElementNS(NS, 'path'), text = document.createElementNS(NS, 'text'), tp = document.createElementNS(NS, 'textPath');
-      path.id = `river-path-${i}-${c}`;
+      path.id = `line-path-${i}-${c}`;
       tp.setAttribute('href', `#${path.id}`);
       tp.setAttribute('startOffset', '50%');
       tp.setAttribute('text-anchor', 'middle');
       tp.textContent = p.name;
-      text.setAttribute('class', 'river-text off');
+      text.setAttribute('class', `line-text k-${p.kind} off`);
       text.append(tp);
       text.onclick = () => view.flyToPlace(i);
-      riverDefs.append(path);
-      riverLayer.append(text);
+      lineDefs.append(path);
+      lineLayer.append(text);
       return { path, text, tp };
     });
-    p.river = { pos, dirs: pos.map((v) => v.clone().normalize()), copies };
+    p.line = { pos, dirs: pos.map((v) => v.clone().normalize()), copies };
   });
   /** Douglas-Peucker: drop points within `eps` px of the chord. Screen-space, so the tolerance is the same at every altitude. */
   const simplify = (pts: Ring, eps: number): Ring => {
@@ -263,17 +274,17 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     return pts.filter((_, k) => keep[k]);
   };
   const MAX_BEND = rad(30); // largest turn between neighbouring stretches of a name (Mapbox's text-max-angle)
-  const RIVER_SPACING = 350; // px of clear line between repeats of a name (symbol-spacing)
+  const LINE_SPACING = 350; // px of clear line between repeats of a name (symbol-spacing)
   const Q_W = { curve: 1, offset: 0.5, orient: 0.3, spacing: 0.3 }; // weights of Q(L) = w1 C + w2 O + w3 I + w4 S
   /**
-   * Where a river's name goes on screen: up to RIVER_COPIES stretches of the on-screen line, best first. The line is
+   * Where a river's or road's name goes on screen: up to LINE_COPIES stretches of the on-screen line, best first. The line is
    * simplified (Douglas-Peucker, 1.5 px) and re-smoothed (Chaikin) in screen space, then windows the width of the name
    * (`tw` px, `th` tall) are scored by Q(L): C curvature (turns between samples, none over MAX_BEND), O the baseline
    * offset `off` px above the line leaving the screen, I slant from horizontal, S distance from the middle of the visible
-   * line. Repeats must be RIVER_SPACING px apart. Samples run left to right so the text reads upright.
+   * line. Repeats must be LINE_SPACING px apart. Samples run left to right so the text reads upright.
    * ponytail: windows every tw/4 and a greedy pick; a global optimiser if names still sit badly
    */
-  const riverStretches = (r: RiverLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3) => {
+  const lineStretches = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3) => {
     let run: Ring = [], bestRun = run; // the longest run of vertices on the near side, in screen px
     const v = new THREE.Vector3();
     r.pos.forEach((q, k) => {
@@ -295,10 +306,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     };
     const N = 12, inside = (x: number, y: number) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight;
     const picked: Ring[] = [], pickedS: number[] = [];
-    // Names hang on fixed anchors along the whole river (not on whatever stretch is visible), tried in a fixed order, so
-    // a name stays on its spot of the river as the globe turns or zooms and only fades in or out.
-    for (const f of RIVER_ANCHORS) {
-      if (picked.length === RIVER_COPIES) break;
+    // Names hang on fixed anchors along the whole line (not on whatever stretch is visible), tried in a fixed order, so
+    // a name stays on its spot of the line as the globe turns or zooms and only fades in or out.
+    for (const f of LINE_ANCHORS) {
+      if (picked.length === LINE_COPIES) break;
       const k = Math.round(f * (r.pos.length - 1));
       if (cam.dot(r.dirs[k]) <= cosLimit) continue;
       v.copy(r.pos[k]).project(camera);
@@ -314,7 +325,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         const c = score(s0);
         if (c && (!best || c.q < best.q)) best = c;
       }
-      if (best && pickedS.every((p) => Math.abs(best!.s0 - p) >= tw + RIVER_SPACING)) { picked.push(best.pts); pickedS.push(best.s0); }
+      if (best && pickedS.every((p) => Math.abs(best!.s0 - p) >= tw + LINE_SPACING)) { picked.push(best.pts); pickedS.push(best.s0); }
     }
     function score(s0: number) {
       const pts = Array.from({ length: N + 1 }, (_, k) => at(s0 + (tw * k) / N));
@@ -540,6 +551,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
       atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
+      terrain.roads.visible = alt < ROADS_BELOW; // from this far out the roads are a tangle
+      terrain.tracks.visible = alt < TRACKS_BELOW;
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
       camera.updateMatrixWorld();
@@ -555,25 +568,25 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
           const fit = Math.min(1, Math.max(0.1, (0.9 * room) / (p.size[2] * p.scale * p.zs || 1)));
           if (Math.abs(fit - p.fit) > 0.01) { p.fit = fit; put(p); }
         }
-        if (p.river) { // a river with a line is named along it, not at a point (its plain label stays off)
+        if (p.line) { // a river or road with a line is named along it, not at a point (its plain label stays off)
           const shown: number[][][] = [];
           if (on) {
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
-            // the line is a few px wide this far out (km of a typical river over metres per pixel); the name sits just above it
-            const off = Math.max(1.3, 1500 / view.nav.metresPerPixel()) / 2 + 2;
-            for (const pts of riverStretches(p.river, tw, th, off, cosLimit, cam)) {
+            // the line is a few px wide this far out (metres of a typical river over metres per pixel); the name sits just above it
+            const off = Math.max(1.3, LINE_WIDTH_M[p.kind] / view.nav.metresPerPixel()) / 2 + 2;
+            for (const pts of lineStretches(p.line, tw, th, off, cosLimit, cam)) {
               const h = off + th, xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
               const b = [Math.min(...xs), Math.min(...ys) - h, Math.max(...xs), Math.max(...ys) + h];
               if (taken.some((t) => overlaps(t, b))) continue;
               taken.push(b);
-              const c = p.river.copies[shown.length];
+              const c = p.line.copies[shown.length];
               c.path.setAttribute('d', `M${pts.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join('L')}`);
               c.tp.setAttribute('dy', String(-off));
               c.text.style.fontSize = `${basePx.get(p.kind)! * p.scale * p.zs}px`;
               shown.push(pts);
             }
           }
-          p.river.copies.forEach((c, k) => c.text.classList.toggle('off', k >= shown.length));
+          p.line.copies.forEach((c, k) => c.text.classList.toggle('off', k >= shown.length));
           on = false;
         }
         if (on) {

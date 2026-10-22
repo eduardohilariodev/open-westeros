@@ -137,12 +137,13 @@ body:not(.drawer-open) #ui { display: none; }
 .globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: 0 -50%; text-align: left; }
 .globe-place svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b); }
 .globe-place.k-sea, .globe-place.k-ocean, .globe-place.k-lake, .globe-place.k-river { font-style: italic; }
-.globe-place.k-river { font-size: 13px; }
-/* river names bent along the river (GlobeView.ts): SVG text on a path, one screen-sized layer */
-.river-labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.river-text { font: italic 700 13px/1 var(--font-map); fill: #a9d4ff; stroke: #0a1a33; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke fill; pointer-events: auto; cursor: pointer; transition: opacity .25s; }
-.river-text.off { opacity: 0; pointer-events: none; }
-@starting-style { .river-text { opacity: 0; } }
+.globe-place.k-river, .globe-place.k-road { font-size: 13px; }
+/* river and road names bent along their line (GlobeView.ts): SVG text on a path, one screen-sized layer; the kind sets the colour */
+.line-labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.line-text { font: italic 700 13px/1 var(--font-map); fill: #a9d4ff; stroke: #0a1a33; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke fill; pointer-events: auto; cursor: pointer; transition: opacity .25s; }
+.line-text.k-road { font-style: normal; fill: #f0d9a0; stroke: #2a1a08; }
+.line-text.off { opacity: 0; pointer-events: none; }
+@starting-style { .line-text { opacity: 0; } }
 .globe-place.pinned svg, .globe-place.pinned:not(.globe-area) > span { visibility: hidden; } /* the pin carries the name */
 /* dev-only camera readout along the top */
 #debug { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; padding: 3px 10px; border-radius: 0 0 8px 8px; background: #000b; color: #9fe8a8; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none; }
@@ -163,6 +164,7 @@ body:not(.drawer-open) #ui { display: none; }
 .globe-place.k-minor { width: 10px; height: 10px; }
 /* one colour per kind, each at least 4.5:1 against the parchment stroke (WCAG AA) */
 .k-sea, .k-ocean, .k-river { color: #a9d4ff; }
+.k-road { color: #f0d9a0; }
 .k-lake { color: #b8dcff; }
 .k-region { color: #fff; }
 .k-continent { color: #f6e3b4; }
@@ -177,7 +179,7 @@ body:not(.drawer-open) #ui { display: none; }
 .k-wild { color: #f5cd6a; }
 .k-landmark { color: #ff9db8; }
 .globe-place:hover { color: #ffe9a6; }
-.river-text:hover { fill: #ffe9a6; }
+.line-text:hover { fill: #ffe9a6; }
 /* names fade in and out (height bands, overlaps) instead of popping */
 .globe-place { transition: opacity .25s; }
 .globe-place.off { opacity: 0; pointer-events: none; }

@@ -7,7 +7,7 @@ import { at, atlasAt, rows } from './georef.mjs';
 
 const siteKind = Object.fromEntries(Object.values(SITES).map((s) => [s.name, s.kind])); // the zoomable places carry their site's kind
 const out = rows.map((e) => {
-  const { lat, lon } = e.a ? atlasAt(e.a) : at(e.p);
+  const { lat, lon } = e.ll ? { lat: e.ll[0], lon: e.ll[1] } : e.a ? atlasAt(e.a) : at(e.p);
   return [e.name, siteKind[e.name] ?? e.kind, +lat.toFixed(2), +lon.toFixed(2)];
 });
 

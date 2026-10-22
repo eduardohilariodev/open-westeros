@@ -6,15 +6,34 @@ import { siteLatLon, toVector } from '../geo';
 // detail through raise(); the vector layers (gpuVector.ts) and the relief's lakes follow it through lift(), which reads
 // the baked height and sits a hair above the mesh. uDisplace is 0 until the relief loads and while it is off, so nothing
 // moves then. Both fade to nothing at the 3D sites, whose flat ground the globe has to meet.
-export const DISPLACE = 6; // vertical exaggeration of the 3D relief (the shading's own is relief-bounds.json's)
+export const DISPLACE = 6; // vertical exaggeration of the 3D relief seen from above (the shading's own is relief-bounds.json's)
 export const PEAKS = 0.8; // and more again for high ground, up to 1 + PEAKS times: plains stay calm, ranges tower
+
+/**
+ * How much to exaggerate height for the camera, as the globe's relief is seen at different slants and distances.
+ * From above, depth shows only through shading and slight parallax, so it takes a strong exaggeration (`DISPLACE`,
+ * `PEAKS`, and the full hillshade) to read as mountains rather than a flat map. Tilted to the horizon the same geometry is
+ * seen side-on, where that much looks like stretched spikes, so it eases to about 2-3.5x and the hillshade softens to
+ * match. Close to the ground it eases too: the camera is then not far above the exaggerated summits.
+ * `tilt` is radians from straight down, `alt` the camera height in metres.
+ */
+export function exaggeration(alt: number, tilt: number) {
+  const { lerp, smoothstep } = THREE.MathUtils;
+  const far = smoothstep(alt, 150e3, 1500e3), slant = smoothstep(tilt, (8 * Math.PI) / 180, (65 * Math.PI) / 180);
+  return {
+    displace: lerp(lerp(3, DISPLACE, far), lerp(1.8, 2.7, far), slant), // geometry: metres per metre of baked height
+    peaks: lerp(PEAKS, 0.3, slant) * lerp(0.5, 1, far),                 // extra for high ground
+    shade: lerp(1, 0.65, slant),                                        // hillshade slope scale, relative to relief-bounds.json's
+  };
+}
 const sites = (Object.keys(SITES) as SiteId[]).map((id) => { const { lat, lon } = siteLatLon(id); return toVector(lat, lon, PLANET.radius); });
 
 export const LIFT = {
   tH: { value: null as THREE.Texture | null }, // R height / uHeightMax, G land cover; texel centres on the bake's pixels
   uBounds: { value: new THREE.Vector4() }, // lon0, lon1, lat0, lat1 of the baked grid
   uHeightMax: { value: 0 },
-  uDisplace: { value: 0 },
+  uDisplace: { value: 0 }, // set every frame from exaggeration(); 0 while the relief is off
+  uPeaks: { value: PEAKS },
   uSites: { value: sites },
 };
 
@@ -43,7 +62,7 @@ float detailH(vec3 d, float base, float spacing) {
 export const LIFT_GLSL = `
 uniform sampler2D tH;
 uniform vec4 uBounds;
-uniform float uHeightMax, uDisplace;
+uniform float uHeightMax, uDisplace, uPeaks;
 uniform vec3 uSites[${sites.length}];
 ${NOISE_GLSL}
 float siteFade(vec3 p) { // 0 within 20 km of a site, 1 from 60 km out
@@ -52,7 +71,7 @@ float siteFade(vec3 p) { // 0 within 20 km of a site, 1 from 60 km out
   return f;
 }
 vec3 raise(vec3 p, float km) {
-  km *= 1.0 + ${PEAKS.toFixed(2)} * smoothstep(0.3, 3.0, km);
+  km *= 1.0 + uPeaks * smoothstep(0.3, 3.0, km);
   return p + normalize(p) * km * 1000.0 * uDisplace * siteFade(p);
 }
 // baked height (km), smooth between pixels: cubic B-spline from four bilinear taps

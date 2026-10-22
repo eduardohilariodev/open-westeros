@@ -77,7 +77,7 @@ const inland = (p, q, km = 3) => {
 };
 
 const slug = (n) => n.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').replace(/^the-/, '');
-const LETTERING = new Set(['sea', 'ocean', 'region', 'continent', 'river']);
+const LETTERING = new Set(['sea', 'ocean', 'region', 'continent', 'river', 'road']);
 const MAX_KM = 250;
 const snap = {}, report = { moved: 0, far: [], kept: 0 };
 const claimed = new Set();

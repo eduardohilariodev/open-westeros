@@ -9,12 +9,13 @@ const atlasPx = (tile, dx, dy) => {
   return [tx + dx * k, ty + dy * k];
 };
 
-/** [{ name, kind, p?: [x, y] painted-map px, a?: [x, y] atlas-map px }] */
+/** [{ name, kind, p?: [x, y] painted-map px, a?: [x, y] atlas-map px, ll?: [lat, lon] }] */
 export function readPlaces(file = 'tools/world/places.raw.txt') {
   return readFileSync(file, 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => {
     const [name, kind, p, a] = l.split('|');
     const e = { name, kind };
-    if (p !== '-') e.p = p.split(',').map(Number);
+    if (p.startsWith('ll:')) e.ll = p.slice(3).split(',').map(Number); // a spot given as lat,lon on the globe, for lettering on a line
+    else if (p !== '-') e.p = p.split(',').map(Number);
     if (a?.startsWith('@')) e.a = a.slice(1).split(',').map(Number); // full-resolution atlas pixels
     else if (a !== '-') { const [tile, xy] = a.split(' '); e.a = atlasPx(tile, ...xy.split(',').map(Number)); }
     return e;
