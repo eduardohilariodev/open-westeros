@@ -3,14 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>The Known World</title>
+  <title>Open Westeros: The Known World of Ice and Fire</title>
+  <meta name="description" content="Open Westeros is a free interactive 3D atlas of the Known World of A Song of Ice and Fire. Explore Westeros and Essos on a globe or flat map, from the Wall to King's Landing, with lore from the Wiki of Ice and Fire." />
+  <meta name="keywords" content="Westeros map, interactive map of Westeros, Game of Thrones map, A Song of Ice and Fire map, Known World, Essos, King's Landing, Winterfell, the Wall, 3D globe" />
+  <meta name="theme-color" content="#0f4c5c" />
+  <link rel="canonical" href="https://open-westeros.vercel.app/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Open Westeros" />
+  <meta property="og:title" content="Open Westeros: The Known World of Ice and Fire" />
+  <meta property="og:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
+  <meta property="og:url" content="https://open-westeros.vercel.app/" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Open Westeros: The Known World of Ice and Fire" />
+  <meta name="twitter:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Open Westeros: The Known World of Ice and Fire","alternateName":"Open Westeros","url":"https://open-westeros.vercel.app/","description":"A free interactive 3D atlas of the Known World of A Song of Ice and Fire.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","isAccessibleForFree":true,"inLanguage":"en","codeRepository":"https://github.com/eduardohilariodev/open-westeros"}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,400;0,700;1,400&family=Signika+Negative:wght@300..700&display=swap" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body data-mode="globe">
-  <div id="loading"><h1>The Known World</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
+  <noscript><h1>Open Westeros: The Known World of Ice and Fire</h1><p>An interactive 3D atlas of Westeros and Essos. Enable JavaScript to explore the map.</p></noscript>
+  <div id="loading"><h1>Open Westeros</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
   <div id="globeLabels" class="labels"></div>
   <div id="viewer" hidden>
     <button class="close" aria-label="Close" title="Close (Esc)">×</button>
