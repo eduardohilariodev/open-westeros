@@ -9,9 +9,12 @@ export interface PlaceInfo {
   images?: string[];
   /** The wiki's caption for each picture in `images`, same order; '' where it has none. */
   captions?: string[];
+  /** The text below may hold wiki links, [label](Page_title#section), which the panel turns into links to awoiaf. */
   summary?: string;
   /** Rows under the summary, [label, value]: ['Ruler', 'House Stark'], ['Founded', 'Age of Heroes']. */
   facts?: [string, string][];
+  /** Houses tied to the place (seat, government, great house of a region): [article title, sigil file in public/sigils, full name]. */
+  houses?: [string, string, string][];
   /** Title of the place's article on A Wiki of Ice and Fire, when the text is from there. */
   wiki?: string;
 }

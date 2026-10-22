@@ -35,10 +35,7 @@ export async function createKingsLandingView(renderer: THREE.WebGLRenderer, labe
     return m;
   };
 
-  const site = createSiteScene(renderer, labelsEl, {
-    id: 'kingsLanding', sky: 0xbcd0de, shadowExtent: 4500, ground: gy, labelMaxDistance: 30_000,
-    home: { position: new THREE.Vector3(0, 3500, 5000), target: new THREE.Vector3(0, 30, 0) },
-  });
+  const site = createSiteScene(labelsEl, { id: 'kingsLanding', shadowExtent: 4500 });
   const { scene } = site;
 
   // ---------- terrain & water ----------
@@ -151,8 +148,6 @@ export async function createKingsLandingView(renderer: THREE.WebGLRenderer, labe
 
   return Object.assign(site, {
     lore: LORE,
-    flyTo(p: Place) {
-      site.flyToPoint(new THREE.Vector3(p.pos[0], p.pos[2] * EX, p.pos[1]), Math.max(260, (p.radius || 40) * 4.5));
-    },
+    focus: (p: Place) => ({ x: p.pos[0], z: p.pos[1], alt: Math.max(260, (p.radius || 40) * 4.5) * 0.7 }),
   });
 }

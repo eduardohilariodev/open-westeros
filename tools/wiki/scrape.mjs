@@ -3,9 +3,11 @@
 // persistent profile in .cache/) and reuse its clearance cookie. One request at a time, ~1.5s apart; resumable,
 // pages already on disk are skipped. Content is CC BY-SA, keep the attribution frontmatter.
 // Usage: node tools/wiki/scrape.mjs [Title ...]   (no titles = the whole wiki, ~10k pages, several hours)
-//        node tools/wiki/scrape.mjs --places      (only the places on the map; name -> file in docs/wiki/_places.json)
+//        node tools/wiki/scrape.mjs --places      (only the places on the map, plus all houses; name -> file in docs/wiki/_places.json)
+//        node tools/wiki/scrape.mjs --sigils      (download the house sigils place-info.mjs listed, into public/sigils/)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
+import sharp from 'sharp';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
@@ -92,8 +94,33 @@ if (titles[0] === '--places') {
     if (t) places[name] = t; else unmatched.push(name);
   }
   writeFileSync(`${OUT}/_places.json`, JSON.stringify({ places: Object.fromEntries(Object.entries(places).map(([n, t]) => [n, fileOf(t)])), unmatched }, null, 1));
-  titles = [...new Set(Object.values(places))];
-  console.log(`${names.length} map places: ${titles.length} articles, ${unmatched.length} unmatched (see ${OUT}/_places.json)`);
+  // Plus every house: their infoboxes give the sigil and the seat, which is how a place gets its houses (place-info.mjs).
+  titles = [...new Set([...Object.values(places), ...index.articles.filter((t) => t.startsWith('House '))])];
+  console.log(`${names.length} map places: ${titles.length} articles with the houses, ${unmatched.length} unmatched (see ${OUT}/_places.json)`);
+}
+
+// --sigils: download the coat-of-arms files place-info.mjs asked for (docs/wiki/_sigils.json) into public/sigils/. They are the
+// wiki's own SVGs under CC BY-SA 3.0, so we host them instead of hot-linking; each stays linked to its File: page for credit.
+if (titles[0] === '--sigils') {
+  const SIGILS = 'public/sigils';
+  mkdirSync(SIGILS, { recursive: true });
+  // Stored as 120px-high WebP (the SVGs are ~45 KB each, 8 MB for the lot; the panel shows them ~30px tall).
+  const dest = (f) => `${SIGILS}/${f.replace(/\.[^.]+$/, '.webp')}`;
+  const files = JSON.parse(readFileSync(`${OUT}/_sigils.json`, 'utf8')).filter((f) => !existsSync(dest(f)));
+  console.log(`${files.length} sigils to download`);
+  for (const f of files) {
+    await sleep(1000 + Math.random() * 600);
+    const res = await page.evaluate(async (name) => {
+      const r = await fetch(`/index.php/Special:FilePath/${encodeURIComponent(name)}`);
+      const b = new Uint8Array(await r.arrayBuffer());
+      let bin = ''; for (const x of b) bin += String.fromCharCode(x);
+      return { status: r.status, type: r.headers.get('content-type'), b64: btoa(bin) };
+    }, f);
+    if (res.status === 200 && /^image\//.test(res.type)) await sharp(Buffer.from(res.b64, 'base64'), { density: 300 }).resize({ height: 120 }).webp({ quality: 85 }).toFile(dest(f));
+    else console.warn(`failed ${f}: HTTP ${res.status} ${res.type}`);
+  }
+  await ctx.close();
+  process.exit(0);
 }
 console.log(`${titles.length} articles, ${Object.keys(redirects).length} redirects`);
 

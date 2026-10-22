@@ -43,46 +43,25 @@
         <div class="actions">
           <a class="act" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" /></svg></span>Wiki</a>
         </div>
+        <div class="houses"></div>
         <p class="summary"></p>
         <ul class="facts"></ul>
         <div class="photos" hidden>
           <h2>Images</h2>
           <button class="tile" type="button"><img alt="" /><span></span></button>
         </div>
-        <p class="credit" hidden>From <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.</p>
+        <p class="credit" hidden>From <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.<span class="sigils-credit" hidden> Coats of arms by its contributors (CC BY-SA 3.0): click one for its file page.</span></p>
       </div>
     </div>
     <div id="ui" class="card">
       <div class="globe-only">
         <h1>The Known World</h1>
         <p class="muted">A planet ~8% larger than Earth (radius 6,915 km). Drag to spin, scroll to zoom. Zoom into King's Landing or Winterfell to see them in 3D.</p>
-        <button id="editStart" class="pill" hidden>✎ Edit names</button>
         <h2>Legend</h2>
         <label><input id="showNames" type="checkbox" checked /> Place names</label>
         <label><input id="showBorders" type="checkbox" checked /> Region borders (click a region's name)</label>
         <div class="legend-actions"><button id="legendAll" type="button">All</button><button id="legendNone" type="button">None</button></div>
         <div id="legend"></div>
-      </div>
-      <div id="editPanel">
-        <h1>Edit names</h1>
-        <p class="muted">Drag a name to move it, on the map style you're viewing. Click one to select it.</p>
-        <h2>Selected</h2>
-        <p id="editSel">Nothing selected</p>
-        <h2>Rotate (water lettering)</h2>
-        <div class="rot-row">
-          <button id="rotL" type="button" title="Counter-clockwise (Q)">⟲</button>
-          <input id="rot" type="range" min="0" max="359" step="1" value="0" />
-          <button id="rotR" type="button" title="Clockwise (E)">⟳</button>
-          <span id="rotV">0°</span>
-        </div>
-        <p class="hint">Q / E turn 5° (Shift: 1°).</p>
-        <h2>Size</h2>
-        <div class="rot-row"><input id="size" type="range" min="0.2" max="5" step="0.05" value="1" /><span id="sizeV">1×</span></div>
-        <button id="editReset" class="pill" type="button">Reset this name</button>
-        <h2>Save</h2>
-        <button id="editSave" class="pill" type="button">Save to src/place-edits.ts</button>
-        <p id="editMsg" class="hint">Ctrl+S also saves.</p>
-        <button id="editDone" class="pill" type="button">Done</button>
       </div>
     </div>
   </div>

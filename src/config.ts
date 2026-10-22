@@ -44,10 +44,6 @@ export const SITES = {
 };
 export type SiteId = keyof typeof SITES;
 
-// A site's 3D scene is drawn into the globe's frame (same camera pose, same depth buffer), so zooming in is one continuous
-// view. What changes with distance is only who steers the camera and when the scene is loaded and drawn (SITES[id].drawDistance). Metres.
-export const SITE_SWITCH = {
-  loadDistance: 350_000, // start loading the scene
-  enterDistance: 350_000, // the camera is steered by the site's map controls (tilt, WASD, orbit) closer than this
-  exitDistance: 400_000, // and by the globe's controls farther than this
-};
+// A site's 3D scene is drawn over the globe from the globe camera's own pose, so there is one view and one set of controls.
+// It starts loading this far from the site (m) and is drawn closer than SITES[id].drawDistance.
+export const SITE_LOAD_DISTANCE = 350_000;

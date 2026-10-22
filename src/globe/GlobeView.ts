@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { PLANET, SITE_SWITCH, SITES, type SiteId } from '../config';
+import { PLANET, SITES, type SiteId } from '../config';
 import { eastNorth, enuFrame, siteLatLon, toVector } from '../geo';
-import { PLACE_EDITS, type PlaceEdit } from '../place-edits';
+import { PLACE_SNAP } from '../place-snap';
 import world from '../vector-world.json';
 import { PLACES } from '../world-data';
 import { chaikin } from './rivers';
@@ -13,10 +13,12 @@ import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
 import B from './relief-bounds.json';
 import { createTerrain, TERRAIN_SEA } from './terrain';
+import { WALL_CASTLES } from './wall';
 
 // Planet-centred frame, metres. The vector map (terrain.ts, regions.ts) is draped as lat/lon patches over an ocean sphere.
 const R = PLANET.radius;
-const MIN_ALT = 1_000, MAX_ALT = 40_000_000;
+const MIN_ALT = 30, // close enough to stand among a 3D place's buildings
+ MAX_ALT = 40_000_000;
 const rad = THREE.MathUtils.degToRad;
 
 export type GlobeView = ReturnType<typeof createGlobeView>;
@@ -68,7 +70,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
           float lit = mix(1.0, smoothstep(-0.25, 0.05, dot(q, uSun) / length(q)), uNight);
           tau += exp((uGround - length(q)) / HS) * lit * dt;
         }
-        float a = 1.0 - exp(-tau / TAU0);
+        // The veil knows only the smooth planet, not the relief standing on it, so near the ground it is capped: no fog wall at the horizon for mountains to sink into.
+        float a = mix(0.95, 0.35, uLow) * (1.0 - exp(-tau / TAU0));
         vec3 haze = mix(mix(uTeal, vec3(0.55, 0.72, 1.0), a * a), uSky, uLow);
         float A = 1.0 - (1.0 - a) * (1.0 - night); // the night veil lies under the haze
         gl_FragColor = vec4(haze * a / max(A, 1e-4), A);
@@ -117,8 +120,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     minor: [700_000, 450_000],
   };
   const AREA_KINDS = new Set(['continent', 'ocean','sea', 'lake', 'river', 'region']);
-  // Hand edits (src/place-edits.ts) override the generated positions; `edits` is what edit mode saves back.
-  const edits: Record<string, PlaceEdit> = JSON.parse(JSON.stringify(PLACE_EDITS));
   type Gen = (typeof PLACES)[number];
   /** At most two words a line, not counting "the": "Tower of / the Hand". */
   const wrap = (name: string, per = 2, skip = ['the']) => {
@@ -131,12 +132,13 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     return out;
   };
   const WATER = new Set(['ocean', 'sea', 'lake']); // one word a line, every word counted
-  const layout = ([, , lat, lon]: Gen, e: PlaceEdit) => ({ up: toVector(...(e.p ?? [lat, lon]), 1), rot: e.rot ?? 0, scale: e.s ?? 1 });
+  // the castles of the Wall stand on it (wall.ts)
+  const layout = ([name, , lat, lon]: Gen) => ({ up: toVector(...(WALL_CASTLES[name] ?? PLACE_SNAP[name] ?? [lat, lon]), 1), rot: 0, scale: 1 });
   const places = PLACES.map((g, i) => {
     const [name, kind] = g;
     const outline = kind === 'region' ? regionNamed(name) : undefined; // a region with an outline is named at its centre
     const gen: Gen = outline ? [name, kind, ...outline.center] : g;
-    const lay = layout(gen, edits[name] ?? {}), lod = LOD[kind] ?? LOD.town;
+    const lay = layout(gen), lod = LOD[kind] ?? LOD.town;
     const el = document.createElement('div');
     // Regions are just lettering over the area (like Google Maps); everything else gets a symbol on its spot.
     const area = AREA_KINDS.has(kind);
@@ -144,9 +146,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     el.innerHTML = `<span></span>${area ? '' : `<svg viewBox="0 0 512 512">${PLACE_ICONS[kind] ?? PLACE_ICONS.town}</svg>`}`;
     el.firstElementChild!.textContent = WATER.has(kind) ? wrap(name, 1, []) : area ? name : wrap(name);
     el.onclick = () => {
-      if (editing) return;
-      if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
       view.flyToPlace(i);
+      if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
     };
     const obj = new CSS2DObject(el); // centred: a point label's box is just its symbol, the text hangs off its right side
     scene.add(obj);
@@ -200,7 +201,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   };
   const PAD = 4;
   const overlaps = (a: number[], b: number[]) => a[0] < b[2] + PAD && b[0] < a[2] + PAD && a[1] < b[3] + PAD && b[1] < a[3] + PAD;
-  let editorSync = () => {}; // editorSync: edit mode's selection box, set below
   const put = (p: Place) => {
     p.obj.position.copy(p.up).multiplyScalar(R + 3000);
     if (p.flat) { // lie on the ground, text running east, turned by rot
@@ -240,7 +240,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       tp.textContent = p.name;
       text.setAttribute('class', 'river-text off');
       text.append(tp);
-      text.onclick = () => { if (!editing) view.flyToPlace(i); };
+      text.onclick = () => view.flyToPlace(i);
       riverDefs.append(path);
       riverLayer.append(text);
       return { path, text, tp };
@@ -342,7 +342,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // map pin on the place a search or a click flew to
   const pinEl = document.createElement('div');
   pinEl.className = 'globe-pin';
-  pinEl.innerHTML = `<svg viewBox="${PIN_BOX}">${PLACE_ICONS.pin}</svg>`;
+  pinEl.innerHTML = `<span></span><svg viewBox="${PIN_BOX}">${PLACE_ICONS.pin}</svg>`; // name above the hand, like Google Maps
+  const pinName = pinEl.firstElementChild!;
   const pin = new CSS2DObject(pinEl);
   pin.center.set(0.5, 1); // the tip
   pin.visible = false;
@@ -354,6 +355,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     order = p ? [p, ...ranked.filter((q) => q !== p)] : ranked;
     pin.visible = !!p && !AREA_KINDS.has(p.kind); // area lettering marks itself
     if (!p) return;
+    pinName.textContent = p.name;
     pin.position.copy(p.up).multiplyScalar(R + 3000);
     (p.obj as CSS2DObject).element.classList.add('pinned');
   };
@@ -471,10 +473,12 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     /** A place with a 3D scene is approached until the scene takes over. */
     flyToPlace(i: number) {
       const p = places[i];
+      regions.selected = null; // a region's own click sets it again after this
       setPin(p);
       const { lat, lon } = latLon(p.up);
       showCard({ kind: KIND_NAME[p.kind] ?? p.kind, name: p.name, lat, lon, region: p.outline ? undefined : regionAt(lat, lon)?.name });
-      flyToDir(p.up, ids.some((id) => SITES[id].name === p.name) ? SITE_SWITCH.enterDistance * 0.8 : p.lod[1]);
+      const site = ids.find((id) => SITES[id].name === p.name);
+      flyToDir(p.up, site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
     },
     /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
     siteWithin: (d: number | ((id: SiteId) => number)) =>
@@ -486,16 +490,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const n = camera.position.clone().setLength(R).sub(f.origin);
       return { position, target: new THREE.Vector3(n.dot(f.east), 0, -n.dot(f.north)), quaternion: frameQuat[id].clone().invert().multiply(camera.quaternion) };
     },
-    /** Put the globe camera where a site camera is, so both draw the same view. */
-    followSite(id: SiteId, site: THREE.Camera) {
-      const f = frames[id], p = site.position;
-      anim = null;
-      tilt = heading = 0;
-      camera.position.copy(f.origin).addScaledVector(f.east, p.x).addScaledVector(f.up, p.y).addScaledVector(f.north, -p.z);
-      camera.quaternion.copy(frameQuat[id]).multiply(site.quaternion);
-      alt = altGoal = Math.max(camera.position.length() - R, 1);
-      const near = Math.min(100, alt / 20); // update() is not running here, so keep the near plane in step too
-      if (camera.near !== near) { camera.near = near; camera.updateProjectionMatrix(); }
+    /** Fly to the spot (x east, z south, m) in a site's frame, ending `a` m up. */
+    flyToSite(id: SiteId, x: number, z: number, a: number) {
+      const f = frames[id];
+      flyToDir(f.origin.clone().addScaledVector(f.east, x).addScaledVector(f.north, -z), a);
     },
     /** Sky: blue near the ground, space above the atmosphere, by camera altitude. */
     setSky() {
@@ -528,7 +526,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       if (tilt) { // swing about the ground point below, around the camera's right axis
         const g = camera.position.clone().setLength(R), right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const swing = (a: number) => camera.position.clone().sub(g).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(right, a)).add(g);
-        const buried = (p: THREE.Vector3) => { const ll = latLon(p); return p.length() - R < relief.groundAt(ll.lon, ll.lat) + CLEARANCE; };
+        const buried = (p: THREE.Vector3) => { const ll = latLon(p); return p.length() - R < relief.groundAt(ll.lon, ll.lat) + Math.min(CLEARANCE, alt * 0.15); };
         if (buried(swing(tilt))) { // the terrain is in the way: stop at the steepest tilt that clears it
           let lo = 0, hi = tilt;
           for (let i = 0; i < 8; i++) { const mid = (lo + hi) / 2; if (buried(swing(mid))) hi = mid; else lo = mid; }
@@ -557,7 +555,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
           const fit = Math.min(1, Math.max(0.1, (0.9 * room) / (p.size[2] * p.scale * p.zs || 1)));
           if (Math.abs(fit - p.fit) > 0.01) { p.fit = fit; put(p); }
         }
-        if (p.river && !editing) { // a river with a line is named along it, not at a point (its plain label stays off)
+        if (p.river) { // a river with a line is named along it, not at a point (its plain label stays off)
           const shown: number[][][] = [];
           if (on) {
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
@@ -577,8 +575,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
           }
           p.river.copies.forEach((c, k) => c.text.classList.toggle('off', k >= shown.length));
           on = false;
-        } else if (p.river) p.river.copies.forEach((c) => c.text.classList.add('off')); // edit mode drags the plain label instead
-        if (on && !editing) { // edit mode shows every name, so a hidden one can still be picked
+        }
+        if (on) {
           const b = screenBox(p);
           on = !taken.some((t) => overlaps(t, b));
           if (on) taken.push(b);
@@ -587,139 +585,13 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         (p.obj as CSS2DObject).element.classList.toggle('off', !on);
         if (on) { p.obj.visible = true; p.offAt = 0; } else if (p.obj.visible && now - (p.offAt ||= now) > 300) p.obj.visible = false;
       }
-      editorSync();
     },
   };
-  // ---------- edit mode (dev server): drag a name to move it, turn lettering on the water; Save writes src/place-edits.ts ----------
-  // The panel (main.ts) drives this through `editor`.
-  let sel: Place | null = null, dirty = false;
-  const select_ = (p: Place | null) => { sel = p; editor.onChange(); };
-  const changed = () => { dirty = true; editor.onChange(); };
-  const round = (n: number, d = 3) => Math.round(n * 10 ** d) / 10 ** d;
-  const record = (p: Place, patch: PlaceEdit) => { edits[p.name] = { ...edits[p.name], ...patch }; };
-  const editor = {
-    onChange: () => {},
-    setActive(v: boolean) { editing = v; document.body.classList.toggle('editing', v); if (!v) select_(null); },
-    state: () => sel && { name: sel.name, kind: sel.kind, flat: sel.flat, rot: sel.rot, scale: sel.scale, edited: sel.name in edits },
-    dirty: () => dirty,
-    setRot(deg: number) {
-      if (!sel?.flat) return;
-      sel.rot = (((Math.round(deg * 10) / 10) % 360) + 360) % 360;
-      record(sel, { rot: sel.rot });
-      put(sel);
-      changed();
-    },
-    setScale(s: number) {
-      if (!sel) return;
-      sel.scale = THREE.MathUtils.clamp(round(s, 2), 0.2, 8);
-      record(sel, { s: sel.scale });
-      put(sel);
-      changed();
-    },
-    reset() {
-      if (!sel) return;
-      delete edits[sel.name];
-      Object.assign(sel, layout(sel.gen, {}));
-      put(sel);
-      changed();
-    },
-    async save() {
-      const ok = await fetch('/__place-edits', { method: 'POST', body: JSON.stringify(edits) }).then((r) => r.ok, () => false);
-      if (ok) dirty = false;
-      editor.onChange();
-      return ok;
-    },
-  };
-  const startMove = (p: Place) => {
-    select_(p);
-    anim = anchor = grab = null;
-    const move = (ev: PointerEvent) => {
-      ray.setFromCamera(toNdc(ev), camera);
-      if (!ray.ray.intersectSphere(planet, hit)) return;
-      const dir = hit.clone().normalize(), { lat, lon } = latLon(dir);
-      p.up.copy(dir);
-      record(p, { p: [round(lat), round(lon)] });
-      put(p);
-      changed();
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', () => removeEventListener('pointermove', move), { once: true });
-  };
-  let editing = false;
-
-  // Selection box with handles, drawn over the screen around the selected name: corners resize, the knob above turns water lettering.
-  const box = document.createElement('div');
-  box.className = 'edit-box';
-  box.hidden = true;
-  box.innerHTML = '<i class="stem"></i><i class="h nw" data-h="s"></i><i class="h ne" data-h="s"></i><i class="h sw" data-h="s"></i><i class="h se" data-h="s"></i><i class="h rot" data-h="r"></i>';
-  document.body.append(box);
-  let boxC = { x: 0, y: 0 }; // box centre on screen
-  const toScreen = (v: THREE.Vector3) => { const n = v.clone().project(camera); return { x: ((n.x + 1) / 2) * innerWidth, y: ((1 - n.y) / 2) * innerHeight }; };
-  const syncBox = () => {
-    box.hidden = !(editing && sel?.obj.visible);
-    if (box.hidden || !sel) return;
-    let w: number, h: number, ang = 0;
-    if (sel.flat) { // the lettering's quad, projected: its two axes give size and tilt on screen
-      const m = sel.obj as THREE.Mesh, g = (m.geometry as THREE.PlaneGeometry).parameters;
-      camera.updateMatrixWorld();
-      const c = toScreen(m.position);
-      const ax = (x: number, y: number) => toScreen(new THREE.Vector3(x, y, 0).applyQuaternion(m.quaternion).add(m.position));
-      const px = ax((g.width / 2) * sel.scale, 0), py = ax(0, (g.height / 2) * sel.scale);
-      boxC = c;
-      w = 2 * Math.hypot(px.x - c.x, px.y - c.y); h = 2 * Math.hypot(py.x - c.x, py.y - c.y);
-      ang = Math.atan2(px.y - c.y, px.x - c.x);
-    } else { // a screen-facing label: the union of its text and symbol
-      const rs = [...(sel.obj as CSS2DObject).element.children].map((n) => n.getBoundingClientRect());
-      const l = Math.min(...rs.map((r) => r.left)), r = Math.max(...rs.map((r) => r.right));
-      const t = Math.min(...rs.map((r) => r.top)), b = Math.max(...rs.map((r) => r.bottom));
-      boxC = { x: (l + r) / 2, y: (t + b) / 2 };
-      w = r - l; h = b - t;
-    }
-    w = Math.max(w, 24) + 12; h = Math.max(h, 18) + 8;
-    box.classList.toggle('flat', sel.flat);
-    box.style.width = `${w}px`; box.style.height = `${h}px`;
-    box.style.transform = `translate(${boxC.x - w / 2}px,${boxC.y - h / 2}px) rotate(${ang}rad)`;
-  };
-  box.addEventListener('pointerdown', (e) => {
-    const kind = (e.target as HTMLElement).dataset.h;
-    if (!kind || !sel || !e.isPrimary) return;
-    e.preventDefault(); e.stopPropagation();
-    const { x: cx, y: cy } = boxC, s0 = sel.scale, r0 = sel.rot;
-    const dist = (ev: PointerEvent) => Math.hypot(ev.clientX - cx, ev.clientY - cy) || 1;
-    const angle = (ev: PointerEvent) => (Math.atan2(-(ev.clientY - cy), ev.clientX - cx) * 180) / Math.PI; // counter-clockwise on screen
-    const d0 = dist(e), a0 = angle(e);
-    const move = (ev: PointerEvent) => kind === 's' ? editor.setScale((s0 * dist(ev)) / d0) : editor.setRot(r0 + angle(ev) - a0);
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', () => removeEventListener('pointermove', move), { once: true });
-  });
-  editorSync = syncBox;
-
-  for (const p of places) {
-    if (!p.flat) (p.obj as CSS2DObject).element.addEventListener('pointerdown', (e) => {
-      if (!editing || !e.isPrimary || e.button !== 0) return;
-      e.stopPropagation(); // not a globe drag
-      startMove(p);
-    });
-  }
-  el.addEventListener('pointerdown', (e) => { // lettering on the water is a mesh, so pick it with a ray
-    if (!editing || !e.isPrimary || e.button !== 0) return;
-    ray.setFromCamera(toNdc(e), camera);
-    const hitMesh = ray.intersectObjects(places.filter((p) => p.flat && p.obj.visible).map((p) => p.obj), false)[0];
-    const p = hitMesh && places.find((q) => q.obj === hitMesh.object);
-    if (p) startMove(p); else select_(null);
-  });
-  addEventListener('keydown', (e) => { // Q/E turn the selected lettering (Shift: 1°), Ctrl+S saves
-    if (!editing || (e.target as HTMLElement).closest('input[type=search]')) return;
-    const k = e.key.toLowerCase();
-    if (k === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); editor.save(); }
-    else if (sel?.flat && (k === 'q' || k === 'e')) editor.setRot(sel.rot + (k === 'q' ? 1 : -1) * (e.shiftKey ? 1 : 5));
-  });
-
   // ---------- region borders: click the region's name to select it ----------
   let bordersOn = true;
   const deselect = () => { regions.selected = null; setPin(null); showCard(null); };
   addEventListener('keydown', (e) => { if (e.key === 'Escape') deselect(); });
   view.setBordersVisible = (v: boolean) => { bordersOn = v; regions.object.visible = v; if (!v) regions.selected = null; };
 
-  return Object.assign(view, { editor, deselect });
+  return Object.assign(view, { deselect });
 }

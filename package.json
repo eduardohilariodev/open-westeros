@@ -12,10 +12,11 @@
     "gis": "node tools/sites/kingsLanding/export-gis.mjs",
     "assets": "node tools/world/consensus.mjs && node tools/sites/kingsLanding/plan.mjs && node tools/sites/kingsLanding/analyze.mjs && node tools/sites/kingsLanding/export-gis.mjs",
     "places": "node tools/world/consensus.mjs",
+    "snap": "node tools/world/snap-places.mjs",
     "winterfell:collect": "node tools/sites/winterfell/collect.mjs",
     "winterfell": "node tools/sites/winterfell/import.mjs",
     "relief": "node tools/world/relief-bake.mjs",
-    "wiki": "node tools/wiki/scrape.mjs --places && node tools/wiki/place-info.mjs",
+    "wiki": "node tools/wiki/scrape.mjs --places && node tools/wiki/place-info.mjs && node tools/wiki/scrape.mjs --sigils",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "keywords": [],

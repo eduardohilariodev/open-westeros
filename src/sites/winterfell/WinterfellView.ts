@@ -29,10 +29,7 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
     return ((h[i] * (1 - tx) + h[i + 1] * tx) * (1 - tz) + (h[i + T.cols] * (1 - tx) + h[i + T.cols + 1] * tx) * tz) * T.scale;
   };
 
-  const site = createSiteScene(renderer, labelsEl, {
-    id: 'winterfell', sky: 0xc5ced6, shadowExtent: 450, ground: groundAt, labelMaxDistance: 12_000,
-    home: { position: new THREE.Vector3(330, 260, 420), target: new THREE.Vector3(0, 10, 0) },
-  });
+  const site = createSiteScene(labelsEl, { id: 'winterfell', shadowExtent: 450 });
   const { scene } = site;
   scene.add(new THREE.AmbientLight(0xffffff, 1.1)); // Skyrim textures are authored dark for its own lighting
 
@@ -84,8 +81,6 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
 
   return Object.assign(site, {
     lore: { ...LORE, 'Guest House': 'Lodging for guests of House Stark within the castle walls.' },
-    flyTo(p: Place) {
-      site.flyToPoint(new THREE.Vector3(p.pos[0], groundAt(p.pos[0], p.pos[1]) + 10, p.pos[1]), Math.max(140, (p.radius || 40) * 3.5));
-    },
+    focus: (p: Place) => ({ x: p.pos[0], z: p.pos[1], alt: Math.max(140, (p.radius || 40) * 3.5) * 0.7 }),
   });
 }

@@ -30,6 +30,23 @@ Skane|island|2070,900|0_0 1755,1635
 Skagos|island|2190,980|0_0 1925,1827
 Deepdown|castle|-|0_0 1847,1840
 Driftwood Hall|minor|-|0_0 1752,1738
+Westwatch-by-the-Bridge|castle|-|0_0 1319,1781
+Sentinel Stand|castle|-|0_0 1342,1775
+Greyguard|castle|-|0_0 1355,1771
+Stonedoor|castle|-|0_0 1376,1765
+Hoarfrost Hill|castle|-|0_0 1397,1759
+Icemark|castle|-|0_0 1420,1753
+Deep Lake|castle|-|0_0 1454,1743
+Queensgate|castle|-|0_0 1471,1739
+Oakenshield|castle|-|0_0 1505,1733
+Woodswatch-by-the-Pool|castle|-|0_0 1521,1733
+Sable Hall|castle|-|0_0 1536,1733
+Rimegate|castle|-|0_0 1549,1733
+Long Barrow|castle|-|0_0 1562,1733
+The Torches|castle|-|0_0 1573,1733
+Greenguard|castle|-|0_0 1586,1733
+Bridge of Skulls|landmark|-|0_0 1313,1783
+Kingshouse (Skagos)|castle|-|0_0 1877,1746
 Bay of Seals|sea|2060,1100|0_0 1760,1855
 # --- the North ---
 Sea Dragon Point|landmark|1080,1400|0_2500 692,113
@@ -177,7 +194,6 @@ Cornfield|castle|-|0_2500 855,1668
 The Ocean Road|landmark|1000,3270|0_2500 765,1750
 The Gold Road|landmark|1420,3060|0_2500 1170,1620
 # --- Reach / Stormlands / Kingswood ---
-The Seven Kingdoms|region|-|0_2500 1175,1685
 The Reach|region|1450,3200|0_2500 1108,1810
 The Stormlands|region|-|0_2500 1685,1860
 The Kingswood|forest|1920,3190|0_2500 1555,1757

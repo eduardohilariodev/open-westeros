@@ -17,10 +17,7 @@ const gateAt = (g: (typeof GATES)[number], w: Wall) =>
   g.side === 'S' ? new THREE.Vector3(g.offset, 0, w.hz) : new THREE.Vector3(g.side === 'W' ? -w.hx : w.hx, 0, g.offset);
 
 export async function createProceduralWinterfellView(renderer: THREE.WebGLRenderer, labelsEl: HTMLElement): Promise<SiteView> {
-  const site = createSiteScene(renderer, labelsEl, {
-    id: 'winterfell', sky: 0xc5ced6, shadowExtent: 900, ground: () => 0, labelMaxDistance: 12_000,
-    home: { position: new THREE.Vector3(260, 420, 760), target: new THREE.Vector3(0, 20, 0) },
-  });
+  const site = createSiteScene(labelsEl, { id: 'winterfell', shadowExtent: 900 });
   const { scene } = site;
   let seed = 7;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
@@ -157,8 +154,6 @@ export async function createProceduralWinterfellView(renderer: THREE.WebGLRender
 
   return Object.assign(site, {
     lore: LORE,
-    flyTo(p: Place) {
-      site.flyToPoint(new THREE.Vector3(p.pos[0], p.pos[2] * 0.4, p.pos[1]), Math.max(160, (p.radius || 40) * 4));
-    },
+    focus: (p: Place) => ({ x: p.pos[0], z: p.pos[1], alt: Math.max(160, (p.radius || 40) * 4) * 0.7 }),
   });
 }

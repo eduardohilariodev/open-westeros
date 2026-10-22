@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { inject } from '@vercel/analytics';
-import { SITE_SWITCH, SITES, type SiteId } from './config';
+import { SITE_LOAD_DISTANCE, SITES, type SiteId } from './config';
 import { createGlobeView, type Card } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { PLACE_INFO } from './place-info';
@@ -31,6 +31,23 @@ await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 
 // One place panel for whatever was picked: a place on the globe, a landmark inside a 3D place. Wiki facts from src/place-info.ts.
 const place = $('place'), q = <T extends Element>(s: string) => place.querySelector<T & HTMLElement>(s)!;
+const WIKI = 'https://awoiaf.westeros.org/index.php/';
+const anchor = (href: string, ...kids: (Node | string)[]) => {
+  const a = document.createElement('a');
+  a.href = href; a.target = '_blank'; a.rel = 'noopener';
+  a.append(...kids);
+  return a;
+};
+// Text with [label](Page_title#section) links (see tools/wiki/place-info.mjs) becomes text and links to that page of the wiki.
+const fill = (el: HTMLElement, text: string) => {
+  const nodes: (Node | string)[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/\[([^\]]+)\]\(([^)\s]+)\)/g)) {
+    nodes.push(text.slice(last, m.index), anchor(WIKI + m[2], m[1]));
+    last = m.index + m[0].length;
+  }
+  el.replaceChildren(...nodes, text.slice(last));
+};
 const showCard = (c: Card) => {
   place.hidden = !c;
   if (!c) return;
@@ -40,15 +57,25 @@ const showCard = (c: Card) => {
   hero.src = info.image ?? '';
   q('h1').textContent = c.name;
   q('.kind').textContent = c.kind;
-  q('.summary').textContent = c.text ?? info.summary ?? '';
-  q<HTMLAnchorElement>('.act').href = 'https://awoiaf.westeros.org/index.php/' + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
+  fill(q('.summary'), c.text ?? info.summary ?? '');
+  q<HTMLAnchorElement>('.act').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   q('.credit').hidden = !info.wiki || !!c.text;
+  // Houses of the place: the sigil opens the wiki's file page (author and licence), the name opens the house's article.
+  q('.sigils-credit').hidden = !info.houses;
+  q('.houses').replaceChildren(...(info.houses ?? []).map(([page, file, label]) => {
+    const chip = document.createElement('span'), img = new Image();
+    chip.className = 'house';
+    img.src = `/sigils/${file.replace(/\.[^.]+$/, '.webp')}`; img.alt = `Coat of arms of ${label}`;
+    img.onerror = () => chip.remove();
+    chip.append(anchor(`${WIKI}File:${file}`, img), anchor(WIKI + encodeURIComponent(page.replace(/ /g, '_')), label));
+    return chip;
+  }));
   const facts: [string, string][] = [...(c.region ? [['Region', c.region] as [string, string]] : []), ...(info.facts ?? [])];
   if (c.lat !== undefined && c.lon !== undefined) facts.push(['Coordinates', `${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°`]);
   q('.facts').replaceChildren(...facts.map(([k, v]) => {
     const li = document.createElement('li');
     li.innerHTML = '<span class="k"></span><span></span>';
-    li.firstChild!.textContent = k; li.lastChild!.textContent = v;
+    li.firstChild!.textContent = k; fill(li.lastChild as HTMLElement, v);
     return li;
   }));
   files = info.images ?? [];
@@ -110,17 +137,18 @@ const sites: Partial<Record<SiteId, SiteView>> = {};
 const loading: Partial<Record<SiteId, Promise<void>>> = {};
 function loadSite(id: SiteId) {
   return (loading[id] ??= (() => {
-    const labels = document.createElement('div'); // one label layer per site, shown only while that site is active
+    const labels = document.createElement('div'); // one label layer per site, faded in with the site
     labels.className = 'labels';
-    labels.dataset.site = id;
-    labels.hidden = true;
     document.body.append(labels);
     return SITE_VIEWS[id](renderer, labels).then((view) => {
       view.camera.aspect = innerWidth / innerHeight;
       view.camera.updateProjectionMatrix();
       view.labels.setSize(innerWidth, innerHeight);
-      view.controls.enabled = false;
-      view.onPick = (p) => { showCard({ kind: p.kind, name: p.name, text: view.lore[p.name] }); view.flyTo(p); };
+      view.onPick = (p) => {
+        showCard({ kind: p.kind, name: p.name, text: view.lore[p.name] });
+        const f = view.focus(p);
+        globe.flyToSite(id, f.x, f.z, f.alt);
+      };
       sites[id] = view;
     });
   })());
@@ -154,60 +182,13 @@ const setAllKinds = (on: boolean) => legendBoxes.forEach(({ kind, box }) => { bo
 $('legendAll').onclick = () => setAllKinds(true);
 $('legendNone').onclick = () => setAllKinds(false);
 
-// Edit mode (dev server only, it saves through it): the panel swaps to name-editing tools.
-const ed = globe.editor, $in = (id: string) => $(id) as HTMLInputElement;
-if (import.meta.env.DEV) {
-  $('editStart').hidden = false;
-  document.title += ' (dev)';
-}
-$('editStart').onclick = () => ed.setActive(true);
-$('editDone').onclick = () => { if (!ed.dirty() || confirm('Leave with unsaved changes?')) ed.setActive(false); };
-$('rotL').onclick = () => ed.setRot((ed.state()?.rot ?? 0) - 5);
-$('rotR').onclick = () => ed.setRot((ed.state()?.rot ?? 0) + 5);
-$in('rot').oninput = () => ed.setRot(+$in('rot').value);
-$in('size').oninput = () => ed.setScale(+$in('size').value);
-$('editReset').onclick = () => ed.reset();
-$('editSave').onclick = async () => { $('editMsg').textContent = (await ed.save()) ? 'Saved to src/place-edits.ts.' : 'Save failed (is the dev server running?).'; };
-ed.onChange = () => {
-  const s = ed.state();
-  $('editSel').textContent = s ? `${s.name} (${s.kind})${s.edited ? ' · edited' : ''}` : 'Nothing selected';
-  for (const id of ['rotL', 'rotR', 'rot']) $in(id).disabled = !s?.flat;
-  $in('rot').value = String(s?.rot ?? 0);
-  $('rotV').textContent = `${s?.rot ?? 0}°`;
-  $in('size').disabled = !s;
-  $in('size').value = String(s?.scale ?? 1);
-  $('sizeV').textContent = `${s?.scale ?? 1}×`;
-  $in('editReset').disabled = !s?.edited;
-  $in('editSave').disabled = !ed.dirty();
-  if (ed.dirty()) $('editMsg').textContent = 'Unsaved changes. Ctrl+S also saves.';
-};
-ed.onChange();
-
-let active: SiteId | null = null; // null = globe
-function setActive(id: SiteId | null) {
-  active = id;
-  if (id) ed.setActive(false);
-  globe.deselect();
-  globe.controls.enabled = id === null;
-  for (const [s, view] of Object.entries(sites)) view.controls.enabled = s === id;
-  for (const el of document.querySelectorAll<HTMLElement>('[data-site]')) el.hidden = el.dataset.site !== id;
-  document.body.dataset.mode = id ? 'site' : 'globe';
-}
-function enterSite(id: SiteId) {
-  const { position, target } = globe.siteCamera(id);
-  sites[id]!.enter(position, target);
-  setActive(id);
-}
-function exitSite(id: SiteId) {
-  globe.followSite(id, sites[id]!.camera);
-  setActive(null);
-}
+if (import.meta.env.DEV) document.title += ' (dev)';
 
 $('menuBtn').onclick = () => { // with a place open, the menu closes it and brings the drawer back
   if (!place.hidden) { globe.deselect(); document.body.classList.add('drawer-open'); }
   else document.body.classList.toggle('drawer-open');
 };
-const nav = initNav(renderer.domElement, () => (active ? sites[active]!.nav : globe.nav));
+const nav = initNav(renderer.domElement, () => globe.nav);
 
 // Search: every place name on the map.
 const mapItems = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, i }));
@@ -218,7 +199,6 @@ search.addEventListener('change', () => {
   // exact name first, then "contains"
   const place = mapItems.find((m) => m.label.toLowerCase() === q) ?? (q && mapItems.find((m) => m.label.toLowerCase().includes(q)));
   if (!place) return;
-  if (active) exitSite(active);
   globe.flyToPlace(place.i);
   search.value = ''; search.blur();
 });
@@ -227,7 +207,6 @@ search.addEventListener('change', () => {
 $('loadMsg').textContent = 'Loading terrain…';
 await globe.relief.ready;
 
-(window as any).__d = { globe, sites, renderer, enterSite }; // TEMP debug
 let ready = false;
 let last = performance.now();
 const debug = $('debug');
@@ -236,48 +215,35 @@ let fps = 60;
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  // The planet and the nearby site's scene are drawn into one frame with the same camera pose: whoever steers (the globe
-  // controls far away, the site's map controls close up), the other camera follows.
-  // A site's model is drawn only within its drawDistance, even while its controls steer.
-  let drawn: SiteId | null = null;
-  if (!active) {
-    globe.update(dt, now);
-    const load = globe.siteWithin(SITE_SWITCH.loadDistance);
-    if (load && !sites[load]) loadSite(load);
-    const enter = globe.siteWithin(SITE_SWITCH.enterDistance);
-    if (enter && sites[enter]) enterSite(enter);
-    drawn = globe.siteWithin((id) => SITES[id].drawDistance) ?? null;
-    $('loadHint').hidden = !(drawn && !sites[drawn]);
-  } else {
-    sites[active]!.update(dt, now);
-    if (sites[active]!.camera.position.length() > SITE_SWITCH.exitDistance) exitSite(active);
-    else if (sites[active]!.camera.position.length() < SITES[active].drawDistance) drawn = active;
-    $('loadHint').hidden = true;
-  }
+  // The globe is the only view. A 3D place loads as the camera nears it and is drawn over the globe from the camera's own
+  // pose, faded in over the last stretch of its draw distance.
+  globe.update(dt, now);
+  const load = globe.siteWithin(SITE_LOAD_DISTANCE);
+  if (load && !sites[load]) loadSite(load);
+  const drawn = globe.siteWithin((id) => SITES[id].drawDistance) ?? null;
   const site = drawn && sites[drawn];
-  if (active) globe.followSite(active, sites[active]!.camera);
-  else if (site && drawn) { const c = globe.siteCamera(drawn); site.camera.position.copy(c.position); site.camera.quaternion.copy(c.quaternion); }
-  // A drawn site fades in over the last stretch of its draw distance.
+  $('loadHint').hidden = !(drawn && !sites[drawn]);
   for (const [id, s] of Object.entries(sites) as [SiteId, SiteView][]) {
-    const D = SITES[id].drawDistance;
-    s.setFade(id === drawn ? 1 - THREE.MathUtils.smoothstep(s.camera.position.length(), D * 0.55, D) : 0);
+    if (id !== drawn) { s.setFade(0); continue; }
+    const c = globe.siteCamera(id), D = SITES[id].drawDistance;
+    s.camera.position.copy(c.position);
+    s.camera.quaternion.copy(c.quaternion);
+    s.setFade(1 - THREE.MathUtils.smoothstep(c.position.length(), D * 0.55, D));
   }
   globe.setSky();
   renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it
-  if (site && drawn && site.fade > 0) {
-    site.scene.fog!.color.copy(globe.scene.background as THREE.Color);
-    if (!active) site.setFog(site.camera.position.length());
+  globe.labels.render(globe.scene, globe.camera);
+  if (site && site.fade > 0) {
     renderer.clearDepth(); // the site has its own ground; the globe's depth would hide its low parts under the globe's surface
     renderer.render(site.scene, site.camera);
+    site.labels.render(site.scene, site.camera);
   }
-  const v = active ? sites[active]! : globe;
-  v.labels.render(v.scene, v.camera);
   nav.update();
   if (import.meta.env.DEV) {
     fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
-    const n = active ? sites[active]!.nav : globe.nav, c = n.pick(new THREE.Vector2(0, 0)), deg = THREE.MathUtils.radToDeg;
+    const n = globe.nav, c = n.pick(new THREE.Vector2(0, 0)), deg = THREE.MathUtils.radToDeg;
     debug.textContent = [
-      active ?? 'globe',
+      drawn ?? 'globe',
       c ? `centre ${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°` : 'centre: sky',
       `alt ${(n.altitude() / 1000).toFixed(1)} km`,
       `tilt ${deg(n.tilt()).toFixed(1)}°`,

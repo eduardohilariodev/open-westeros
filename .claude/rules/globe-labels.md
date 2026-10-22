@@ -32,7 +32,6 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
   (at least 4.5:1 against the white stroke).
 - Box sizes come from `measure()`, run once at start-up and again when the web font loads. Never read layout
   (`offsetWidth`, `getBoundingClientRect`) per label per frame, because it forces a reflow.
-- Edit mode turns the overlap check off so that hidden names can still be picked.
 
 ## Fades, not pops
 
@@ -45,7 +44,6 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - `src/world-data.ts` is generated: edit `tools/world/places.raw.txt` and run `npm run places`.
 - Rows are `name|kind|painted px,py|atlas tile dx,dy`, with `-` for a map the place isn't on. The painted map is linear
   in lat/lon, so a lettering spot that is on neither map can be placed from its painted-map pixel.
-- Hand-placed positions and sizes live in `src/place-edits.ts`, written by the globe's "Edit names" mode.
 
 ## Verify
 

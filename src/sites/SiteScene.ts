@@ -1,18 +1,24 @@
 import * as THREE from 'three';
-import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { METRES_PER_DEGREE, SITE_SWITCH, type SiteId } from '../config';
-import { siteLatLon } from '../geo';
-import type { Nav } from '../ui/nav';
+import type { SiteId } from '../config';
 
-// Everything a zoomable site shares: local frame in metres (x = east, y = up, z = south, origin at the site),
-// sky + fog, camera + map controls, sun with shadows, the Known World map as ground around it, clickable
-// labels, camera flights and WASD flying. A site module (kingsLanding/, winterfell/) adds its own content.
+// What a 3D place adds to the globe: a scene in a local frame in metres (x = east, y = up, z = south, origin at the site),
+// with a sun and shadows, clickable labels, and a fade-in. It has no controls of its own: main.ts drives its camera from
+// the globe's, so there is one view. It is drawn over the globe (its own frame keeps float precision at planet scale).
+// A site module (kingsLanding/, winterfell/) adds the content.
 
 /** A named, clickable place. pos = [x, z, groundHeight] in the site frame. */
 export type Place = { name: string; kind: string; pos: [number, number, number]; radius?: number };
 
-/** Dissolves the edge of a ground patch into the globe's ground below (the site is drawn over the globe, see main.ts). */
+/** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the globe flies for a place (x, z in the site frame, camera altitude in m). */
+export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; focus(p: Place): { x: number; z: number; alt: number } };
+
+type Options = {
+  id: SiteId;
+  shadowExtent: number; // half-size of the sun's shadow box, m
+};
+
+/** Dissolves the edge of a ground patch into the globe's ground below. */
 export function edgeFade<M extends THREE.MeshStandardMaterial>(m: M, width = 0.15) {
   const N = 64, px = new Uint8Array(N * N * 4);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -25,31 +31,10 @@ export function edgeFade<M extends THREE.MeshStandardMaterial>(m: M, width = 0.1
   return m;
 }
 
-/** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the camera goes for a place. */
-export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; flyTo(p: Place): void };
-
-type Options = {
-  id: SiteId;
-  sky: number;
-  shadowExtent: number; // half-size of the sun's shadow box, m
-  home: { position: THREE.Vector3; target: THREE.Vector3 };
-  ground: (x: number, z: number) => number; // current ground height (camera floor)
-  labelMaxDistance: number;
-};
-
-export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLElement, o: Options) {
-  // No background: this scene is drawn over the globe's (same depth buffer), so it needs the globe camera's fov and far plane.
+export function createSiteScene(labelsEl: HTMLElement, o: Options) {
+  // No background: this scene is drawn over the globe's, with the globe camera's fov and far plane (its pose is copied in each frame).
   const scene = new THREE.Scene();
-  const fog = new THREE.Fog(o.sky, 4500, 15000);
-  scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 3e8);
-  camera.position.copy(o.home.position);
-  const controls = new MapControls(camera, renderer.domElement);
-  controls.target.copy(o.home.target);
-  controls.enableDamping = true;
-  controls.maxPolarAngle = THREE.MathUtils.degToRad(86);
-  controls.minDistance = 20;
-  controls.maxDistance = SITE_SWITCH.exitDistance * 1.25;
   const labels = new CSS2DRenderer({ element: labelsEl });
 
   scene.add(new THREE.HemisphereLight(0xe2ecf4, 0x6b5a40, 1.2));
@@ -62,15 +47,10 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   sun.shadow.normalBias = 1;
   sun.shadow.autoUpdate = false; // the sun and the models are static: render the shadow map once, not every frame
   scene.add(sun, sun.target);
-  const setSun = (deg: number) => {
-    const a = THREE.MathUtils.degToRad(deg);
-    sun.position.set(Math.cos(a), 0.8, Math.sin(a)).multiplyScalar(e * 1.5);
-    sun.shadow.needsUpdate = true;
-  };
-  setSun(220);
+  const a = THREE.MathUtils.degToRad(220);
+  sun.position.set(Math.cos(a), 0.8, Math.sin(a)).multiplyScalar(e * 1.5);
+  sun.shadow.needsUpdate = true;
 
-  // The ground around the site is the globe's own map, drawn in the same frame (main.ts), so this scene has no ground of its own.
-  const origin = siteLatLon(o.id), cosLat = Math.cos(THREE.MathUtils.degToRad(origin.lat));
   // ---------- labels ----------
   const labelObjs: { obj: CSS2DObject; place: Place }[] = [];
   function addPlaces(places: Place[]) {
@@ -85,72 +65,6 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       labelObjs.push({ obj, place: p });
     }
   }
-
-  // ---------- camera flights ----------
-  let anim: { t0: number; dur: number; p0: THREE.Vector3; c0: THREE.Vector3; p1: THREE.Vector3; c1: THREE.Vector3 } | null = null;
-  const animateTo = (p1: THREE.Vector3, c1: THREE.Vector3, dur = 2200) => {
-    orbit = null;
-    anim = { t0: performance.now(), dur, p0: camera.position.clone(), c0: controls.target.clone(), p1, c1 };
-  };
-  /** Fly to look at `target` from `dist` metres away, keeping the current heading. */
-  function flyToPoint(target: THREE.Vector3, dist: number) {
-    const dir = camera.position.clone().sub(controls.target).setY(0);
-    if (dir.lengthSq() < 1) dir.set(0, 0, 1);
-    dir.normalize();
-    animateTo(target.clone().addScaledVector(dir, dist * 0.8).setY(target.y + dist * 0.55), target);
-  }
-  controls.addEventListener('start', () => { anim = orbit = null; });
-
-  // ---------- WASD flight ----------
-  const keys = new Set<string>();
-  addEventListener('keydown', (ev) => {
-    if (!controls.enabled || (ev.target as HTMLElement).tagName === 'INPUT') return;
-    keys.add(ev.code);
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(ev.code)) anim = orbit = null;
-  });
-  addEventListener('keyup', (ev) => keys.delete(ev.code));
-  addEventListener('blur', () => keys.clear());
-  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
-  function fly(dt: number) {
-    const k = (c: string) => (keys.has(c) ? 1 : 0);
-    const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 3 : 1) * Math.max(40, camera.position.distanceTo(controls.target) * 0.7) * dt;
-    camera.getWorldDirection(fwd).setY(0).normalize();
-    right.crossVectors(fwd, UP);
-    move.set(0, 0, 0).addScaledVector(fwd, k('KeyW') - k('KeyS')).addScaledVector(right, k('KeyD') - k('KeyA'));
-    move.y = k('KeyE') - k('KeyQ');
-    if (move.lengthSq()) { move.multiplyScalar(speed); camera.position.add(move); controls.target.add(move); }
-  }
-
-  // ---------- navigation controls (compass, zoom, tilt) ----------
-  // Smooth orbit around the target: azimuth (0 = looking north), polar (0 = straight down), distance.
-  let orbit: { t0: number; a0: number; a1: number; p0: number; p1: number; d0: number; d1: number } | null = null;
-  const orbitTo = (a1: number, p1: number, d1: number) => {
-    anim = null;
-    const a0 = controls.getAzimuthalAngle();
-    orbit = {
-      t0: performance.now(), a0, a1: a0 + Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), // shortest turn
-      p0: controls.getPolarAngle(), p1, d0: controls.getDistance(),
-      d1: THREE.MathUtils.clamp(d1, controls.minDistance, controls.maxDistance),
-    };
-  };
-  const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
-  const offset = new THREE.Vector3(), sph = new THREE.Spherical();
-  const nav: Nav = {
-    heading: () => -controls.getAzimuthalAngle(),
-    resetNorth: () => orbitTo(0, controls.getPolarAngle(), controls.getDistance()),
-    zoom: (f) => orbitTo(controls.getAzimuthalAngle(), controls.getPolarAngle(), controls.getDistance() * f),
-    canTilt: true,
-    tilt: () => controls.getPolarAngle(),
-    toggleTilt: () => orbitTo(controls.getAzimuthalAngle(), controls.getPolarAngle() > 0.3 ? 0.001 : 1.0, controls.getDistance()),
-    home: () => site.flyHome(),
-    altitude: () => camera.position.y,
-    pick(ndc) {
-      ray.setFromCamera(ndc, camera);
-      if (!ray.ray.intersectPlane(groundPlane, hit)) return null;
-      return { lat: origin.lat - hit.z / METRES_PER_DEGREE, lon: origin.lon + hit.x / (METRES_PER_DEGREE * cosLat) };
-    },
-    metresPerPixel: () => (2 * controls.getDistance() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / innerHeight,
-  };
 
   // ---------- fade in ----------
   // The whole scene fades in as the camera comes within the site's draw distance, so it never pops over the globe. Alpha
@@ -168,47 +82,14 @@ export function createSiteScene(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       if (m.alphaHash !== hash || m.transparent !== transparent) { m.alphaHash = hash; m.transparent = transparent; m.needsUpdate = true; }
       m.opacity = b.opacity * f;
     }
-    labelsEl.style.opacity = String(f);
+    labelsEl.style.opacity = String(f ** 4); // names arrive late in the fade, when the place is big enough to read
+    labelsEl.style.visibility = f < 0.5 ? 'hidden' : '';
   };
 
-  const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const site = {
-    scene, camera, controls, labels, labelObjs, addPlaces, flyToPoint, setSun, setFade, nav,
+    scene, camera, labels, labelObjs, addPlaces, setFade,
     get fade() { return fade; },
     onPick: (_p: Place) => {},
-    flyHome: () => animateTo(o.home.position.clone(), o.home.target.clone(), 3500),
-    enter(position: THREE.Vector3, target: THREE.Vector3) {
-      anim = orbit = null;
-      camera.position.copy(position);
-      controls.target.copy(target);
-      controls.update();
-    },
-    update(dt: number, now: number) {
-      if (anim) {
-        const t = Math.min(1, (now - anim.t0) / anim.dur), k = ease(t);
-        camera.position.lerpVectors(anim.p0, anim.p1, k).y += Math.sin(Math.PI * t) * anim.p0.distanceTo(anim.p1) * 0.15;
-        controls.target.lerpVectors(anim.c0, anim.c1, k);
-        if (t === 1) anim = null;
-      }
-      if (orbit) {
-        const t = Math.min(1, (now - orbit.t0) / 700), k = ease(t);
-        sph.set(THREE.MathUtils.lerp(orbit.d0, orbit.d1, k), THREE.MathUtils.lerp(orbit.p0, orbit.p1, k), THREE.MathUtils.lerp(orbit.a0, orbit.a1, k));
-        camera.position.copy(controls.target).add(offset.setFromSpherical(sph));
-        if (t === 1) orbit = null;
-      }
-      fly(dt);
-      const floor = o.ground(camera.position.x, camera.position.z) + 8;
-      if (camera.position.y < floor) camera.position.y = floor;
-      controls.update();
-      const d = camera.position.distanceTo(controls.target);
-      site.setFog(d);
-      labelsEl.style.visibility = d > o.labelMaxDistance || fade < 0.05 ? 'hidden' : '';
-    },
-    /** Haze that thickens with the camera's distance d, so a high view is not lost in it. */
-    setFog(d: number) {
-      fog.near = Math.max(4500, d * 1.5);
-      fog.far = Math.max(15000, d * 6);
-    },
   };
   return site;
 }
