@@ -6,7 +6,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const row = (k: string, v: string, title = '') => `<div${title ? ` title="${esc(title)}"` : ''}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`;
 
 /** The wool's results card: legs, the total in many units, and how long the trip takes at each pace. */
-export function initMeasurePanel(wool: { setActive(on: boolean): void; undo(): void; clear(): void; active: boolean; onChange: (s: MeasureState) => void }) {
+export function initMeasurePanel(wool: { setActive(on: boolean): void; undo(): void; clear(): void; active: boolean; onChange: (s: MeasureState) => void }, onStart: () => void) {
   const panel = $('measure'), btn = $('measureBtn');
   const hint = panel.querySelector<HTMLElement>('.m-hint')!, legs = panel.querySelector<HTMLElement>('.m-legs')!, body = panel.querySelector<HTMLElement>('.m-body')!;
   const total = panel.querySelector<HTMLElement>('.m-total')!, units = panel.querySelector<HTMLElement>('.m-units')!, paces = panel.querySelector<HTMLElement>('.m-paces')!;
@@ -30,7 +30,7 @@ export function initMeasurePanel(wool: { setActive(on: boolean): void; undo(): v
     ].join('');
     paces.innerHTML = PACES.map((p) => row(p.name, travelTime(m, p.kmh), `${p.kmh} km/h: ${p.note}`)).join('');
   };
-  btn.onclick = () => wool.setActive(!wool.active);
+  btn.onclick = () => { if (!wool.active) onStart(); wool.setActive(!wool.active); }; // measuring and focusing a place exclude each other
   $('measureUndo').onclick = () => wool.undo();
   $('measureClear').onclick = () => wool.clear();
   $('measureClose').onclick = () => { wool.setActive(false); wool.clear(); };

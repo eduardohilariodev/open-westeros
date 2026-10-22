@@ -405,6 +405,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     /** A place with a 3D scene is approached until the scene takes over. */
     flyToPlace(i: number) {
       const p = places[i];
+      wool.setActive(false); // focusing a place ends measuring
       regions.selected = null; // a region's own click sets it again after this
       setPin(p);
       // a river or road is lit along its whole length; a river's water is drawn smoothed (rivers.ts), so the light follows that curve

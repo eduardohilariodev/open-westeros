@@ -70,7 +70,7 @@ $('menuBtn').onclick = () => { // with a place open, the menu closes it and brin
   else document.body.classList.toggle('drawer-open');
 };
 const nav = initNav(renderer.domElement, () => globe.nav);
-initMeasurePanel(globe.wool);
+initMeasurePanel(globe.wool, () => globe.deselect());
 
 // Search: every place name on the map.
 const mapItems = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, i }));

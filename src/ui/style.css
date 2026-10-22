@@ -132,6 +132,8 @@ body:not(.drawer-open) #ui { display: none; }
 /* ---------- map labels ---------- */
 
 /* names of places on the maps; larger kinds are drawn bigger. Dark lettering with a white stroke, readable on every map style */
+/* labels, buttons and placeholders are controls, not text to select */
+label, button, .globe-place, .line-text, input::placeholder { user-select: none; -webkit-user-select: none; }
 .globe-place { position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #f3ead0; font: 700 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 3px #101c1b; paint-order: stroke fill; }
 /* a point label's box is its symbol, centred on the place; the name sits to its right */
 .globe-place:not(.globe-area) { width: 13px; height: 13px; }
