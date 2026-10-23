@@ -439,3 +439,6 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
 #place .more { display: inline-block; margin: 10px 0 0; color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; }
 #place .more:hover { text-decoration: underline; }
 #place .more[hidden] { display: none; }
+#place .more { display: inline-flex; align-items: center; gap: 6px; }
+#place .more[hidden] { display: none; }
+#place .more svg { width: 16px; height: 16px; flex: none; }
