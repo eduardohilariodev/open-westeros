@@ -4,7 +4,7 @@ import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, showCard } from './ui/placePanel';
 import { createSites } from './sites/handoff';
-import type { SiteView } from './sites/SiteScene';
+import { GLOBE_KIND, type SiteView } from './sites/SiteScene';
 import { initMeasurePanel } from './ui/measurePanel';
 import { initNav } from './ui/nav';
 
@@ -72,13 +72,43 @@ $('menuBtn').onclick = () => { // with a place open, the menu closes it and brin
 const nav = initNav(renderer.domElement, () => globe.nav);
 initMeasurePanel(globe.wool, () => globe.deselect());
 
-// Search: every place name on the map.
-const mapItems = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, i }));
+// Search: every place name on the map, plus the places inside any 3D site that has loaded (Winterfell's keeps, gates...). Fuzzy.
+type Item = { label: string; kind: string; go: () => void };
+const mapItems: Item[] = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, go: () => globe.flyToPlace(i) }));
+const siteItems = (): Item[] => sites.views().flatMap((v) => v.labelObjs.map(({ place: p }) => ({ label: p.name, kind: GLOBE_KIND[p.kind] ?? 'town', go: () => v.onPick(p) })));
 const search = $('search') as HTMLInputElement;
 const results = $('results');
 const kindLabel = Object.fromEntries(PLACE_KINDS);
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-let shown: typeof mapItems = [];
+const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const lev = (a: string, b: string) => {
+  let row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length];
+};
+/** Lower is better, -1 no match: a word starts with the query, contains it, has its letters in order, or is a typo away (1 letter from 4, 2 from 7). */
+const scoreTerm = (label: string, q: string) => {
+  const l = fold(label), at = l.indexOf(q);
+  if (at >= 0) return at === 0 || l[at - 1] === ' ' ? 0 : 1;
+  let i = 0;
+  for (const c of l) if (c === q[i]) i++;
+  if (q.length > 1 && i === q.length) return 2;
+  const room = q.length >= 7 ? 2 : q.length >= 4 ? 1 : 0;
+  if (!room) return -1;
+  const d = Math.min(lev(q, l.slice(0, q.length)), ...l.split(' ').map((w) => lev(q, w.slice(0, q.length))));
+  return d <= room ? 3 + d : -1;
+};
+/** Every term of the query must match, in any order ("keep great" finds the Great Keep). */
+const score = (label: string, q: string) => {
+  let sum = 0;
+  for (const t of q.split(/\s+/)) { const x = scoreTerm(label, t); if (x < 0) return -1; sum += x; }
+  return sum;
+};
+let shown: Item[] = [];
 let active = 0;
 const setActive = (n: number) => {
   active = n;
@@ -86,20 +116,19 @@ const setActive = (n: number) => {
   results.children[n]?.scrollIntoView({ block: 'nearest' });
 };
 const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); };
-const go = (m: (typeof mapItems)[number]) => { globe.flyToPlace(m.i); search.value = ''; search.blur(); closeResults(); };
+const go = (m: Item) => { m.go(); search.value = ''; search.blur(); closeResults(); };
 const renderResults = () => {
-  const q = search.value.trim().toLowerCase();
+  const raw = search.value.trim(), q = fold(raw);
   if (!q) return closeResults();
-  const at = (m: (typeof mapItems)[number]) => m.label.toLowerCase().indexOf(q);
-  // names starting with the query first, then those containing it, then alphabetical
-  shown = mapItems.filter((m) => at(m) >= 0)
-    .sort((a, b) => (at(a) > 0 ? 1 : 0) - (at(b) > 0 ? 1 : 0) || a.label.localeCompare(b.label)).slice(0, 8);
+  // best match first, then alphabetical
+  shown = [...siteItems(), ...mapItems].map((m) => ({ m, sc: score(m.label, q) })).filter((x) => x.sc >= 0)
+    .sort((a, b) => a.sc - b.sc || a.m.label.localeCompare(b.m.label)).slice(0, 8).map((x) => x.m);
   results.innerHTML = shown.length
     ? shown.map((m, k) => {
-      const i = at(m), l = m.label;
+      const l = m.label, i = fold(l).indexOf(q); // the matched letters are marked when the query is a plain substring
+      const name = i >= 0 && fold(l).length === l.length ? `${esc(l.slice(0, i))}<mark>${esc(l.slice(i, i + q.length))}</mark>${esc(l.slice(i + q.length))}` : esc(l);
       return `<li role="option" data-k="${k}"><svg class="k-${m.kind}" viewBox="0 0 512 512">${PLACE_ICONS[m.kind]}</svg>` +
-        `<span class="nm">${esc(l.slice(0, i))}<mark>${esc(l.slice(i, i + q.length))}</mark>${esc(l.slice(i + q.length))}</span>` +
-        `<span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
+        `<span class="nm">${name}</span><span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
     }).join('')
     : '<li class="none">No such place in the known world</li>';
   results.hidden = false; search.setAttribute('aria-expanded', 'true');
