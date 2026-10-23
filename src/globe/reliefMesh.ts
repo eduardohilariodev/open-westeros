@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PLANET } from '../config';
 import { DISPLACE, LIFT_GLSL, PEAKS } from './lift';
+import { GROUND_VERT_GLSL, origin } from './groundMap';
 
 // The relief as real height, detailed as you zoom (the Google Earth recipe): a quadtree over the bake's grid splits each
 // node until its vertices are about TARGET_PX apart on screen, culled to the view and the horizon. Every node is the
@@ -18,13 +19,40 @@ attribute vec3 aNode; // first cell x, y and size in cells
 uniform float uCellKm; // km per cell, north-south
 varying vec3 vDir;
 varying float vCover;
+#ifdef GROUND
+${GROUND_VERT_GLSL}
+attribute vec4 aOrg; // the node's ground-texture origin: x, y (m, mod Q), radius and angle in the cone (groundMap.ts)
+attribute float aPhi; // and its latitude
+varying vec2 vG, vGo; // a vertex's offset from the origin (m), and the origin
+varying float vZ; // its height as drawn (m above the sphere)
+#endif
+float cliffH(vec2 uv) { // the baked height of the land about a pixel in from here (km), for the vertices that lie off the coast
+  vec2 s = 1.0 / vec2(textureSize(tH, 0));
+  float m = 0.0;
+  for (int k = 0; k < 4; k++) {
+    vec4 t = textureLod(tH, uv + vec2(k == 0 ? s.x : k == 1 ? -s.x : 0.0, k == 2 ? s.y : k == 3 ? -s.y : 0.0), 0.0);
+    m = max(m, t.r * uHeightMax * step(0.5, t.g));
+  }
+  return m;
+}
 void main() {
   vec2 g = clamp(position.xy, 0.0, ${N}.0), uv = (aNode.xy + g / ${N}.0 * aNode.z + 0.5) / vec2(textureSize(tH, 0));
   float lon = radians(mix(uBounds.x, uBounds.y, uv.x)), lat = radians(mix(uBounds.w, uBounds.z, uv.y));
   vDir = vec3(cos(lat) * sin(lon), sin(lat), cos(lat) * cos(lon));
   float spacing = aNode.z / ${N}.0 * uCellKm, base = baseHeight(uv);
-  float km = base + detailH(vDir, base, spacing) - (g != position.xy ? 0.1 + spacing * 0.5 : 0.0); // skirt
+  float km = base + detailH(vDir, base, spacing) * smoothstep(0.0, 0.03, base) -(g != position.xy ? 0.1 + spacing * 0.5 : 0.0); // skirt
   vCover = textureLod(tH, uv, 0.0).g;
+  // A sea cliff: the coast is where cover is 0.5 and the fragment shader cuts the mesh there, so the vertices on the sea side
+  // sink under the water by the height of the cliff next to them, in proportion to how far out they are. The face between
+  // them and the cliff top then crosses the water exactly at the cut (cover falls linearly, 1 inland to 0.5 at the cut):
+  // a wall into the sea, with nothing hanging open behind it.
+  if (vCover < 0.5) km -= 2.0 * cliffH(uv) * (0.5 - vCover);
+  #ifdef GROUND
+  vec2 cells = g / ${N}.0 * aNode.z, size = vec2(textureSize(tH, 0));
+  vG = groundDelta(cells * vec2(radians(uBounds.y - uBounds.x) / size.x, -radians(uBounds.w - uBounds.z) / size.y), aOrg, aPhi);
+  vGo = aOrg.xy;
+  vZ = km * (1.0 + uPeaks * smoothstep(0.3, 3.0, km)) * 1000.0 * uDisplace * siteFade(vDir * ${(PLANET.radius - 7).toFixed(1)});
+  #endif
   gl_Position = projectionMatrix * viewMatrix * vec4(raise(vDir * ${(PLANET.radius - 7).toFixed(1)}, km), 1.0);
   #include <logdepthbuf_vertex>
 }`;
@@ -54,7 +82,12 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     const ix = Math.floor(sx), iy = Math.floor(sy), wx = spline(sx - ix), wy = spline(sy - iy);
     let h = 0;
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) h += wy[j] * wx[i] * px(ix - 1 + i, iy - 1 + j);
-    return h * b.heightMax;
+    return h * b.heightMax * THREE.MathUtils.smoothstep(cover(sx, sy), 0.5, 0.6); // as the shader: a sea cliff, full height to the shore
+  };
+  const cov = (x: number, y: number) => data[(Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))) * 4 + 2] / 255;
+  const cover = (sx: number, sy: number) => { // bilinear land cover at pixel coordinates (texel centres at whole numbers)
+    const ix = Math.floor(sx), iy = Math.floor(sy), fx = sx - ix, fy = sy - iy;
+    return (1 - fy) * ((1 - fx) * cov(ix, iy) + fx * cov(ix + 1, iy)) + fy * ((1 - fx) * cov(ix, iy + 1) + fx * cov(ix + 1, iy + 1));
   };
 
   // height and land cover as half floats: filterable everywhere, ~2 m steps at the top of the range
@@ -98,7 +131,10 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     idx.push(a, c, a + 1, a + 1, c, c + 1);
   }
   const nodes = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES * 3), 3).setUsage(THREE.DynamicDrawUsage);
-  const geometry = new THREE.InstancedBufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('aNode', nodes).setIndex(idx);
+  const org = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const phi = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES), 1).setUsage(THREE.DynamicDrawUsage);
+  const geometry = new THREE.InstancedBufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('aNode', nodes)
+    .setAttribute('aOrg', org).setAttribute('aPhi', phi).setIndex(idx);
   geometry.instanceCount = 0;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false; // culled per node below
@@ -111,6 +147,7 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     const lon = rad(b.lon0 + ((x + 0.5) / W) * (b.lon1 - b.lon0)), lat = rad(b.lat1 - ((y + 0.5) / H) * (b.lat1 - b.lat0));
     return out.set(Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)).multiplyScalar(r);
   };
+  const org0 = { x: 0, y: 0, rho: 0, theta: 0 };
   const frustum = new THREE.Frustum(), sphere = new THREE.Sphere(), m4 = new THREE.Matrix4(), cam = new THREE.Vector3(), camDir = new THREE.Vector3(), size = new THREE.Vector2();
   const raised = b.heightMax * 1000 * DISPLACE * (1 + PEAKS);
   const peakHorizon = Math.acos(r / (r + raised)); // a peak shows this much farther round the curve than the ground
@@ -133,6 +170,8 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
         for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) visit(d + 1, nx * 2 + cx, ny * 2 + cy);
         return;
       }
+      const lon = rad(b.lon0 + ((x0 + 0.5) / W) * (b.lon1 - b.lon0)), lat = rad(b.lat1 - ((y0 + 0.5) / H) * (b.lat1 - b.lat0)), o = origin(lon, lat, org0);
+      org.setXYZW(n, o.x, o.y, o.rho, o.theta); phi.setX(n, lat);
       nodes.setXYZ(n++, x0, y0, S);
     };
     for (let ny = 0; ny * ROOT < H; ny++) for (let nx = 0; nx * ROOT < W; nx++) visit(0, nx, ny);
@@ -140,6 +179,8 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     nodes.clearUpdateRanges();
     nodes.addUpdateRange(0, n * 3);
     nodes.needsUpdate = true;
+    org.clearUpdateRanges(); org.addUpdateRange(0, n * 4); org.needsUpdate = true;
+    phi.clearUpdateRanges(); phi.addUpdateRange(0, n); phi.needsUpdate = true;
   }
   return { mesh, texture, heightAt, update };
 }

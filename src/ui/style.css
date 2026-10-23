@@ -165,9 +165,12 @@ label, button, .globe-place, .line-text, input::placeholder { user-select: none;
 .line-text.off { opacity: 0; pointer-events: none; }
 @starting-style { .line-text { opacity: 0; } }
 .globe-place.pinned svg, .globe-place.pinned:not(.globe-area) > span { visibility: hidden; } /* the pin carries the name */
+body.grabbing, body.grabbing * { cursor: grabbing !important; }
 /* dev-only camera readout along the top */
-#debug { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; padding: 3px 10px; border-radius: 0 0 8px 8px; background: #000b; color: #9fe8a8; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none; }
+#debug { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; padding: 3px 10px; border-radius: 0 0 8px 8px; background: #000b; color: #9fe8a8; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none; display: flex; gap: 8px; align-items: flex-start; }
 #debug[hidden] { display: none; }
+#debug button { pointer-events: auto; cursor: pointer; flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid #9fe8a855; border-radius: 4px; background: none; color: inherit; font: inherit; line-height: 1; }
+#debug.min span { display: none; }
 .globe-pin { pointer-events: none; color: #e5483d; display: flex; flex-direction: column; align-items: center; }
 .globe-pin span { margin-bottom: 2px; color: #fff; font: 400 20px/1.1 var(--font-map); white-space: nowrap; -webkit-text-stroke: 4px #101c1b; paint-order: stroke fill; }
 .globe-pin svg { display: block; width: 28px; height: 65px; filter: drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 1px 2px #0008); }
@@ -227,26 +230,56 @@ label, button, .globe-place, .line-text, input::placeholder { user-select: none;
 .legend-actions { display: flex; gap: 12px; margin: 2px 0 4px; font-size: 14px; }
 .legend-actions button { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
 
-#loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #07050a; color: #f0e3c2; transition: opacity 1.4s ease-in-out, backdrop-filter 1.4s ease-in-out; }
-#loading.done { opacity: 0; pointer-events: none; }
-#loading > * { transition: opacity .5s, translate .9s ease-in; } /* the title and bar lift away first, then the veil clears off the globe */
+#loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #07050a; color: #f0e3c2; transition: background-color 1.4s ease-in-out; }
+#loading.done { background-color: transparent; pointer-events: none; } /* the veil clears; the coin outlasts it, see coin-fall */
+#loading > * { transition: opacity .5s, translate .9s ease-in; } /* the coin, title and words lift away first, then the veil clears off the globe */
 #loading.done > * { opacity: 0; translate: 0 -8px; }
+#loadCoin { width: 150px; height: 150px; }
+/* The Faceless Men coin, thrown up and caught again while the world loads. Transform animations run on the compositor, so it keeps flying while the page is busy building the globe. */
+#coinStage { position: relative; width: 120px; height: 176px; perspective: 600px; }
+#coinStage .toss, #coinStage .flip, #coinStage .coin { position: absolute; left: 0; bottom: 6px; width: 120px; height: 120px; transform-style: preserve-3d; }
+#coinStage .toss { animation: coin-toss 2.6s .5s infinite; }
+#coinStage .flip { animation: coin-flip 5.2s .5s infinite; }
+#coinStage img, #coinStage i { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; backface-visibility: hidden; transform: translateZ(4.5px); }
+#coinStage img.back { transform: rotateX(180deg) translateZ(4.5px); }
+#coinStage i { backface-visibility: visible; transform: translateZ(var(--z)); background: radial-gradient(circle, #8f8878 60%, #4d4940); }
+@keyframes coin-toss { /* up fast and slowing, down gathering speed, a small bounce, then a rest before the next throw */
+  0% { translate: 0 0; animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  42% { translate: 0 -64px; animation-timing-function: cubic-bezier(.6, 0, .85, .4); }
+  80% { translate: 0 0; animation-timing-function: ease-out; }
+  86% { translate: 0 -9px; animation-timing-function: ease-in; }
+  92%, 100% { translate: 0 0; } }
+@keyframes coin-flip { /* the Valar side first; the first throw turns four and a half times to land on the hooded man, the second back on the Valar side. Fast off the thumb, easing into the catch */
+  0% { transform: rotateX(0) rotateY(-8deg); animation-timing-function: cubic-bezier(.25, .6, .35, 1); }
+  40%, 50% { transform: rotateX(1620deg) rotateY(0); animation-timing-function: cubic-bezier(.25, .6, .35, 1); }
+  90%, 100% { transform: rotateX(3240deg) rotateY(0); } }
+#loading.done > p { opacity: 0; animation: none; } /* the subtitle and the loading line carry their own opacity, which would outrank the rule above */
+#loading.done > #coinStage { opacity: 1; translate: none; } /* the coin outlasts the veil and the words; main.ts adds .fall at the top of a throw */
+#coinStage.fall { animation: coin-blur .8s ease-in both; } /* on the stage, not the coin: a filter on the 3D coin itself would flatten it */
+#coinStage.fall .toss { animation: coin-drop .8s cubic-bezier(.5, 0, .9, .6) both; } /* from the top of the throw, on down past where it is caught and into the world */
+#loading.done .coin { animation: coin-zoom 1.9s ease-in both; } /* the zoom out starts with the throw (the veil clearing) and ends as the coin reaches the globe: 1.1 s up, 0.8 s down */
+@keyframes coin-blur { from { filter: blur(0); } to { filter: blur(3px); } }
+@keyframes coin-zoom { to { scale: 0; rotate: x 900deg; } } /* the extra turns pick up as the toss's own flip eases off, so the coin is still spinning when it vanishes */
+@keyframes coin-drop { from { translate: 0 var(--y0, -64px); } to { translate: 0 calc(var(--y0, -64px) + var(--dy, 170px)); } } /* --y0 (main.ts) is where the coin is in its throw, --dy the way from there to the middle of the screen */
 #loading h1 { margin: 0; font-weight: 400; }
-#loading .bar { width: min(320px, 70vw); height: 4px; border-radius: 2px; background: #ffffff22; overflow: hidden; }
-#loadFill { width: 0; height: 100%; background: #d9b86c; transition: width .25s; }
-#loadMsg { margin: 0; font-size: 13px; opacity: .7; }
+#loading .sub { margin: -8px 0 0; font-family: var(--font-title); font-size: 13px; letter-spacing: .22em; text-transform: uppercase; opacity: .6; }
+#loadMsg { margin: 0; min-height: 1.4em; font-size: 16px; font-style: italic; letter-spacing: .04em; color: #d9b86c; animation: load-words .3s both; }
+@keyframes load-words { from { opacity: 0; translate: 0 4px; } to { opacity: .85; translate: 0 0; } } /* in quickly and stays until the next line replaces it, so the text is never blank */
 
 
 #loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #07050acc; color: #f0e3c2; font-size: 13px; }
 #loadHint[hidden] { display: none; }
 #status .credit a { color: inherit; text-decoration: underline; }
-#creditsBtn { background: none; border: 0; padding: 0; font: inherit; color: #b89f74; text-decoration: underline; cursor: pointer; }
-#credits { max-width: min(420px, 90vw); border: 0; border-radius: 8px; padding: 18px 22px; color: var(--text); }
-#credits::backdrop { background: #0008; }
-#credits h2 { margin: 0 0 8px; font-weight: 400; }
-#credits ul { margin: 0 0 14px; padding-left: 18px; line-height: 1.5; }
-#credits a { color: inherit; }
-#credits form button { padding: 4px 14px; cursor: pointer; }
+#creditsBtn, #contributeBtn { background: none; border: 0; padding: 0; font: inherit; color: #b89f74; text-decoration: underline; cursor: pointer; }
+#credits, #contribute { max-width: min(420px, 90vw); border: 0; border-radius: 8px; padding: 18px 22px; color: var(--text); }
+#credits::backdrop, #contribute::backdrop { background: #0008; }
+#credits h2, #contribute h2 { margin: 0 0 8px; font-weight: 400; }
+#credits ul, #contribute ol { margin: 0 0 14px; padding-left: 18px; line-height: 1.5; }
+#credits a, #contribute a { color: inherit; }
+#credits form button, #contribute form button { padding: 4px 14px; cursor: pointer; }
+#contribute p { margin: 0 0 10px; }
+#credits .made { margin: 0 0 14px; padding-top: 10px; border-top: 1px solid #ffffff22; font-size: 13px; text-align: center; color: var(--muted); }
+#contribute .links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 14px; }
 
 /* ---------- measuring wool (src/globe/measure.ts, src/ui/measurePanel.ts) ---------- */
 .fab[aria-pressed=true] { background: var(--burgundy); color: var(--gold-hi); }
@@ -290,7 +323,7 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
   --paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .92 0 0 0 0 .82 0 0 0 0 .62 .12 0 0 0 -.02'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --sheen: linear-gradient(155deg, #ffffff1c, #ffffff05 38%, #0000 60%);
 }
-.card, .searchbox, .fab, .zoom, #credits {
+.card, .searchbox, .fab, .zoom, #credits, #contribute {
   background-color: var(--glass);
   background-image: var(--paper), var(--sheen);
   -webkit-backdrop-filter: blur(32px) saturate(1.4);

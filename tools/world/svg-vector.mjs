@@ -1,4 +1,4 @@
-// Converts the Known World SVG maps (Abjiklam, CC BY-NC-SA 4.0) into src/vector-world.json: land, lakes, rivers and the
+// Converts the Known World SVG maps (Abjiklam, CC BY-NC-SA 4.0) into assets/world/vector-world.raw.json (then run coast-refine.mjs): land, lakes, rivers and the
 // Westeros regions as lat/lon rings and lines. The SVGs are plate carree at 88 px/degree: lon = (x - 2640) / 88,
 // lat = (6500 - y) / 88 (their viewBox is 10000 x 6667 for lon -30..83.64, lat 73.86..-1.90).
 // Usage: node tools/world/svg-vector.mjs <maps-dir>
@@ -72,7 +72,7 @@ const out = {
   rivers: rivers.flatMap((p) => p.rings.filter((r) => r.length > 1).map((r) => r.map(toLL))),
   regions,
 };
-writeFileSync('src/vector-world.json', JSON.stringify(out));
+writeFileSync('assets/world/vector-world.raw.json', JSON.stringify(out)); // the drawn coast; tools/world/coast-refine.mjs makes src/vector-world.json from it
 const pts = (a) => a.reduce((n, r) => n + r.length, 0);
 console.log(`land ${out.land.length} rings / ${pts(out.land)} pts; lakes ${out.lakes.length}; rivers ${out.rivers.length} / ${pts(out.rivers)} pts`);
 for (const r of regions) console.log(`  ${r.id.padEnd(16)} ${r.polygons.length} rings ${pts(r.polygons)} pts`);

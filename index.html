@@ -25,7 +25,7 @@
 </head>
 <body data-mode="globe">
   <noscript><h1>Open Westeros: The Known World of Ice and Fire</h1><p>An interactive 3D atlas of Westeros and Essos. Enable JavaScript to explore the map.</p></noscript>
-  <div id="loading"><h1>Open Westeros</h1><div class="bar"><div id="loadFill"></div></div><p id="loadMsg">Starting…</p></div>
+  <div id="loading"><div id="coinStage"><div class="toss"><div class="flip"><div class="coin"><img src="/coin/valar.webp" alt=""><img class="back" src="/coin/hood.webp" alt=""><i style="--z:-3.5px"></i><i style="--z:-2.5px"></i><i style="--z:-1.5px"></i><i style="--z:-0.5px"></i><i style="--z:0.5px"></i><i style="--z:1.5px"></i><i style="--z:2.5px"></i><i style="--z:3.5px"></i></div></div></div></div><h1>Open Westeros</h1><p class="sub">The Known World of Ice and Fire</p><p id="loadMsg"></p></div>
   <div id="globeLabels" class="labels"></div>
   <div id="viewer" hidden>
     <button class="close" aria-label="Close" title="Close (Esc)">×</button>
@@ -137,7 +137,8 @@
     <div class="scale"><span id="scaleMi"></span><span id="scaleKm"></span></div>
     <span id="coords"></span>
     <span id="altitude"></span>
-    <span class="credit">Maps © George R. R. Martin · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <span class="credit">Maps © George R. R. Martin · Ground textures from <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a> · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <button id="contributeBtn" type="button">Contribute</button>
     <button id="creditsBtn" type="button">Credits</button>
   </div>
 
@@ -148,11 +149,45 @@
       <li>Winterfell: Shadiversity / The True Winterfell SE</li>
       <li>Icons: <a href="https://game-icons.net/" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0)</li>
       <li>Place text: <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>; coats of arms by its contributors</li>
-      <li>Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></li>
+      <li>Red comet: <a href="https://www.deviantart.com/sreekuttan09/art/Red-comet-650108832" target="_blank" rel="noopener">Red comet</a> by sreekuttan09 on DeviantArt</li>
+      <li>Ground textures:<a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a> (CC0), by Rob Tuytel, Amal Kumar, Charlotte Baglioni, Dimitrios Savva, Rico Cilliers, Rohit Seervi and eye-candy.xyz</li>
     </ul>
+    <p class="made">Made with love and respect by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></p>
     <form method="dialog"><button>Close</button></form>
   </dialog>
 
+  <dialog id="contribute">
+    <h2>Contribute</h2>
+    <p>Open Westeros is built in the open, by anyone who loves a corner of the Known World.</p>
+    <ol>
+      <li><b>Open by default.</b> MIT code; pull requests are the plan.</li>
+      <li><b>Community built.</b> Each castle, city, road and river is a contribution.</li>
+      <li><b>Canon first, sources always.</b> The books, then the wiki. When canon is silent, we say so.</li>
+      <li><b>Honest scale.</b> One planet, real metres.</li>
+      <li><b>Reproducible, not redistributed.</b> Copyrighted art is never committed.</li>
+      <li><b>Small, readable pieces.</b> The simplest thing that works.</li>
+      <li><b>Credit the makers.</b> Names stay attached to what they made.</li>
+    </ol>
+    <p class="links">
+      <a href="https://github.com/eduardohilariodev/open-westeros" target="_blank" rel="noopener">Repository</a>
+      <a href="https://github.com/eduardohilariodev/open-westeros/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/eduardohilariodev/open-westeros/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing guide</a>
+      <a href="https://github.com/eduardohilariodev/open-westeros#manifesto" target="_blank" rel="noopener">Manifesto</a>
+    </p>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <script>
+    // The loading screen's words: things done in the world while the map loads, one every second and a half.
+    (() => {
+      const words = ['Sending ravens from the Citadel…', 'Unrolling the maesters’ maps…', 'Raising the Wall, block by block…', 'Lighting the beacon of the Hightower…', 'Riding the Kingsroad…', 'Crossing the Narrow Sea…', 'Following the Trident to the sea…', 'Waking the weirwoods…', 'Charting the Smoking Sea…', 'Forging links for the maesters’ chains…', 'Unfurling the banners of the great houses…', 'Crossing the Dothraki sea…', 'Counting the leagues of the Seven Kingdoms…', 'Gathering tales from the Free Cities…', 'Knocking at the House of Black and White…', 'Sharpening the dragonglass…', 'Feeding the ravens…', 'Opening the gates of Oldtown…'];
+      const el = document.getElementById('loadMsg');
+      let i = Math.floor(Math.random() * words.length);
+      const next = () => { el.textContent = words[i++ % words.length]; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; };
+      next();
+      setInterval(next, 1500);
+    })();
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

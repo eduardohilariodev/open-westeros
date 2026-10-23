@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const MIN_ALT = 30, // close enough to stand among a 3D place's buildings
+export const MIN_ALT = 30, // close enough to stand among a 3D place's buildings
  MAX_ALT = 40_000_000;
+export const GLOBE_MIN_ALT = 2_000; // zooming in stops here everywhere else: lower, the relief and the sea are not detailed enough to stand on
 const rad = THREE.MathUtils.degToRad;
 
 /**
  * The camera on the planet (planet-centred frame, metres): altitude zoom, grab-the-surface drag, tilt and heading, flights.
  * `groundAt(p)` is the drawn ground's height (m) under a point, so a tilt never buries the camera. `step` once a frame.
  */
-export function createCameraRig(camera: THREE.PerspectiveCamera, controls: OrbitControls, el: HTMLElement, R: number, home: { dir: THREE.Vector3; alt: number }, groundAt: (p: THREE.Vector3) => number) {
+export function createCameraRig(camera: THREE.PerspectiveCamera, controls: OrbitControls, el: HTMLElement, R: number, home: { dir: THREE.Vector3; alt: number }, groundAt: (p: THREE.Vector3) => number, minAlt: () => number = () => MIN_ALT) {
   const toNdc = (e: { clientX: number; clientY: number }) => {
     const r = el.getBoundingClientRect();
     return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -20,36 +21,49 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   let alt = home.alt, altGoal = alt;
   let tilt = 0; // radians from straight down; alt is then the distance to the ground point at the screen centre
   let heading = 0; // radians clockwise from north
+  let turn: { h0: number; t0: number } | null = null; // an eased turn back to north, cancelled by a drag
   const CLEARANCE = 200; // m the camera keeps above the ground
   const MAX_TILT = rad(85); // short of 90°, where the camera would sit on the ground
   // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
-  let anchor: THREE.Vector3 | null = null;
+  let anchor: THREE.Vector3 | null = null, anchorR = R; // anchorR: radius of the ground under it (relief included)
   const anchorNdc = new THREE.Vector2();
-  const zoomTo = (a: number) => { anim = null; altGoal = THREE.MathUtils.clamp(a, MIN_ALT, MAX_ALT); };
+  const zoomTo = (a: number) => { anim = null; altGoal = THREE.MathUtils.clamp(a, minAlt(), MAX_ALT); };
   const onWheel = (e: WheelEvent) => {
     if (!controls.enabled) return;
     e.preventDefault();
     const ndc = toNdc(e);
     // keep the existing anchor while the zoom is still easing, so a fast wheel doesn't re-pick a drifting point
-    if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001) {
-      ray.setFromCamera(ndc, camera);
-      anchor = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
-      anchorNdc.copy(ndc);
-    }
+    if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001 || ndc.distanceTo(anchorNdc) > 0.002) setAnchor(ndc); // a moved cursor takes a new anchor
     zoomTo(altGoal * Math.pow(1.0015, e.deltaY));
   };
-  /** Rotate the camera about the planet centre so the spot `dir` is under `ndc`. */
-  const pinTo = (dir: THREE.Vector3, ndc: THREE.Vector2) => {
+  /** The ground under `ndc`: its direction from the planet centre and its radius (the drawn relief, not the bare sphere). */
+  const pickGround = (ndc: THREE.Vector2) => {
     camera.updateMatrixWorld();
     ray.setFromCamera(ndc, camera);
-    if (!ray.ray.intersectSphere(planet, hit)) return;
+    planet.radius = R;
+    if (!ray.ray.intersectSphere(planet, hit)) return null;
+    planet.radius = R + Math.max(0, groundAt(hit));
+    if (!ray.ray.intersectSphere(planet, hit)) { planet.radius = R; ray.ray.intersectSphere(planet, hit); }
+    const r = hit.length();
+    planet.radius = R;
+    return { dir: hit.clone().normalize(), r };
+  };
+  const setAnchor = (ndc: THREE.Vector2) => { const g = pickGround(ndc); anchor = g?.dir ?? null; anchorR = g?.r ?? R; anchorNdc.copy(ndc); };
+  /** Rotate the camera about the planet centre so the spot `dir` (on the sphere of radius `r`) is under `ndc`. */
+  const pinTo = (dir: THREE.Vector3, ndc: THREE.Vector2, r = R) => {
+    camera.updateMatrixWorld();
+    ray.setFromCamera(ndc, camera);
+    planet.radius = r;
+    const ok = ray.ray.intersectSphere(planet, hit);
+    planet.radius = R;
+    if (!ok) return;
     const q = new THREE.Quaternion().setFromUnitVectors(hit.normalize(), dir);
     camera.position.applyQuaternion(q);
     camera.quaternion.premultiply(q);
   };
   const holdAnchor = () => {
     if (!anchor) return;
-    if (Math.abs(Math.log(alt / altGoal)) < 0.001) anchor = null; else pinTo(anchor, anchorNdc);
+    if (Math.abs(Math.log(alt / altGoal)) < 0.001) anchor = null; else pinTo(anchor, anchorNdc, anchorR);
   };
 
   // Dragging grabs the surface: the spot under the pointer stays under it (replaces OrbitControls' angular rotate).
@@ -57,55 +71,64 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   // Place names sit in a separate overlay, so the same listeners go on both. Capture starts only once the pointer has
   // moved a few px, so a plain click on a name still reaches the name.
   // Shift-drag tilts and turns instead, about the ground point at the screen centre: up/down tilts, left/right turns.
-  let grab: THREE.Vector3 | null = null, dragging = false, tilting = false, down = { x: 0, y: 0 };
+  let grab: THREE.Vector3 | null = null, grabR = R, dragging = false, tilting = false, down = { x: 0, y: 0 };
   // Two fingers pinch-zoom about their midpoint, the same anchored altitude zoom as the wheel.
   const touches = new Map<number, { x: number; y: number }>();
   let pinchDist = 0;
   const pinchSpan = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
   const pinchMid = () => { const [a, b] = [...touches.values()]; return toNdc({ clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 }); };
+  // The same two fingers also tilt (both slide up/down together) and turn (twist), like Google Maps.
+  let pinchAngle = 0, pinchMidY = 0;
+  const pinchTwist = () => { const [a, b] = [...touches.values()]; return Math.atan2(b.y - a.y, b.x - a.x); };
+  const pinchY = () => { const [a, b] = [...touches.values()]; return (a.y + b.y) / 2; };
   const release = (e?: PointerEvent) => {
     if (e && touches.delete(e.pointerId) && touches.size === 1) pinchDist = 0; // the rest of the pinch is not a drag
     if (touches.size === 0) pinchDist = 0;
     grab = null; dragging = tilting = false;
+    document.body.classList.remove('grabbing');
   };
   const attachInput = (t: HTMLElement) => {
     t.style.touchAction = 'none'; // the browser must not pan or page-zoom over the globe
     t.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch' && controls.enabled) {
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (touches.size === 2) { grab = null; dragging = false; anim = anchor = null; pinchDist = pinchSpan(); return; }
+        if (touches.size === 2) { grab = null; dragging = false; anim = anchor = null; pinchDist = pinchSpan(); pinchAngle = pinchTwist(); pinchMidY = pinchY(); return; }
       }
       if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
       anim = anchor = null;
       down = { x: e.clientX, y: e.clientY };
-      if (e.shiftKey) { tilting = true; el.setPointerCapture(e.pointerId); return; }
-      ray.setFromCamera(toNdc(e), camera);
-      grab = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
+      if (e.shiftKey) { tilting = true; document.body.classList.add('grabbing'); el.setPointerCapture(e.pointerId); return; }
+      const g = pickGround(toNdc(e));
+      grab = g?.dir ?? null; grabR = g?.r ?? R;
     });
     t.addEventListener('pointermove', (e) => {
       if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.size === 2 && pinchDist) {
         const d = pinchSpan();
         if (d < 1) return;
-        if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001) {
-          const ndc = pinchMid();
-          ray.setFromCamera(ndc, camera);
-          anchor = ray.ray.intersectSphere(planet, hit) ? hit.clone().normalize() : null;
-          anchorNdc.copy(ndc);
-        }
+        if (!anchor || Math.abs(Math.log(alt / altGoal)) < 0.001) setAnchor(pinchMid());
         zoomTo(altGoal * pinchDist / d); // fingers apart (d grows) lowers the altitude
         pinchDist = d;
+        // twist turns the map with the fingers (wrapped so crossing ±π isn't a jump); sliding together tilts
+        const ang = pinchTwist(), my = pinchY();
+        let da = ang - pinchAngle;
+        da -= Math.round(da / (2 * Math.PI)) * 2 * Math.PI;
+        heading = (heading - da) % (2 * Math.PI);
+        tilt = THREE.MathUtils.clamp(tilt - (my - pinchMidY) * 0.005, 0, MAX_TILT);
+        turn = null;
+        pinchAngle = ang; pinchMidY = my;
         return;
       }
       if (tilting) {
         tilt = THREE.MathUtils.clamp(tilt - e.movementY * 0.005, 0, MAX_TILT);
+        turn = null;
         heading = (heading + e.movementX * 0.005) % (2 * Math.PI);
         return;
       }
       if (!grab) return;
       if (!dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 4) return;
-      if (!dragging) { dragging = true; el.setPointerCapture(e.pointerId); }
-      pinTo(grab, toNdc(e));
+      if (!dragging) { dragging = true; document.body.classList.add('grabbing'); el.setPointerCapture(e.pointerId); }
+      pinTo(grab, toNdc(e), grabR);
     });
     t.addEventListener('pointerup', release);
     t.addEventListener('pointercancel', release);
@@ -169,7 +192,13 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     get alt() { return alt; },
     get tilt() { return tilt; },
     get heading() { return heading; },
-    set heading(h: number) { heading = h; },
+    set heading(h: number) { turn = null; heading = h; },
+    /** Turns to north up by the short way round, easing over 0.6 s. */
+    turnToNorth() {
+      const h0 = Math.atan2(Math.sin(heading), Math.cos(heading)); // wrapped to (-π, π]
+      heading = h0;
+      turn = { h0, t0: performance.now() };
+    },
     /** Back to straight down and north up, flying to `home`. */
     goHome() { tilt = heading = 0; flyToDir(home.dir, home.alt); },
     zoomBy: (f: number) => zoomTo(altGoal * f),
@@ -181,6 +210,11 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     },
     /** Once a frame: moves the camera for the zoom, flight, tilt and heading. */
     step(dt: number, now: number) {
+      if (turn) {
+        const t = Math.min(1, (now - turn.t0) / 600);
+        heading = turn.h0 * (1 - ease(t));
+        if (t === 1) { heading = 0; turn = null; }
+      }
       if (tilt) { // undo last frame's tilt: back above the ground point at the screen centre
         camera.updateMatrixWorld();
         ray.setFromCamera(new THREE.Vector2(), camera);

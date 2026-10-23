@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-22T23:11:28.362Z",
         "reason": "pre-existing: the place panel's hero, gallery and tile <img> get their src from src/ui/placePanel.ts at runtime; not added by the measuring tool"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-23T01:40:49.026Z",
+        "reason": "user confirmed: asked to ignore the repeated flat-type-hierarchy finding on index.html"
       }
     ]
   }

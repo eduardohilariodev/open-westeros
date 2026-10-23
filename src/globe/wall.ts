@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PLANET } from '../config';
 import { toVector } from '../geo';
 import { LIFT_GLSL } from './lift';
 import { chaikin } from './rivers';
@@ -19,6 +20,7 @@ attribute vec3 dirT; // unit direction along the Wall
 attribute vec3 wall; // side (-1 south face, 1 north face), top (0 foot, 1 crest), facing (-1, 1 the faces, 0 the crest)
 uniform float uPixel;
 varying vec3 vDir, vN;
+varying vec2 vIce; // metres along the Wall and up its face (or across the crest), for the ice photo
 void main() {
   vDir = normalize(position);
   // the ground as the relief mesh has it: baked height plus the detail a mesh about 6 px fine shows here
@@ -29,6 +31,7 @@ void main() {
   vec3 across = cross(dirT, vDir); // north for a Wall running east
   vN = wall.z == 0.0 ? vDir : normalize(across * wall.z + vDir * 0.35);
   c += across * wall.x * w * 0.5 + vDir * mix(-${SINK_M.toFixed(1)}, ${HEIGHT_M.toFixed(1)}, wall.y) * uDisplace;
+  vIce = vec2(atan(vDir.x, vDir.z) * ${PLANET.radius.toFixed(1)}, wall.z == 0.0 ? asin(clamp(vDir.y, -1.0, 1.0)) * ${PLANET.radius.toFixed(1)} + wall.x * w * 0.5 : wall.y * ${HEIGHT_M.toFixed(1)});
   gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
   #include <logdepthbuf_vertex>
 }`;

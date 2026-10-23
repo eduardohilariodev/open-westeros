@@ -12,7 +12,7 @@ import roadData from '../roads.json';
 import type { Ring } from './viewLayer';
 import { AREA_KINDS, easeFont, FONT_DEFAULT, FONT_PX, wrap } from './labelText';
 import { PIN_BOX, PLACE_ICONS, PLACE_KINDS } from './placeIcons';
-import { createCameraRig } from './cameraRig';
+import { createCameraRig, GLOBE_MIN_ALT, MIN_ALT } from './cameraRig';
 import { createMeasure } from './measure';
 import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
@@ -45,45 +45,89 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
 
   // ---------- planet ----------
   const ocean = papered(new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false })));
-  // Haze: the shell's far side is drawn over everything, and each pixel's ray is marched through it for the air it crosses
-  // (up to the ground if it hits the planet). From space that is a glow round the limb; from low down it fades the distant
-  // ground into the sky and gives the horizon a gradient above it. Colour goes from teal to SKY as the camera comes down.
+  // Atmosphere: the shell's far side is drawn over everything, and each pixel's ray is marched through it (up to the ground if it
+  // hits the planet). From space that is a blue glow round the limb; from low down it fades the distant ground into the sky.
+  const ATMO = 1.09; // the shell is ~5x thicker than Earth's 100 km so the limb glow is wide enough to see; coefficients are divided by that so a look straight down is still Earth-like
   const atmoMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, transparent: true, depthTest: false, depthWrite: false,
-    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4a8af0) }, uSky: { value: SKY }, uLow: { value: 0 }, uFade: { value: 1 }, uGroundA: { value: 1 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
+    uniforms: { uGround: { value: R }, uTop: { value: R * ATMO }, uGroundA: { value: 1 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
     vertexShader: `varying vec3 vW;
       void main() { vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
-    fragmentShader: `uniform float uGround, uTop, uLow, uFade, uNight, uGroundA; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
-      const float HS = 15000.0, TAU0 = 30000.0; // scale height of the air (Earth's 8.5 km, stretched for looks); the path (m of sea-level air) that is ~63% haze
+    // Single scattering after Hillaire / Bruneton: Rayleigh (1/lambda^4, scale height 8 km), Mie (grey, Cornette-Shanks phase, scale height
+    // 1.2 km) and ozone absorption (a tent layer at 25 km), Earth's coefficients at (680, 550, 440) nm. Heights are stretched to the shell (uTop - uGround = 100 km x KS).
+    // Each sample's sun light is attenuated by its own march to the sun and cut by the planet's shadow; a small isotropic term stands in for
+    // multiple scattering. No LUTs: one ray per pixel is cheap enough here.
+    fragmentShader: `uniform float uGround, uTop, uNight, uGroundA; uniform vec3 uSun; varying vec3 vW;
+      const vec3 BR = vec3(5.802e-6, 13.558e-6, 33.1e-6), BO = vec3(0.65e-6, 1.881e-6, 0.085e-6);
+      const float BMS = 3.996e-6, BMA = 0.444e-6, G = 0.8, SUN = 9.0, EXPOSURE = 1.0;
+      float HR, HM, KS; // scale heights of the air and of the haze, and the planet's size against Earth's
+      vec2 sphere(vec3 o, vec3 d, float r) { float b = dot(o, d), h = b * b - (dot(o, o) - r * r); return h < 0.0 ? vec2(1e30, -1e30) : vec2(-b - sqrt(h), -b + sqrt(h)); }
+      vec3 extinction(float h) {
+        float oz = max(0.0, 1.0 - abs(h / KS - 25000.0) / 15000.0);
+        return (BR * exp(-h / HR) + (BMS + BMA) * exp(-h / HM) + BO * oz) / KS;
+      }
+      vec3 sunTransmittance(vec3 p) { // optical depth from p towards the sun, to the top of the air
+        vec2 s = sphere(p, uSun, uTop);
+        float dt = s.y / 5.0; vec3 tau = vec3(0.0);
+        for (int i = 0; i < 5; i++) tau += extinction(length(p + uSun * (float(i) + 0.5) * dt) - uGround) * dt;
+        return exp(-tau);
+      }
+      vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
       void main() {
+        KS = (uTop - uGround) / 1e5; HR = 8000.0 * KS; HM = 1200.0 * KS;
         vec3 ro = cameraPosition, rd = normalize(vW - cameraPosition);
-        float b = dot(ro, rd), c = dot(ro, ro);
-        float h = sqrt(max(b * b - (c - uTop * uTop), 0.0));
-        float t0 = max(-b - h, 0.0), t1 = -b + h;
-        float g = b * b - (c - uGround * uGround);
+        vec2 top = sphere(ro, rd, uTop), gr = sphere(ro, rd, uGround);
+        float t0 = max(top.x, 0.0), t1 = top.y;
         float night = 0.0; bool hit = false;
-        if (g > 0.0 && -b - sqrt(g) > 0.0) { // the ground ends the ray
-          t1 = -b - sqrt(g); hit = true;
-          vec3 p = normalize(ro + rd * t1);
-          night = 0.97 * uNight * smoothstep(0.0, -0.2, dot(p, uSun)); // the unlit half: N.L < 0, with a soft terminator
+        if (gr.x > 0.0 && gr.x < 1e29) { // the ground ends the ray
+          t1 = gr.x; hit = true;
+          night = 0.97 * uNight * smoothstep(0.0, -0.2, dot(normalize(ro + rd * t1), uSun)); // the unlit half: N.L < 0, with a soft terminator
         }
-        // only sunlit air glows: each sample counts by the sun at its own point, so the night air is clear, not a dark veil
-        float dt = (t1 - t0) / 32.0, tau = 0.0;
-        for (int i = 0; i < 32; i++) {
+        // Two passes share this shader: the haze over the ground (rays that hit it), drawn over everything, and the sky (rays that miss), drawn
+        // behind the relief with the depth test, so a ridge standing above the smooth planet's horizon is not painted out by it.
+        #ifdef SKY_PASS
+        if (hit) discard;
+        #else
+        if (!hit) discard;
+        #endif
+        float mu = dot(rd, uSun), g2 = G * G;
+        float pr = 3.0 / (16.0 * 3.14159) * (1.0 + mu * mu);
+        float pm = 3.0 / (8.0 * 3.14159) * (1.0 - g2) * (1.0 + mu * mu) / ((2.0 + g2) * pow(1.0 + g2 - 2.0 * G * mu, 1.5));
+        const int N = 24;
+        float dt = (t1 - t0) / float(N);
+        vec3 tau = vec3(0.0), L = vec3(0.0);
+        for (int i = 0; i < N; i++) {
           vec3 q = ro + rd * (t0 + (float(i) + 0.5) * dt);
-          float lit = mix(1.0, smoothstep(-0.25, 0.05, dot(q, uSun) / length(q)), uNight);
-          tau += exp((uGround - length(q)) / HS) * lit * dt;
+          float h = length(q) - uGround;
+          vec3 ext = extinction(h) * dt, T = exp(-tau - 0.5 * ext);
+          vec3 sc = BR * exp(-h / HR) / KS, sm = BMS * exp(-h / HM) / KS * vec3(1.0);
+          vec2 sh = sphere(q, uSun, uGround);
+          float lit = sh.x > 0.0 && sh.y > 0.0 ? 0.0 : 1.0; // the planet's shadow
+          vec3 Ts = sunTransmittance(q) * lit;
+          vec3 phase = sc * pr + sm * pm, ms = (sc + sm) * 0.3 / (4.0 * 3.14159); // multiple scattering: isotropic, a third of the first order
+          L += T * Ts * (phase + ms) * dt;
+          tau += ext;
         }
+        vec3 col = aces(L * SUN * EXPOSURE);
+        vec3 T = exp(-tau);
         // The veil knows only the smooth planet, not the relief standing on it, so near the ground it is capped: no fog wall at the horizon for mountains to sink into.
-        float a = mix(0.95, 0.35, uLow) * mix(0.25, 1.0, uFade) * (1.0 - exp(-tau / TAU0)); // uFade: the glow thins below ~1,500 km
-        if (hit) a *= uGroundA; // the flat map is not washed pale by it (setEnabled below)
-        vec3 haze = mix(mix(uTeal, vec3(0.55, 0.72, 1.0), a * a), uSky, uLow);
+        // w: 1 inside the air, 0 well above it (smooth in between), so the sky never switches on or off at some height; above, the march alone decides
+        float H = uTop - uGround, w = 1.0 - smoothstep(0.15 * H, 1.2 * H, length(ro) - uGround);
+        float cap = mix(0.95, 0.35, w);
+        if (hit) cap = mix(cap, 0.85, w * smoothstep(3e5, 1.5e6, t1)); // far ground fades into the horizon's haze
+        if (hit) cap *= uGroundA; // the flat map is not washed pale by it (setEnabled below)
+        float a = (1.0 - dot(T, vec3(0.3333))) * cap;
+        if (!hit) { a = mix(a, 1.0, w); cap = mix(cap, 1.0, w); } // from low down the sky is the scattering itself, not the flat colour behind it
         float A = 1.0 - (1.0 - a) * (1.0 - night); // the night veil lies under the haze
-        gl_FragColor = vec4(haze * a / max(A, 1e-4), A);
+        gl_FragColor = vec4(col * cap / max(A, 1e-4), A); // premultiplied scattering over the night veil
         #include <colorspace_fragment>
       }`,
   });
-  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * 1.025, 96, 48), atmoMat);
+  const skyMat = new THREE.ShaderMaterial({ uniforms: atmoMat.uniforms, defines: { SKY_PASS: '' }, vertexShader: atmoMat.vertexShader, fragmentShader: atmoMat.fragmentShader, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: false });
+  const skyShell = new THREE.Mesh(new THREE.SphereGeometry(R * ATMO, 96, 48), skyMat);
+  skyShell.renderOrder = -0.4; // over the stars (-1) and the sun and moon (-0.5), under the relief
+  skyShell.frustumCulled = false;
+  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(R * ATMO, 96, 48), atmoMat);
   atmosphere.renderOrder = 300; // after the relief, its lines and its clouds (200), which it veils
   atmosphere.frustumCulled = false;
   const stars = (() => { // Milky Way panorama on a sphere round the scene
@@ -93,6 +137,89 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     m.renderOrder = -1;
     return m;
   })();
+  // Sun and moon: sprites on a sphere inside the star dome, hidden by the planet like anything behind it. The sun stands over the
+  // middle of the map (where the haze shader puts noon); the moon is the full-moon photo, added so its black sky drops out.
+  const sky = (() => {
+    const SKY_R = 1.5e8, tex = (size: number, draw: (g: CanvasRenderingContext2D) => void) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      draw(c.getContext('2d')!);
+      return new THREE.CanvasTexture(c);
+    };
+    const mat = (map: THREE.Texture, depthTest = true) => new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, depthWrite: false, depthTest, toneMapped: false, fog: false });
+    const at = (d: THREE.Vector3, deg: number, map: THREE.Texture) => {
+      const s = new THREE.Sprite(mat(map));
+      s.position.copy(d).multiplyScalar(SKY_R);
+      s.scale.setScalar(2 * SKY_R * Math.tan(rad(deg / 2)));
+      s.renderOrder = -0.5; // over the stars (-1), under everything else
+      return s;
+    };
+    const radial = (g: CanvasRenderingContext2D, stops: [number, string][]) => {
+      const n = g.canvas.width / 2, gr = g.createRadialGradient(n, n, 0, n, n, n);
+      for (const [o, c] of stops) gr.addColorStop(o, c);
+      g.fillStyle = gr; g.fillRect(0, 0, 2 * n, 2 * n);
+    };
+    const sunDir = atmoMat.uniforms.uSun.value as THREE.Vector3; // over the middle of the map, where the haze shader puts noon
+    // the real disc: 0.53° across, darker and redder towards its limb, I = 1 - 0.6 (1 - mu)
+    const disc = at(sunDir, 0.53, tex(64, (g) => radial(g, [0, 0.5, 0.8, 0.95, 1].map((r): [number, string] => {
+      const I = 1 - 0.6 * (1 - Math.sqrt(1 - r * r));
+      return [r * 0.96, `rgb(${255 * I | 0},${(250 - 60 * (1 - I)) * I | 0},${(235 - 120 * (1 - I)) * I | 0})`];
+    }).concat([[1, 'rgba(255,200,130,0)']]))));
+    // the shine: a wide, soft, gaussian-like bloom and a starburst of spokes, both blurred
+    const bloom = at(sunDir, 18, tex(256, (g) => radial(g, [[0, 'rgba(255,244,220,0.95)'], [0.03, 'rgba(255,240,205,0.6)'], [0.1, 'rgba(255,226,170,0.28)'], [0.25, 'rgba(255,214,150,0.1)'], [0.55, 'rgba(255,205,140,0.025)'], [1, 'rgba(255,200,130,0)']])));
+    const rays = at(sunDir, 38, tex(256, (g) => {
+      g.translate(128, 128);
+      g.filter = 'blur(1.5px)';
+      g.lineCap = 'round';
+      for (let i = 0; i < 12; i++) {
+        const L = i % 2 ? 80 : 124, gr = g.createLinearGradient(-L, 0, L, 0);
+        gr.addColorStop(0, 'rgba(255,235,200,0)'); gr.addColorStop(0.5, `rgba(255,240,215,${i % 2 ? 0.45 : 0.7})`); gr.addColorStop(1, 'rgba(255,235,200,0)');
+        g.strokeStyle = gr; g.lineWidth = i % 2 ? 1.5 : 2.5;
+        g.rotate(Math.PI / 12 + (i % 3) * 0.004);
+        g.beginPath(); g.moveTo(-L, 0); g.lineTo(L, 0); g.stroke();
+      }
+    }));
+    // lens flare: ghosts on the line through the middle of the screen, at k times the sun's screen position; size is a share of the screen height
+    const ghosts = ([[0.55, 0.05, '170,120,255', 0, 0.4], [-0.35, 0.12, '255,190,120', 1, 0.3], [-0.8, 0.04, '255,220,140', 0, 0.6], [-1.4, 0.18, '120,170,255', 1, 0.18], [1.6, 0.07, '255,150,90', 0, 0.25]] as const).map(([k, size, rgb, ring, a]) => {
+      const s = new THREE.Sprite(mat(tex(128, (g) => radial(g, ring ? [[0, `rgba(${rgb},0)`], [0.6, `rgba(${rgb},0.02)`], [0.82, `rgba(${rgb},0.7)`], [1, `rgba(${rgb},0)`]] : [[0, `rgba(${rgb},0.8)`], [0.5, `rgba(${rgb},0.3)`], [1, `rgba(${rgb},0)`]])), false));
+      s.renderOrder = 400; // in the lens: over the haze and the planet
+      return { s, k, size, a };
+    });
+    const moonMap = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/moon.jpg`);
+    moonMap.colorSpace = THREE.SRGBColorSpace;
+    // The moon and the comet are fixed among the stars (the planet never turns), set by where they stand on the home view's screen:
+    // tangents of the angle right of and above the view's centre (the planet), 45° tall, so 1 px = 1/1062 of a 880 px-high window.
+    const ahead = HOME.dir.clone().negate(), upHome = new THREE.Vector3(0, 1, 0).addScaledVector(ahead, -ahead.y).normalize(), rightHome = new THREE.Vector3().crossVectors(ahead, upHome);
+    // the camera is off the sphere's middle, so the spot is found from the camera, then taken as a direction from the middle
+    const home = (right: number, up: number) => camera.position.clone().addScaledVector(ahead.clone().addScaledVector(rightHome, right).addScaledVector(upHome, up).normalize(), SKY_R).normalize();
+    const moon = at(home(-0.452, -0.221), 3.82, moonMap); // the jpg is cropped to the disc (673 of the photo's 704 px)
+    moon.material.color.setScalar(0.85);
+    // the red comet (photo by sreekuttan09, see Credits): 820 x 570 crop with its sky subtracted, so additive blending leaves only the comet
+    const cometMap = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/red_comet.png`);
+    cometMap.colorSpace = THREE.SRGBColorSpace;
+    const comet = at(home(0.652, 0.178), 15, cometMap);
+    comet.scale.y *= 570 / 820;
+    const group = new THREE.Group();
+    group.add(bloom, rays, disc, moon, comet, ...ghosts.map((x) => x.s));
+    const ndc = new THREE.Vector3(), p = new THREE.Vector3();
+    /** Place the ghosts for this camera; they fade out as the sun leaves the screen or goes behind the planet. */
+    const flare = (cam: THREE.PerspectiveCamera) => {
+      const o = cam.position, b = o.dot(sunDir), d = b * b - (o.lengthSq() - R * R);
+      ndc.copy(sunDir).multiplyScalar(SKY_R).project(cam);
+      const behind = d > 0 && -b - Math.sqrt(d) > 0;
+      bloom.visible = rays.visible = !behind; // the planet in front of the sun: no corona poking out round the limb
+      const v = behind || ndc.z > 1 ? 0 : 1 - THREE.MathUtils.smoothstep(Math.max(Math.abs(ndc.x), Math.abs(ndc.y)), 0.8, 1.5);
+      const D = 1e7, h = 2 * D * Math.tan(rad(cam.fov / 2));
+      for (const { s, k, size, a } of ghosts) {
+        s.visible = v > 0;
+        if (!s.visible) continue;
+        s.position.copy(p.set(ndc.x * k, ndc.y * k, 0.5).unproject(cam).sub(o).normalize().multiplyScalar(D).add(o));
+        s.scale.setScalar(h * size);
+        s.material.opacity = v * a;
+      }
+    };
+    return { group, flare };
+  })();
   const headlight = new THREE.DirectionalLight(0xffffff, 1.6);
   const regions = createRegions(R), terrain = createTerrain(R);
   const relief = createRelief(terrain.fills, terrain.strokes, ocean, terrain.rivers); // shaded canon relief; off = the flat parchment map
@@ -101,7 +228,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const setRelief = relief.setEnabled;
   relief.setEnabled = (on: boolean) => { setRelief(on); atmoMat.uniforms.uGroundA.value = on ? 1 : 0.2; terrain.restyle(!on); };
   scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r, rig.tilt); // the relief's detail follows the camera drawn
-  scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
+  scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, skyShell, stars, sky.group, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
   // ---------- sites: ordinary places on the map whose scene loads when the camera comes close ----------
   const ids = Object.keys(SITES) as SiteId[];
@@ -156,7 +283,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   type Place = (typeof places)[number];
   /** A river's or road's name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
   type LineCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
-  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[]; pts: Ring; mid: THREE.Vector3 };
+  /** `ctr`, `cap` (rad) and `ball` bound the line, so a whole line off the screen or past the horizon is skipped; `step` is its mean vertex spacing, m. */
+  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[]; pts: Ring; mid: THREE.Vector3; ctr: THREE.Vector3; cap: number; ball: THREE.Sphere; step: number };
   /**
    * Type size by altitude, in px per kind: an exponential ease (base FONT_B) from the small end at the top of a kind's
    * height band to the large end at its bottom, so names grow gently as you come down, like zoom-interpolated text-size in
@@ -175,7 +303,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     els.forEach((e, i) => (e.style.display = shown[i]));
   };
   measure();
-  document.fonts.ready.then(measure);
+  document.fonts.ready.then(() => { measure(); labelVersion++; }); // async: labelVersion is declared by then
   // When names overlap on screen, the higher tier keeps its spot: continents, oceans, regions, cities, then ever smaller places.
   const RANK = ['continent', 'ocean', 'region', 'population', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'monument', 'landmark', 'battle', 'ruin', 'minor'];
   const ranked = [...places].sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
@@ -249,7 +377,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       if (run + seg >= len / 2) { mid = pos[k - 1].clone().lerp(pos[k], (len / 2 - run) / (seg || 1)); break; }
       run += seg;
     }
-    p.line = { pos, dirs: pos.map((v) => v.clone().normalize()), copies, pts: best.line, mid: mid.normalize() };
+    const dirs = pos.map((v) => v.clone().normalize());
+    const ctr = dirs.reduce((s, d) => s.add(d), new THREE.Vector3()).normalize();
+    const cap = Math.max(...dirs.map((d) => Math.acos(Math.min(1, ctr.dot(d)))));
+    const ball = new THREE.Sphere(ctr.clone().multiplyScalar(R + 3000), 2 * (R + 3000) * Math.sin(Math.min(cap, Math.PI) / 2) + 1000);
+    p.line = { pos, dirs, copies, pts: best.line, mid: mid.normalize(), ctr, cap, ball, step: len / Math.max(1, pos.length - 1) };
   });
   /** Douglas-Peucker: drop points within `eps` px of the chord. Screen-space, so the tolerance is the same at every altitude. */
   const simplify = (pts: Ring, eps: number): Ring => {
@@ -277,15 +409,15 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
    * line. Repeats must be LINE_SPACING px apart. Samples run left to right so the text reads upright.
    * ponytail: windows every tw/4 and a greedy pick; a global optimiser if names still sit badly
    */
-  const lineStretches = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3) => {
-    let run: Ring = [], bestRun = run; // the longest run of vertices on the near side, in screen px
-    const v = new THREE.Vector3();
-    r.pos.forEach((q, k) => {
-      if (cam.dot(r.dirs[k]) <= cosLimit) { run = []; return; }
-      v.copy(q).project(camera);
+  const lineStretches = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3, stride: number) => {
+    let run: Ring = [], bestRun = run; // the longest run of vertices on the near side, in screen px (every `stride`th vertex: finer than a pixel is lost to the simplify below)
+    const v = new THREE.Vector3(), n = r.pos.length;
+    for (let k = 0; k < n; k = k === n - 1 ? n : Math.min(k + stride, n - 1)) {
+      if (cam.dot(r.dirs[k]) <= cosLimit) { run = []; continue; }
+      v.copy(r.pos[k]).project(camera);
       run.push([((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight]);
       if (run.length > bestRun.length) bestRun = run;
-    });
+    }
     if (bestRun.length < 2) return [];
     const line = chaikin(simplify(bestRun, 1.5), 2), s = [0];
     for (let k = 1; k < line.length; k++) s.push(s[k - 1] + Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]));
@@ -356,7 +488,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const setPin = (p: Place | null) => { // the pin takes the place of the place's own symbol
     if (pinned) (pinned.obj as CSS2DObject).element.classList.remove('pinned');
     pinned = p;
-    order = p ? [p, ...ranked.filter((q) => q !== p)] : ranked;
+    labelVersion++;
+    order =p ? [p, ...ranked.filter((q) => q !== p)] : ranked;
     pin.visible = !!p && (!AREA_KINDS.has(p.kind) || !!p.line); // area lettering marks itself; a river or road with a line gets a pin at its middle
     if (!p) return;
     pinName.textContent = p.name;
@@ -364,9 +497,12 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     (p.obj as CSS2DObject).element.classList.add('pinned');  };
   let showNames = true;
   const hiddenKinds = new Set<string>();
+  let labelVersion = 0, labelSig = '', labelSince = 0; // bumped by anything besides the camera that changes which names show
 
-  const tmp = new THREE.Vector3();
-  const rig = createCameraRig(camera, controls, renderer.domElement, R, HOME, (p) => relief.groundAt(p));
+  const tmp = new THREE.Vector3(), frustum = new THREE.Frustum(), viewProj = new THREE.Matrix4();
+  // zooming in stops at 2 km, except within a 3D place's draw distance, where the camera may come down to the streets
+  const rig = createCameraRig(camera, controls, renderer.domElement, R, HOME, (p) => relief.groundAt(p),
+    () => ids.some((id) => camera.position.distanceTo(frames[id].origin) < SITES[id].drawDistance) ? MIN_ALT : GLOBE_MIN_ALT);
 
   [renderer.domElement, labelsEl].forEach(rig.attachInput);
 
@@ -399,7 +535,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     scene, camera, controls, labels, attachInput: rig.attachInput, ocean, terrain, relief, wool,
     nav: {
       heading: () => rig.heading,
-      resetNorth() { rig.heading = 0; },
+      resetNorth() { rig.turnToNorth(); },
       zoom: rig.zoomBy,
       canTilt: false,
       tilt: () => rig.tilt,
@@ -409,9 +545,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       pick: rig.pick,
       metresPerPixel: () => (2 * rig.alt * Math.tan(rad(camera.fov / 2))) / innerHeight,
     },
-    setNamesVisible(v: boolean) { showNames = v; },
+    setNamesVisible(v: boolean) { showNames = v; labelVersion++; },
     setBordersVisible: (_v: boolean) => {}, // replaced below, once the region interaction exists
-    setKindVisible(kind: string, v: boolean) { if (v) hiddenKinds.delete(kind); else hiddenKinds.add(kind); },
+    setKindVisible(kind: string, v: boolean) { if (v) hiddenKinds.delete(kind); else hiddenKinds.add(kind); labelVersion++; },
     /** How many names of each kind the maps have (for the legend). */
     kindCounts: places.reduce((c, p) => ((c[p.kind] = (c[p.kind] ?? 0) + 1), c), {} as Record<string, number>),
     /** Every named place on the maps, for search: [name, kind] in the order flyToPlace expects. */
@@ -454,17 +590,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     setSky() {
       const f = THREE.MathUtils.clamp(Math.log(600_000 / Math.max(rig.alt, 1)) / Math.log(600_000 / 150_000), 0, 1);
       (scene.background as THREE.Color).copy(SPACE).lerp(SKY, f);
-      atmoMat.uniforms.uLow.value = f;
-      atmoMat.uniforms.uFade.value = THREE.MathUtils.smoothstep(Math.log(rig.alt), Math.log(600_000), Math.log(1_500_000));
       stars.visible = f < 1; // dimmed by the sky as it brightens
       (stars.material as THREE.MeshBasicMaterial).opacity = 1 - f;
+      sky.group.visible = f < 1; // like the stars, gone once the blue sky is in
     },
     update(dt: number, now: number) {
       rig.step(dt, now);
+      sky.flare(camera);
       const alt = rig.alt;
       terrain.setRiverWidth(alt);
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
-      atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
       wool.update(camera, view.nav.metresPerPixel());
       // from this far out the roads are a tangle; they fade in over the last quarter of the way down, tracks over the last third
@@ -473,6 +608,17 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
       camera.updateMatrixWorld();
+      // The name pass depends only on the camera, the window and `labelVersion`: once none has changed for 400 ms (past the
+      // 300 ms fade-outs, so every name has settled) it is skipped until one does.
+      const { position: cp, quaternion: cq } = camera;
+      const st = alt * 4e-6, sa = 1e-5; // steps of ~1% of a pixel, so the zoom's float-precision creep doesn't count as motion
+      const sig = `${labelVersion}|${Math.round(Math.log(alt) / 1e-5)}|${Math.round(cp.x / st)}|${Math.round(cp.y / st)}|${Math.round(cp.z / st)}|${Math.round(cq.x / sa)}|${Math.round(cq.y / sa)}|${Math.round(cq.z / sa)}|${Math.round(cq.w / sa)}|${innerWidth}|${innerHeight}`;
+      if (sig !== labelSig) { labelSig = sig; labelSince = now; }
+      else if (now - labelSince > 400) return;
+      // a river or road is only laid out if its bounding ball is not past the horizon and is in the view: otherwise it has no stretch on screen anyway
+      const horizon = Math.acos(Math.min(1, cosLimit)), mpp = view.nav.metresPerPixel();
+      frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      const lineSeen = (l: LineLabel) => Math.acos(Math.min(1, cam.dot(l.ctr))) - l.cap <= horizon && frustum.intersectsSphere(l.ball);
       const taken = createDeclutter(); // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
       for (const p of order) {
         let on = showNames && !hiddenKinds.has(p.kind) && alt < p.lod[0] && alt > (p.lod[2] ?? 0) && cam.dot(p.up) > cosLimit;
@@ -486,11 +632,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         }
         if (p.line) { // a river or road with a line is named along it, not at a point (its plain label stays off)
           const shown: number[][][] = [];
-          if (on && p !== pinned) { // the focused river's or road's name is on its pin
+          if (on && p !== pinned && lineSeen(p.line)) { // the focused river's or road's name is on its pin
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
             // the line is a few px wide this far out (metres of a typical river over metres per pixel); the name sits just above it
             const off = Math.max(1.3, LINE_WIDTH_M[p.kind] / view.nav.metresPerPixel()) / 2 + 2;
-            for (const pts of lineStretches(p.line, tw, th, off, cosLimit, cam)) {
+            for (const pts of lineStretches(p.line, tw, th, off, cosLimit, cam, Math.max(1, Math.floor((0.75 * mpp) / p.line.step)))) {
               const h = off + th, xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
               const b = [Math.min(...xs), Math.min(...ys) - h, Math.max(...xs), Math.max(...ys) + h];
               if (!taken.claim(b)) continue;

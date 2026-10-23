@@ -71,8 +71,10 @@ float detailH(vec3 d, float base, float spacing) {
   vec3 p = d * ${(PLANET.radius / 1000).toFixed(1)};
   float amp = 0.015 + 0.42 * smoothstep(0.3, 1.8, base), s = 0.0, a = 0.5, f = 0.25;
   for (int i = 0; i < 6; i++) {
+    float fade = smoothstep(2.0, 4.0, 1.0 / (f * spacing));
+    if (fade <= 0.0) break; // this octave and every finer one is out of reach: no need to evaluate them
     float n = 1.0 - abs(vnoise(p * f) * 2.0 - 1.0);
-    s += a * (n * n - 0.4) * smoothstep(2.0, 4.0, 1.0 / (f * spacing));
+    s += a * (n * n - 0.4) * fade;
     a *= 0.5; f *= 2.0;
   }
   return s * amp;
@@ -100,14 +102,18 @@ float baseHeight(vec2 uv) {
   vec2 w0 = (1.0 - f) * (1.0 - f) * (1.0 - f) / 6.0, w1 = (4.0 - 6.0 * f * f + 3.0 * f * f * f) / 6.0;
   vec2 w3 = f * f * f / 6.0, w2 = 1.0 - w0 - w1 - w3, s0 = w0 + w1, s1 = w2 + w3;
   vec2 a = (i - 0.5 + w1 / s0) / size, b = (i + 1.5 + w3 / s1) / size;
-  return uHeightMax * (s0.y * (s0.x * textureLod(tH, vec2(a.x, a.y), 0.0).r + s1.x * textureLod(tH, vec2(b.x, a.y), 0.0).r)
-                     + s1.y * (s0.x * textureLod(tH, vec2(a.x, b.y), 0.0).r + s1.x * textureLod(tH, vec2(b.x, b.y), 0.0).r));
+  float h = uHeightMax * (s0.y * (s0.x * textureLod(tH, vec2(a.x, a.y), 0.0).r + s1.x * textureLod(tH, vec2(b.x, a.y), 0.0).r)
+                        + s1.y * (s0.x * textureLod(tH, vec2(a.x, b.y), 0.0).r + s1.x * textureLod(tH, vec2(b.x, b.y), 0.0).r));
+  // Sea level only at the shore line itself: the ground keeps its baked height right up to where cover is 0.5 and falls to the
+  // water over the last ~tenth of a pixel, so a high coast is a sea cliff, not a ramp (the mesh sinks its sea-side vertices to
+  // meet it, MESH_VERT).
+  return h * smoothstep(0.5, 0.6, textureLod(tH, uv, 0.0).g);
 }
 vec3 lift(vec3 p) {
   vec3 d = normalize(p);
   vec2 uv = vec2((degrees(atan(d.x, d.z)) - uBounds.x) / (uBounds.y - uBounds.x), (uBounds.w - degrees(asin(clamp(d.y, -1.0, 1.0)))) / (uBounds.w - uBounds.z));
   float km = all(greaterThan(uv, vec2(0.0))) && all(lessThan(uv, vec2(1.0))) ? baseHeight(uv) : 0.0;
-  return raise(p, km + 0.03);
+  return raise(p, km + 0.004 + 0.026 * smoothstep(0.05, 0.4, km)); // the hair over the mesh: a few metres at the shore (it is scaled by uDisplace like the height, so 0.03 there would hold every coast line ~100 m above the sea), the full 0.03 in the hills where the mesh's detail is larger
 }
 `;
 

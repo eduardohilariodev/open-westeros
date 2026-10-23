@@ -4,7 +4,9 @@
   "description": "Community-built, Google Earth-style 3D atlas of the Known World",
   "main": "index.js",
   "scripts": {
-    "test": "node --test src/declutter.test.ts src/measureUnits.test.ts",
+    "test": "node --test src/declutter.test.ts src/measureUnits.test.ts src/groundMap.test.ts tools/world/coast-refine.test.mjs",
+    "coast": "node tools/world/coast-refine.mjs",
+    "coast:run": "node tools/world/coast-run.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "plan": "node tools/sites/kingsLanding/plan.mjs",
@@ -16,6 +18,7 @@
     "winterfell:collect": "node tools/sites/winterfell/collect.mjs",
     "winterfell": "node tools/sites/winterfell/import.mjs",
     "relief": "node tools/world/relief-bake.mjs",
+    "ground": "node tools/world/ground-fetch.mjs",
     "wiki": "node tools/wiki/scrape.mjs --places && node tools/wiki/place-info.mjs && node tools/wiki/scrape.mjs --sigils",
     "site-wiki": "node tools/sites/site-wiki.mjs",
     "prepare": "git config core.hooksPath .githooks || true",

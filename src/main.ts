@@ -14,7 +14,8 @@ inject();
 // One renderer, several scenes: the planet (planet-centred frame) and one local scene per 3D place.
 // Zooming close to such a place on the globe hands the camera over to its scene, and back.
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const MAX_RATIO = Math.min(devicePixelRatio, 2);
+renderer.setPixelRatio(MAX_RATIO);
 renderer.setSize(innerWidth, innerHeight);
 renderer.autoClear = false; // the globe's pass clears; the site scene is drawn over it
 renderer.shadowMap.enabled = true;
@@ -26,7 +27,6 @@ const $ = (id: string) => document.getElementById(id)!;
 
 // Loading overlay: covers the canvas until the first frame is rendered. Heavy setup is synchronous,
 // so yield a frame to let the message paint.
-$('loadMsg').textContent = 'Building the globe…';
 await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 
 const globe = createGlobeView(renderer, $('globeLabels'), showCard);
@@ -173,50 +173,130 @@ results.addEventListener('mousedown', (e) => {
 });
 
 // Start in 3D: keep the loading screen up until the relief maps and mesh are in (on failure it resolves and stays flat).
-$('loadMsg').textContent = 'Loading terrain…';
-const bar = $('loadFill');
-const tick = setInterval(() => { bar.style.width = `${10 + 85 * globe.relief.progress()}%`; }, 100);
 await globe.relief.ready;
-clearInterval(tick);
+globe.relief.warm(renderer, globe.camera);
 
 let ready = false;
 let last = performance.now();
 const debug = $('debug');
 debug.hidden = !import.meta.env.DEV;
-let fps = 60;
+const debugText = document.createElement('span'), debugBtn = document.createElement('button');
+debugBtn.textContent = '–'; debugBtn.title = 'Minimise';
+debugBtn.onclick = () => { const min = debug.classList.toggle('min'); debugBtn.textContent = min ? '+' : '–'; debugBtn.title = min ? 'Expand' : 'Minimise'; };
+debug.append(debugBtn, debugText);
+// what the pointer is doing, mirroring cameraRig: left press = click, left drag past 4 px = drag, shift+drag = rotate/tilt, two fingers = pinch/twist
+let input = 'idle', pressAt: { x: number; y: number } | null = null, fingers = 0;
+if (import.meta.env.DEV) {
+  const opt = { capture: true, passive: true } as const;
+  addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') fingers++; pressAt = { x: e.clientX, y: e.clientY }; input = fingers > 1 ? 'pinch/twist' : e.shiftKey ? 'rotating (shift)' : 'click'; }, opt);
+  addEventListener('pointermove', (e) => {
+    if (!e.buttons || !pressAt) return;
+    if (fingers > 1) input = 'pinch/twist';
+    else if (e.shiftKey) input = 'rotating (shift)';
+    else if (Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) >= 4) input = 'dragging';
+  }, opt);
+  const up = (e: PointerEvent) => { if (e.pointerType === 'touch') fingers = Math.max(0, fingers - 1); if (!fingers) { pressAt = null; input = 'idle'; } };
+  addEventListener('pointerup', up, opt); addEventListener('pointercancel', up, opt);
+}
+let fps = 60, cpuMs = 0;
+if (import.meta.env.DEV) Object.assign(window, { __globe: globe, __renderer: renderer, __THREE: THREE, __wake: () => wake(60_000) }); // for profiling from the console: toggle layers, keep rendering
+
+// Render on demand: a still globe costs nothing. The loop keeps running but only draws while something is awake: an input
+// event (a drag counts, a bare mouse move does not), the camera moving, the measuring wool, a 3D place in view, and the
+// first seconds (textures arrive on their own).
+let awakeUntil = performance.now() + 5000;
+const wake = (ms = 1000) => { awakeUntil = Math.max(awakeUntil, performance.now() + ms); };
+for (const t of ['pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'input', 'change', 'click', 'resize', 'visibilitychange'])
+  addEventListener(t, () => wake(), { capture: true, passive: true });
+addEventListener('pointermove', (e) => { if (e.buttons) wake(); }, { capture: true, passive: true });
+globe.relief.onGround = () => wake(1500); // a ground photo arrived (relief/ground.ts): draw it
+
+// Slow GPUs, in order: while the camera moves the ground shader goes lean (no fine procedural detail, `relief.lean`) at full
+// resolution; only if frames still run long does the canvas shrink to `moveRatio`. Both undo after two quiet seconds of fast
+// frames, and a camera at rest (150 ms) is redrawn rich and at full ratio, which costs one frame now the loop is on demand.
+const cam = globe.camera, lastPos = new THREE.Vector3(), lastQuat = new THREE.Quaternion();
+const MIN_MOVE_RATIO = Math.min(MAX_RATIO, 0.75); // never blurrier than this: a safety net for slow GPUs, not the way to be fast
+let ratio = MAX_RATIO, moveRatio = MAX_RATIO, lean = false, movedAt = -1e9, frameMs = 16.7, fastFrames = 0;
 renderer.setAnimationLoop((now) => {
-  const dt = Math.min(0.1, (now - last) / 1000);
+  if (now >= awakeUntil && !globe.wool.active && sites.drawnId() === null) { last = now; return; }
+  const cpu0 = performance.now(), gap = now - last;
+  const dt = Math.min(0.1, gap / 1000);
   last = now;
   // The globe is the only view. A 3D place loads as the camera nears it and is drawn over the globe from the camera's own
   // pose, faded in over the last stretch of its draw distance.
   globe.update(dt, now);
   $('loadHint').hidden = !sites.update();
   globe.setSky();
+  // moved = by more than ~1% of a pixel (the zoom's ease creeps for seconds at float precision); drift adds up against the last position that counted
+  const step = globe.nav.altitude() * 4e-6;
+  if (cam.position.distanceToSquared(lastPos) > step * step || cam.quaternion.angleTo(lastQuat) > 1e-5) { lastPos.copy(cam.position); lastQuat.copy(cam.quaternion); movedAt = now; wake(700); }
+  const moving = now - movedAt < 150;
+  if (moving && gap < 100) { // frame interval while moving, to size the canvas for the machine
+    frameMs += (gap - frameMs) * 0.1;
+    if (frameMs > 24 && (!lean || moveRatio > MIN_MOVE_RATIO)) {
+      if (!lean) lean = true; else moveRatio = Math.max(MIN_MOVE_RATIO, moveRatio - 0.125);
+      frameMs = 16.7; fastFrames = 0;
+    } else if (frameMs < 18 && ++fastFrames > 120 && (lean || moveRatio < MAX_RATIO)) {
+      if (moveRatio < MAX_RATIO) moveRatio = Math.min(MAX_RATIO, moveRatio + 0.125); else lean = false;
+      fastFrames = 0;
+    } else if (frameMs >= 18) fastFrames = 0;
+  }
+  const want = moving ? moveRatio : MAX_RATIO;
+  if (want !== ratio) { ratio = want; renderer.setPixelRatio(ratio); }
+  globe.relief.lean = moving && lean;
   renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it
   globe.labels.render(globe.scene, globe.camera);
   sites.render();
   if (pendingStyle !== null) { crossfade(pendingStyle); pendingStyle = null; } // after the whole frame, so the copy is complete
   nav.update();
+  cpuMs += (performance.now() - cpu0 - cpuMs) * 0.05;
   if (import.meta.env.DEV) {
-    fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
+    if (gap < 100) fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
     const n = globe.nav, c = n.pick(new THREE.Vector2(0, 0)), deg = THREE.MathUtils.radToDeg;
-    debug.textContent = [
-      sites.drawnId() ?? 'globe',
-      c ? `centre ${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°` : 'centre: sky',
-      `alt ${(n.altitude() / 1000).toFixed(1)} km`,
-      `tilt ${deg(n.tilt()).toFixed(1)}°`,
-      `heading ${((deg(n.heading()) % 360) + 360) % 360 | 0}°`,
-      `${n.metresPerPixel().toFixed(0)} m/px`,
-      `${fps.toFixed(0)} fps`,
-      `${renderer.info.render.calls} calls`,
-    ].join('  |  ');
+    debugText.textContent = [
+      [
+        sites.drawnId() ?? 'globe',
+        c ? `centre ${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°` : 'centre: sky',
+        `alt ${(n.altitude() / 1000).toFixed(1)} km`,
+        `tilt ${deg(n.tilt()).toFixed(1)}°`,
+        `heading ${((deg(n.heading()) % 360) + 360) % 360 | 0}°`,
+        `${n.metresPerPixel().toFixed(0)} m/px`,
+      ].join('  |  '),
+      [
+        `input ${input}`,
+        `${fps.toFixed(0)} fps`,
+        `cpu ${cpuMs.toFixed(1)} ms`,
+        `ratio ${ratio.toFixed(2)} (moving ${moveRatio.toFixed(2)})${lean ? ' lean' : ''}`,
+        `${renderer.info.render.calls} calls`,
+      ].join('  |  '),
+    ].join('\n');
   }
   if (!ready) { // first frame is on screen: reveal the world
     ready = true;
-    $('loadFill').style.width = '100%';
-    const el = $('loading');
-    el.classList.add('done');
-    setTimeout(() => el.remove(), 1500); // after the 1.4 s fade (style.css #loading)
+    // The loading screen is held for at least MIN_LOAD_MS so the coin gets its turns. Then the finale starts as a throw begins:
+    // the veil clears while the coin rises spinning, and at the top it falls on into the world (style.css #coinStage.fall).
+    // Both steps follow the coin's own animation clock, frame by frame: a timer would fire late while the page is busy, with the coin mid-air.
+    const MIN_LOAD_MS = 3200, APEX = 0.42, LAUNCH = 0.1; // APEX: where coin-toss peaks, as a share of its cycle; LAUNCH: how far into a throw still counts as its start
+    const el = $('loading'), stage = $('coinStage'), toss = stage.querySelector('.toss')!.getAnimations()[0];
+    const fall = () => {
+      const r = stage.querySelector('.coin')!.getBoundingClientRect();
+      stage.style.setProperty('--y0', getComputedStyle(stage.querySelector('.toss')!).translate.split(' ')[1] || '0px'); // where the coin is in its throw
+      stage.style.setProperty('--dy', `${innerHeight / 2 - (r.top + r.height / 2)}px`); // from there to the middle of the screen, where the globe is
+      stage.classList.add('fall');
+      setTimeout(() => el.remove(), 900);
+    };
+    if (toss) {
+      const { delay, duration } = toss.effect!.getComputedTiming(), cycle = +duration!;
+      let launched = -1;
+      const follow = () => {
+        const t = (+toss.currentTime! - +delay!) / cycle, k = Math.floor(t), phase = t - k;
+        if (launched < 0) {
+          if (t >= 0 && phase < LAUNCH && performance.now() >= MIN_LOAD_MS) { launched = k; el.classList.add('done'); }
+        } else if (phase >= APEX || k > launched) return fall();
+        requestAnimationFrame(follow);
+      };
+      requestAnimationFrame(follow);
+    } else { el.classList.add('done'); setTimeout(() => el.remove(), 1700); }
   }
 });
 
@@ -240,3 +320,8 @@ globe.labels.setSize(innerWidth, innerHeight);
 const creditsDlg = document.getElementById("credits") as HTMLDialogElement;
 document.getElementById("creditsBtn")!.addEventListener("click", () => creditsDlg.showModal());
 creditsDlg.addEventListener("click", (e) => { if (e.target === creditsDlg) creditsDlg.close(); });
+
+// contribute dialog
+const contributeDlg = document.getElementById("contribute") as HTMLDialogElement;
+document.getElementById("contributeBtn")!.addEventListener("click", () => contributeDlg.showModal());
+contributeDlg.addEventListener("click", (e) => { if (e.target === contributeDlg) contributeDlg.close(); });
