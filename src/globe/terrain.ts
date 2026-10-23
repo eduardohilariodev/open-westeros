@@ -91,10 +91,11 @@ export function createTerrain(R: number) {
     lit.visible = !!pts;
     if (!pts) return;
     const g = lineGeometry([dense(pts)], r + ROAD_LIFT, false);
-    // drawn last and without the depth test, so close in the relief's own heights never hide it
+    // Drawn last and without the depth test, so the relief's heights never hide it. It is in the transparent pass: the opaque
+    // pass comes first whatever the renderOrder, and the river ribbons (relief.ts), clouds and atmosphere are all transparent.
     for (const [color, width, top] of [[ROAD_CASING, 6, 1], [ROAD_LIT, 3.4, 2]] as const) {
       const m = lineMesh(g, color, width, 10_000 + top);
-      (m.material as THREE.Material).depthTest = false;
+      Object.assign(m.material, { depthTest: false, transparent: true });
       lit.add(m);
     }
   };
