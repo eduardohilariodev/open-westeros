@@ -21,7 +21,7 @@ body[data-mode=site] .globe-only, body[data-mode=site] #globeLabels, .labels[hid
 .card { background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); }
 
 /* ---------- search + drawer ---------- */
-#side { position: fixed; top: 12px; left: 12px; width: 360px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 24px); z-index: 2; }
+#side { position: fixed; top: 12px; left: 12px; width: 360px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 24px); z-index: 30; } /* above the measure card, nav and status, so the search results cover them */
 .searchbox { display: flex; align-items: center; height: 48px; padding: 0 12px 0 4px; background: var(--surface); border-radius: 24px; box-shadow: var(--shadow); }
 .searchbox input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 18px; background: none; min-width: 0; }
 .searchbox .search-icon { width: 22px; height: 22px; fill: var(--muted); }
