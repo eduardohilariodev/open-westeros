@@ -2,7 +2,7 @@
 // Usage: node tools/world/merge-names.mjs <file> [<file>...]
 import { appendFileSync, readFileSync } from 'node:fs';
 
-const RAW = 'tools/world/places.raw.txt', KINDS = new Set('city town capital castle minor ruin island mountain forest wild region sea ocean lake river landmark'.split(' '));
+const RAW = 'tools/world/places.raw.txt', KINDS = new Set('city town capital castle minor ruin island mountain forest wild region sea ocean lake river landmark battle monument population'.split(' '));
 const norm = (s) => s.toLowerCase().replace(/\(.*?\)/g, '').replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
 const seen = new Set(readFileSync(RAW, 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#')).map((l) => norm(l.split('|')[0])));
 const keep = [], skipped = [];

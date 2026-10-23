@@ -2,7 +2,7 @@ import world from '../vector-world.json';
 import terrainData from '../terrain.json';
 import roadData from '../roads.json'; // tools/blog/roads-trace.mjs
 import * as THREE from 'three';
-import { fillGeometry, fillMesh, lineGeometry, lineMesh, polygons, syncLines } from './gpuVector';
+import { fillGeometry, fillMesh, lineGeometry, lineMesh, papered, polygons, syncLines } from './gpuVector';
 import type { Ring } from './viewLayer';
 import { chaikin } from './rivers';
 import { wallLine } from './wallLine';
@@ -10,13 +10,15 @@ import { wallLine } from './wallLine';
 // The vector map: sea, land, lakes and rivers from the Known World SVG maps (src/vector-world.json), with terrain (plains,
 // forest, swamp, desert, hills, mountains, snow) from src/terrain.json and the roads from src/roads.json, as GPU geometry draped on the planet. The layers are
 // drawn bottom to top by renderOrder and sit 7 m under the surface, just below the ground of the 3D sites.
-export const TERRAIN_SEA = 0x0f2f4c;
-// Parchment and gold on a deep teal sea, illuminated-manuscript style, drawn bottom to top.
+export const TERRAIN_SEA = 0x12181c;
+// Weathered parchment and gold on a dark teal-charcoal sea (the Game of Thrones map, darkened to sit with the interface), drawn bottom to top.
 const TERRAIN: [id: string, fill: string, stroke?: string][] = [
-  ['desert', '#d4b06a'], ['hills', '#c9b483'], ['mountains', '#b39a68', '#6b5a3a'], ['forest', '#4f7a70'], ['swamp', '#6f8a72'], ['snow', '#f1ead6'],
+  ['desert', '#c8984f'], ['hills', '#b4a070'], ['mountains', '#9a8860', '#4a3320'], ['forest', '#486a5e'], ['swamp', '#5c7867'], ['snow', '#dcd8c6'],
 ];
-const LAND = '#d8c79a', WATER = '#' + TERRAIN_SEA.toString(16).padStart(6, '0'), COAST = '#b8954f', RIVER = '#1f5552', ROAD = '#f0d9a0', ROAD_CASING = '#2a1a08', WALL = '#5fa3c0';
+const LAND = '#c7b27c', WATER = '#' + TERRAIN_SEA.toString(16).padStart(6, '0'), COAST = '#7a5428', RIVER = '#3b6f97', ROAD = '#f0d9a0', ROAD_CASING = '#2a1a08', WALL = '#1f160d';
 
+// The flat map is inked like an old chart: sepia lines (coast, rivers, mountains, roads) on parchment, roads with a pale halo.
+const INK = '#4a3320', HALO = '#ead7a4';
 const ROAD_LIT = '#e02020';
 const ROAD_LIFT = 350; // m above the baked ground
 /** The line with a vertex at least every `step` degrees (~3.5 km). */
@@ -58,21 +60,21 @@ export function createTerrain(R: number) {
   let order = 1;
   const add = <T extends THREE.Object3D>(o: T) => (group.add(o), o);
   // fills by class ('land' and 'lakes' included), class outlines and rivers, for relief.ts and the look lab to restyle
-  const fills: Record<string, THREE.Mesh> = { land: add(fillMesh(fillGeometry(polygons(world.land as Ring[]), r), LAND, order++)) };
+  const fills: Record<string, THREE.Mesh> = { land: add(papered(fillMesh(fillGeometry(polygons(world.land as Ring[]), r), LAND, order++))) };
   const strokes: THREE.Object3D[] = [];
   for (const [id, fill, stroke] of TERRAIN) {
     const polys = terrainPolys.get(id) ?? [];
-    fills[id] = add(fillMesh(fillGeometry(polys, r), fill, order++));
+    fills[id] = add(papered(fillMesh(fillGeometry(polys, r), fill, order++)));
     if (stroke) strokes.push(add(lineMesh(lineGeometry(polys.flat(), r, true), stroke, 0.9, order++)));
   }
   // coast lines belong to the flat map only: in relief the shoreline is the terrain itself (relief.ts hides `strokes`)
   strokes.push(add(lineMesh(lineGeometry(world.land as Ring[], r, true), COAST, 1.2, order++)));
   // the Wall, on the line of the 3D mesh (wall.ts); like the coast, flat map only: in relief the mesh stands there
-  strokes.push(add(lineMesh(lineGeometry([dense(chaikin(wallLine()))], r, false), WALL, 2.4, order++)));
+  strokes.push(add(lineMesh(lineGeometry([dense(chaikin(wallLine()))], r, false), WALL, 5, order++)));
   const lakeRings = world.lakes.flatMap((l) => l.rings as Ring[]);
-  fills.lakes = add(fillMesh(fillGeometry(world.lakes.flatMap((l) => polygons(l.rings as Ring[])), r), WATER, order++));
+  fills.lakes = add(papered(fillMesh(fillGeometry(world.lakes.flatMap((l) => polygons(l.rings as Ring[])), r), WATER, order++)));
   strokes.push(add(lineMesh(lineGeometry(lakeRings, r, true), COAST, 1, order++)));
-  const rivers = add(lineMesh(lineGeometry(world.rivers as Ring[], r, false), RIVER, 1.1, order++));
+  const rivers = add(lineMesh(lineGeometry(world.rivers as Ring[], r, false), RIVER, 2, order++));
   // The relief lifts a line at its vertices only, so the road is cut into short pieces to follow the heights between them, and
   // rides ROAD_LIFT above the baked ground to stay clear of the mesh's finer detail.
   const roadLines = lineGeometry((roadData.roads.map((l) => l.pts) as Ring[]).map((l) => dense(l)), r + ROAD_LIFT, false);
@@ -99,5 +101,29 @@ export function createTerrain(R: number) {
       lit.add(m);
     }
   };
-  return { object: group, refresh: syncLines, fills, strokes, rivers, roads, tracks, highlight };
+  /** Roads and tracks: heavier ink with a pale halo on the flat map, the light road with a dark edge over the relief. */
+  const restyle = (flat: boolean) => {
+    // [halo width, line width] px: on the flat map a road is as heavy as a river (2)
+    const widths = flat ? { roads: [3.6, 2], tracks: [2.6, 1.4] } : { roads: [3, 1.4], tracks: [2.2, 1] };
+    for (const [name, g] of [['roads', roads], ['tracks', tracks]] as const) {
+      const [casing, line] = (g.children as THREE.Mesh[]).map((m) => m.material as THREE.Material & { color: THREE.Color; linewidth: number });
+      casing.color.set(flat ? HALO : ROAD_CASING); line.color.set(flat ? INK : ROAD);
+      [casing.linewidth, line.linewidth] = widths[name];
+    }
+  };
+  // roads and tracks fade in and out with the height (fadeRoads), so they are drawn in the transparent pass from the start
+  const roadMeshes = [roads, tracks].map((g) => g.children as THREE.Mesh[]);
+  for (const m of roadMeshes.flat()) (m.material as THREE.Material).transparent = true;
+  /** Roads (or tracks) at opacity f: hidden at 0. */
+  const fadeRoads = (which: 'roads' | 'tracks', f: number) => {
+    const g = which === 'roads' ? roads : tracks;
+    g.visible = f > 0.002;
+    for (const m of g.children as THREE.Mesh[]) (m.material as THREE.Material).opacity = f;
+  };
+  /** The flat map's river lines are thin from high up and reach full weight (2 px) from 600 km down. */
+  const setRiverWidth = (alt: number) => {
+    const f = THREE.MathUtils.clamp(Math.log(6_000_000 / Math.max(alt, 1)) / Math.log(6_000_000 / 600_000), 0, 1);
+    (rivers.material as THREE.Material & { linewidth: number }).linewidth = 0.7 + 1.3 * f;
+  };
+  return { object: group, restyle, setRiverWidth, fadeRoads, refresh: syncLines, fills, strokes, rivers, roads, tracks, highlight };
 }

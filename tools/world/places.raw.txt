@@ -1,7 +1,7 @@
 # name | kind | painted px,py | atlas tile dx,dy   ('-' = not on that map). Atlas dx,dy are as displayed in tiles2/t_<tile>.jpg
 # --- far north / the Wall ---
 The Lands of Always Winter|region|1450,170|0_0 1083,747
-Thenn|region|-|0_0 1147,1210
+Thenn|mountain|-|0_0 1147,1210
 The Frostfangs|mountain|1380,700|0_0 1010,1430
 Giant's Stair|landmark|-|0_0 1135,1430
 The Haunted Forest|forest|1650,750|0_0 1375,1520
@@ -213,7 +213,7 @@ Greenshield|castle|-|0_2500 727,1875
 Haystack Hall|castle|-|0_2500 1700,1787
 Bronzegate|castle|-|0_2500 1720,1818
 Felwood|castle|-|0_2500 1590,1848
-Wendwater Bridge|minor|-|0_2500 1648,1755
+Wendwater Bridge|battle|-|0_2500 1648,1755
 Highgarden|capital|1218,3495|0_5000 978,63
 Oldtown|city|1008,3740|0_5000 795,278
 The Arbor|island|830,4050|0_5000 580,525
@@ -514,10 +514,10 @@ King's Landing|site|1821,3075>ll:34.93,-7.748|0_2500 1510,1637
 Winterfell|site|1544,1542|0_2500 1262,300
 # --- more names read off the political atlas (full-resolution atlas px) ---
 Ice River|river|-|@1200,2075
-Ice River Clans|region|-|@1262,2012
-Cave-dwellers|region|-|@1600,1682
-Nightrunner Tribes|region|-|@1817,1734
-Hornfoot Tribes|region|-|@1832,1871
+Ice River Clans|population|-|@1262,2012
+Cave-dwellers|population|-|@1600,1682
+Nightrunner Tribes|population|-|@1817,1734
+Hornfoot Tribes|population|-|@1832,1871
 Forktop|minor|-|@1495,1992
 The Antler|river|-|@1915,1986
 Storrord's Point|landmark|-|@2140,1985
@@ -559,7 +559,7 @@ Harroway|minor|-|@1810,4163
 Ruby Ford|minor|-|@1825,4187
 Lambswold|castle|-|@1600,4152
 Willow Wood|castle|-|@1428,4158
-Stone Mill|minor|-|@1515,4182
+Stone Mill|battle|-|@1515,4182
 Lychester|castle|-|@1647,4195
 Atranta|castle|-|@1546,4215
 Sherrer|castle|-|@1473,4273
@@ -576,15 +576,15 @@ Widow's Ford|minor|-|@1918,4197
 Saltpans|minor|-|@1950,4212
 Quiet Isle|minor|-|@1981,4229
 Gods Eye River|river|-|@1847,4540
-Field of Fire|minor|-|@1655,4560
-Redgrass Field|minor|-|@1782,4580
+Field of Fire|battle|-|@1655,4560
+Redgrass Field|battle|-|@1782,4580
 The Northmarch|region|-|@1525,4770
 Lesser Mander|river|-|@1310,4740
 New Barrel|minor|-|@1390,4946
 Appleton|castle|-|@1321,4979
 Cider Hall|castle|-|@1433,4990
 Grassfield Keep|castle|-|@1730,4880
-Grassy Vale|region|-|@1707,4868
+Grassy Vale|town|-|@1707,4868
 Griffin's Roost|castle|ll:30.908,-4.589|@2205,4995
 Gates of the Moon|castle|ll:42.267,-6.15|@2125,4028
 Giant's Lance|landmark|ll:42.34,-6.18|@1988,3975
@@ -647,7 +647,7 @@ The Qhoyne|river|-|@3858,4620
 Barter Beach|minor|-|@4863,7165
 Talon|island|-|@4945,7152
 Basilisk Bay|sea|-|@4880,7423
-Field of Crows|minor|-|@5070,4653
+Field of Crows|battle|-|@5070,4653
 Lonely Hill|landmark|-|@5621,4853
 Black Fort|town|-|@5410,7063
 Howling Mountain|mountain|-|@5070,7087

@@ -15,7 +15,7 @@ export type Place = { name: string; kind: string; pos: [number, number, number];
 
 /** The globe kind a site kind is named and shown as (symbol, colour, type size, and the kind the place panel gives it). */
 export const GLOBE_KIND: Record<string, string> = {
-  castle: 'castle', keep: 'castle', tower: 'ruin', sept: 'landmark', pit: 'landmark', gate: 'landmark', hall: 'town', square: 'town',
+  castle: 'castle', keep: 'castle', tower: 'ruin', sept: 'monument', pit: 'monument', gate: 'landmark', hall: 'town', square: 'town',
   place: 'minor', wood: 'forest', hill: 'mountain', district: 'region', water: 'lake', street: 'road', road: 'road',
 };
 

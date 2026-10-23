@@ -17,6 +17,7 @@ import { createMeasure } from './measure';
 import { createRegions, regionAt, regionNamed } from './regions';
 import { createRelief } from './relief';
 import B from './relief-bounds.json';
+import { papered } from './gpuVector';
 import { createTerrain, TERRAIN_SEA } from './terrain';
 import { WALL_CASTLES } from './wall';
 
@@ -43,16 +44,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const labels = new CSS2DRenderer({ element: labelsEl });
 
   // ---------- planet ----------
-  const ocean = new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false }));
+  const ocean = papered(new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false })));
   // Haze: the shell's far side is drawn over everything, and each pixel's ray is marched through it for the air it crosses
   // (up to the ground if it hits the planet). From space that is a glow round the limb; from low down it fades the distant
   // ground into the sky and gives the horizon a gradient above it. Colour goes from teal to SKY as the camera comes down.
   const atmoMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, transparent: true, depthTest: false, depthWrite: false,
-    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4a8af0) }, uSky: { value: SKY }, uLow: { value: 0 }, uFade: { value: 1 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
+    uniforms: { uGround: { value: R }, uTop: { value: R * 1.025 }, uTeal: { value: new THREE.Color(0x4a8af0) }, uSky: { value: SKY }, uLow: { value: 0 }, uFade: { value: 1 }, uGroundA: { value: 1 }, uSun: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, /* noon over the middle of the map: the night is the far side of the planet */ uNight: { value: 1 } },
     vertexShader: `varying vec3 vW;
       void main() { vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
-    fragmentShader: `uniform float uGround, uTop, uLow, uFade, uNight; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
+    fragmentShader: `uniform float uGround, uTop, uLow, uFade, uNight, uGroundA; uniform vec3 uTeal, uSky, uSun; varying vec3 vW;
       const float HS = 15000.0, TAU0 = 30000.0; // scale height of the air (Earth's 8.5 km, stretched for looks); the path (m of sea-level air) that is ~63% haze
       void main() {
         vec3 ro = cameraPosition, rd = normalize(vW - cameraPosition);
@@ -60,9 +61,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         float h = sqrt(max(b * b - (c - uTop * uTop), 0.0));
         float t0 = max(-b - h, 0.0), t1 = -b + h;
         float g = b * b - (c - uGround * uGround);
-        float night = 0.0;
+        float night = 0.0; bool hit = false;
         if (g > 0.0 && -b - sqrt(g) > 0.0) { // the ground ends the ray
-          t1 = -b - sqrt(g);
+          t1 = -b - sqrt(g); hit = true;
           vec3 p = normalize(ro + rd * t1);
           night = 0.97 * uNight * smoothstep(0.0, -0.2, dot(p, uSun)); // the unlit half: N.L < 0, with a soft terminator
         }
@@ -75,6 +76,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         }
         // The veil knows only the smooth planet, not the relief standing on it, so near the ground it is capped: no fog wall at the horizon for mountains to sink into.
         float a = mix(0.95, 0.35, uLow) * mix(0.25, 1.0, uFade) * (1.0 - exp(-tau / TAU0)); // uFade: the glow thins below ~1,500 km
+        if (hit) a *= uGroundA; // the flat map is not washed pale by it (setEnabled below)
         vec3 haze = mix(mix(uTeal, vec3(0.55, 0.72, 1.0), a * a), uSky, uLow);
         float A = 1.0 - (1.0 - a) * (1.0 - night); // the night veil lies under the haze
         gl_FragColor = vec4(haze * a / max(A, 1e-4), A);
@@ -95,6 +97,9 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   const regions = createRegions(R), terrain = createTerrain(R);
   const relief = createRelief(terrain.fills, terrain.strokes, ocean, terrain.rivers); // shaded canon relief; off = the flat parchment map
   relief.setEnabled(true);
+  // From space the haze lies over the ground too; the flat map keeps its own dark colours, so it gets a third of that
+  const setRelief = relief.setEnabled;
+  relief.setEnabled = (on: boolean) => { setRelief(on); atmoMat.uniforms.uGroundA.value = on ? 1 : 0.2; terrain.restyle(!on); };
   scene.onBeforeRender = (r, _s, cam) => relief.update(cam as THREE.PerspectiveCamera, r, rig.tilt); // the relief's detail follows the camera drawn
   scene.add(ocean, relief.object, terrain.object, regions.object, atmosphere, stars, new THREE.AmbientLight(0xffffff, 1.3), headlight);
 
@@ -120,7 +125,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     island: [3_000_000, 1_300_000], mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000],
     sea: [3_500_000, 1_500_000], lake: [1_600_000, 1_000_000], river: [1_600_000, 1_400_000], road: [1_600_000, 1_400_000],
     castle: [1_200_000, 550_000], town: [1_200_000, 550_000], ruin: [1_200_000, 600_000], landmark: [1_500_000, 700_000],
-    minor: [700_000, 450_000],
+    minor: [700_000, 450_000], battle: [1_200_000, 600_000], monument: [1_500_000, 700_000], population: [2_500_000, 1_500_000],
   };
   const ROADS_BELOW = 8_000_000, TRACKS_BELOW = LOD.castle[0]; // main roads and the tracks to places are drawn from these altitudes down (tracks with the castles); road names come in at 1,600 km (LOD)
   type Gen = (typeof PLACES)[number];
@@ -172,7 +177,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   measure();
   document.fonts.ready.then(measure);
   // When names overlap on screen, the higher tier keeps its spot: continents, oceans, regions, cities, then ever smaller places.
-  const RANK = ['continent', 'ocean', 'region', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'landmark', 'ruin', 'minor'];
+  const RANK = ['continent', 'ocean', 'region', 'population', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'monument', 'landmark', 'battle', 'ruin', 'minor'];
   const ranked = [...places].sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
   let order = ranked; // ranked, with the pinned place first
   const pt = new THREE.Vector3();
@@ -420,7 +425,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
         rig.flyToFit(extent.map(([lon, lat]) => toVector(lat, lon, 1)), { l: free && !wide ? side.right : 0, r: 0, t: free && wide ? side.bottom : 0, b: 0 }, 16);
         return;
       }
-      rig.flyToDir(at,site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole
+      rig.flyToDir(at,site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) && !(p.kind === 'region' && !p.outline) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole; a region with no border to frame comes close too
     },
     /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
     siteWithin: (d: number | ((id: SiteId) => number)) =>
@@ -449,12 +454,14 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     update(dt: number, now: number) {
       rig.step(dt, now);
       const alt = rig.alt;
+      terrain.setRiverWidth(alt);
       headlight.position.copy(camera.position).addScaledVector(camera.up, R);
       atmoMat.uniforms.uNight.value = THREE.MathUtils.smoothstep(alt, 2_000_000, 12_000_000); // coming down, the shadow slips behind the horizon
       terrain.refresh(); regions.refresh(); // line widths are in screen pixels
       wool.update(camera, view.nav.metresPerPixel());
-      terrain.roads.visible = alt < ROADS_BELOW; // from this far out the roads are a tangle
-      terrain.tracks.visible = alt < TRACKS_BELOW;
+      // from this far out the roads are a tangle; they fade in over the last quarter of the way down, tracks over the last third
+      terrain.fadeRoads('roads', 1 - THREE.MathUtils.smoothstep(alt, ROADS_BELOW * 0.75, ROADS_BELOW));
+      terrain.fadeRoads('tracks', 1 - THREE.MathUtils.smoothstep(alt, TRACKS_BELOW * 0.67, TRACKS_BELOW));
       // a place faces the camera when the camera is above its horizon: cos(angle) > R / |camera|
       const cosLimit = R / camera.position.length(), cam = tmp.copy(camera.position).normalize();
       camera.updateMatrixWorld();

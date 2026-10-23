@@ -27,17 +27,17 @@ type V3 = [number, number, number];
 export type Leg = { from: string; to: string; m: number; live: boolean };
 export type MeasureState = { legs: Leg[]; total: number; active: boolean };
 
-/** Twisted wool, as in the photo: tan fibre with darker diagonal plies and a few light fuzz strokes. */
+/** Twisted wool in the interface's burgundy: dark diagonal plies and a few light fuzz strokes, one gold-lit ply. */
 function woolTexture() {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 32;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#c99d5d'; g.fillRect(0, 0, 64, 32);
-  g.lineWidth = 4; g.strokeStyle = '#8f6838';
+  g.fillStyle = '#8c2535'; g.fillRect(0, 0, 64, 32);
+  g.lineWidth = 4; g.strokeStyle = '#561420';
   for (let x = -32; x < 96; x += 16) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 32, 0); g.stroke(); }
-  g.lineWidth = 1.2; g.strokeStyle = '#e8cc96';
+  g.lineWidth = 1.2; g.strokeStyle = '#e3b04b';
   for (let x = -32; x < 96; x += 16) { g.beginPath(); g.moveTo(x + 7, 32); g.lineTo(x + 39, 0); g.stroke(); }
-  g.strokeStyle = '#6f4f28'; g.lineWidth = 1;
+  g.strokeStyle = '#4a0f1a'; g.lineWidth = 1;
   for (let i = 0; i < 40; i++) { const x = (i * 37) % 64, y = (i * 13) % 32; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 3, y - 2); g.stroke(); }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -150,8 +150,8 @@ export function createMeasure(scene: THREE.Scene, el: HTMLElement, labelsEl: HTM
     };
     return m;
   };
-  const wool = overTerrain(new THREE.MeshLambertMaterial({ map: woolTexture(), emissive: 0x2b1d0e }));
-  const knotMat = overTerrain(new THREE.MeshLambertMaterial({ color: 0x1b130b }));
+  const wool = overTerrain(new THREE.MeshLambertMaterial({ map: woolTexture(), emissive: 0x2b0a12 }));
+  const knotMat = overTerrain(new THREE.MeshLambertMaterial({ color: 0x240a10 }));
   const shadowRibbon = overTerrain(new THREE.MeshBasicMaterial({ map: ribbonTexture(), toneMapped: false, side: THREE.DoubleSide }));
   const SUN_RUN = Math.hypot(sun[0], sun[1]) / sun[2]; // metres a shadow runs along the ground per metre of height (the relief's sun: lower is longer)
   const SUN_STRETCH = Math.hypot(sun[0], sun[1], sun[2]) / sun[2]; // a round shadow is this much longer than wide

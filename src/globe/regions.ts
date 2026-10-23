@@ -62,6 +62,9 @@ export function createRegions(R: number) {
   const highlight = (fill: string, opacity: number, stroke: string, width: number, order: number) => {
     const f = fillMesh(new THREE.BufferGeometry(), fill, order, opacity), l = lineMesh(lineGeometry([[[0, 0], [0, 1]]], r, false), stroke, width, order + 1);
     f.visible = l.visible = false;
+    // Over the relief, never into it: no depth test, so mountains don't poke through the wash. Both in the transparent pass
+    // (the opaque one is drawn first whatever the renderOrder), after the river ribbons and under the clouds (relief.ts, 200).
+    for (const m of [f, l]) Object.assign(m.material, { depthTest: false, transparent: true });
     group.add(f);
     if (width) group.add(l);
     let id: string | null = null;
@@ -74,7 +77,7 @@ export function createRegions(R: number) {
       },
     };
   };
-  const selected = highlight('#8b2a1e', 0.22, '#c9a75a', 3.4, 103);
+  const selected = highlight('#b3243b', 0.4, '#f6d98a', 5, 190); // burgundy wash, bright gold outline
 
   return {
     object: group,

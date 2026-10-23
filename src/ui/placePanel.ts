@@ -60,7 +60,7 @@ export const showCard = (c: Card) => {
     chip.append(anchor(`${WIKI}File:${file}`, img), nameLink(encodeURIComponent(page.replace(/ /g, '_')), label));
     return chip;
   }));
-  const facts: [string, string][] = [...(c.region ? [['Region', c.region] as [string, string]] : []), ...(info.facts ?? [])];
+  const facts: [string, string][] = [...(c.region ? [['Region', `[${c.region}](${c.region.replace(/ /g, '_')})`] as [string, string]] : []), ...(info.facts ?? [])];
   if (c.lat !== undefined && c.lon !== undefined) facts.push(['Coordinates', `${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°`]);
   q('.facts').replaceChildren(...facts.map(([k, v]) => {
     const li = document.createElement('li');

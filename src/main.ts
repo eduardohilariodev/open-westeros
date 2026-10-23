@@ -36,7 +36,6 @@ onClose(() => globe.deselect());
 const sites = createSites(renderer, globe, showCard);
 
 $('showNames').addEventListener('change', (e) => globe.setNamesVisible((e.target as HTMLInputElement).checked));
-$('showBorders').addEventListener('change', (e) => globe.setBordersVisible((e.target as HTMLInputElement).checked));
 // Terrain button (top of the nav): 3D relief or the flat parchment map. The page starts in 3D, see the await below.
 // Like Google Maps' layer button, it shows a thumbnail of the style a click switches to (style.css picks it by aria-pressed).
 const reliefBtn = $('reliefBtn');
@@ -44,7 +43,23 @@ const showStyle = (on: boolean) => {
   reliefBtn.setAttribute('aria-pressed', String(on));
   reliefBtn.title = on ? 'Switch to the flat map' : 'Switch to 3D relief';
   reliefBtn.querySelector('.name')!.textContent = on ? 'Map' : 'Relief';
+  pendingStyle = on; // swapped after the next frame is drawn, see crossfade()
+};
+let pendingStyle: boolean | null = null;
+// Map types crossfade: the frame just drawn is copied to a canvas laid over the globe, the style swaps under it, and the copy fades away.
+const fader = document.createElement('canvas');
+fader.id = 'styleFade';
+renderer.domElement.after(fader);
+const crossfade = (on: boolean) => {
+  const c = renderer.domElement;
+  fader.width = c.width; fader.height = c.height;
+  fader.getContext('2d')!.drawImage(c, 0, 0);
+  fader.style.transition = 'none';
+  fader.style.opacity = '1';
   globe.relief.setEnabled(on);
+  void fader.offsetWidth; // commit the opaque copy before the fade starts
+  fader.style.transition = 'opacity .7s ease-in-out';
+  fader.style.opacity = '0';
 };
 reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== 'true');
 reliefBtn.querySelector('.name')!.textContent = 'Map';
@@ -66,6 +81,7 @@ $('legendNone').onclick = () => setAllKinds(false);
 if (import.meta.env.DEV) document.title += ' (dev)';
 
 $('menuBtn').onclick = () => { // with a place open, the menu closes it and brings the drawer back
+  closeResults(); // the menu and the search results are never open together
   if (isOpen()) { globe.deselect(); document.body.classList.add('drawer-open'); }
   else document.body.classList.toggle('drawer-open');
 };
@@ -136,6 +152,7 @@ const renderResults = () => {
         `<span class="nm">${name}</span><span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
     }).join('')
     : '<li class="none">No such place in the known world</li>';
+  document.body.classList.remove('drawer-open'); // the menu and the search results are never open together
   results.hidden = false; search.setAttribute('aria-expanded', 'true');
   setActive(0);
 };
@@ -178,6 +195,7 @@ renderer.setAnimationLoop((now) => {
   renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it
   globe.labels.render(globe.scene, globe.camera);
   sites.render();
+  if (pendingStyle !== null) { crossfade(pendingStyle); pendingStyle = null; } // after the whole frame, so the copy is complete
   nav.update();
   if (import.meta.env.DEV) {
     fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
@@ -198,7 +216,7 @@ renderer.setAnimationLoop((now) => {
     $('loadFill').style.width = '100%';
     const el = $('loading');
     el.classList.add('done');
-    setTimeout(() => el.remove(), 500);
+    setTimeout(() => el.remove(), 1500); // after the 1.4 s fade (style.css #loading)
   }
 });
 
