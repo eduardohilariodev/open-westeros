@@ -72,7 +72,7 @@ export const showCard = (c: Card) => {
   captions = info.captions ?? [];
   q('.photos').hidden = !files.length;
   if (files.length) { q<HTMLImageElement>('.tile img').src = thumb(files[0], 400); q('.tile span').textContent = `Images (${files.length})`; }
-  place.scrollTop = 0;
+  q('.body').scrollTop = 0;
 };
 q<HTMLImageElement>('.hero').onerror = () => { q('.hero').hidden = true; }; // hot-linked: hide it if it fails
 
