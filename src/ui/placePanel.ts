@@ -12,12 +12,27 @@ const anchor = (href: string, ...kids: (Node | string)[]) => {
   a.append(...kids);
   return a;
 };
+// A name with a place on the map goes there (the card has its own wiki button); `resolve` returns the way there, or null.
+let resolve: (name: string) => (() => void) | null = () => null;
+export const onNavigate = (fn: typeof resolve) => { resolve = fn; };
+const nameLink = (page: string, label: string, ...kids: (Node | string)[]) => {
+  let title = page.split('#')[0];
+  try { title = decodeURIComponent(title); } catch { /* keep it raw */ }
+  title = title.replace(/_/g, ' ').replace(/ \([^)]*\)$/, '');
+  const go = resolve(title) ?? resolve(label);
+  if (!go) return anchor(WIKI + page, ...(kids.length ? kids : [label]));
+  const a = document.createElement('a');
+  a.href = '#'; a.title = `Show ${label} on the map`;
+  a.onclick = (e) => { e.preventDefault(); go(); };
+  a.append(...(kids.length ? kids : [label]));
+  return a;
+};
 // Text with [label](Page_title#section) links (see tools/wiki/place-info.mjs) becomes text and links to that page of the wiki.
 const fill = (el: HTMLElement, text: string) => {
   const nodes: (Node | string)[] = [];
   let last = 0;
   for (const m of text.matchAll(/\[([^\]]+)\]\(([^)\s]+)\)/g)) {
-    nodes.push(text.slice(last, m.index), anchor(WIKI + m[2], m[1]));
+    nodes.push(text.slice(last, m.index), nameLink(m[2], m[1]));
     last = m.index + m[0].length;
   }
   el.replaceChildren(...nodes, text.slice(last));
@@ -41,7 +56,7 @@ export const showCard = (c: Card) => {
     chip.className = 'house';
     img.src = `/sigils/${file.replace(/\.[^.]+$/, '.webp')}`; img.alt = `Coat of arms of ${label}`;
     img.onerror = () => chip.remove();
-    chip.append(anchor(`${WIKI}File:${file}`, img), anchor(WIKI + encodeURIComponent(page.replace(/ /g, '_')), label));
+    chip.append(anchor(`${WIKI}File:${file}`, img), nameLink(encodeURIComponent(page.replace(/ /g, '_')), label));
     return chip;
   }));
   const facts: [string, string][] = [...(c.region ? [['Region', c.region] as [string, string]] : []), ...(info.facts ?? [])];

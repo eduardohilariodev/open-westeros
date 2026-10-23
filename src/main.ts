@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { inject } from '@vercel/analytics';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
-import { isOpen, onClose, showCard } from './ui/placePanel';
+import { isOpen, onClose, onNavigate, showCard } from './ui/placePanel';
 import { createSites } from './sites/handoff';
 import { GLOBE_KIND, type SiteView } from './sites/SiteScene';
 import { initMeasurePanel } from './ui/measurePanel';
@@ -108,6 +108,11 @@ const score = (label: string, q: string) => {
   for (const t of q.split(/\s+/)) { const x = scoreTerm(label, t); if (x < 0) return -1; sum += x; }
   return sum;
 };
+// Names in the place card that are places on the map go there instead of to the wiki.
+onNavigate((name) => {
+  const n = fold(name), m = [...siteItems(), ...mapItems].find((x) => fold(x.label) === n);
+  return m ? () => m.go() : null;
+});
 let shown: Item[] = [];
 let active = 0;
 const setActive = (n: number) => {
