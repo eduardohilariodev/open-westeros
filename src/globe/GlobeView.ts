@@ -141,7 +141,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     el.onclick = (e) => {
       if (pickForMeasure(i, e)) return;
       view.flyToPlace(i);
-      if (outline && bordersOn) regions.selected = outline.id; // a region is picked by its name only
     };
     const obj = new CSS2DObject(el); // centred: a point label's box is just its symbol, the text hangs off its right side
     scene.add(obj);
@@ -406,7 +405,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     flyToPlace(i: number) {
       const p = places[i];
       wool.setActive(false); // focusing a place ends measuring
-      regions.selected = null; // a region's own click sets it again after this
+      regions.selected = p.outline && bordersOn ? p.outline.id : null; // a region is outlined however it was reached
       setPin(p);
       // a river or road is lit along its whole length; a river's water is drawn smoothed (rivers.ts), so the light follows that curve
       terrain.highlight(p.line ? (p.kind === 'river' ? chaikin(p.line.pts) : p.line.pts) : null);

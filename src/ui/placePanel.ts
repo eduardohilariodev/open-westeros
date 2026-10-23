@@ -19,7 +19,8 @@ const nameLink = (page: string, label: string, ...kids: (Node | string)[]) => {
   let title = page.split('#')[0];
   try { title = decodeURIComponent(title); } catch { /* keep it raw */ }
   title = title.replace(/_/g, ' ').replace(/ \([^)]*\)$/, '');
-  const go = resolve(title) ?? resolve(label);
+  // the wiki drops the article the map keeps: "North" for "The North", "Reach" for "The Reach"
+  const go = [title, `The ${title}`, label, `The ${label}`].reduce<(() => void) | null>((found, n) => found ?? resolve(n), null);
   if (!go) return anchor(WIKI + page, ...(kids.length ? kids : [label]));
   const a = document.createElement('a');
   a.href = '#'; a.title = `Show ${label} on the map`;
