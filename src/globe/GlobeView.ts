@@ -385,6 +385,16 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     return true;
   };
 
+  // Px of the screen the place card covers right now, so a flight lands the place in the middle of the map that is left: a column
+  // on the left on a wide screen, a band on top on a narrow one, and on a phone the search box above and the sheet (at rest height) below.
+  const phone = matchMedia('(max-width: 700px)');
+  const covered = () => {
+    const side = document.getElementById('side')!.getBoundingClientRect(), card = document.getElementById('place')!;
+    if (phone.matches) return { l: 0, r: 0, t: side.bottom, b: card.hidden ? 0 : Math.min(card.offsetHeight, innerHeight * 0.44) };
+    const wide = side.width > innerWidth * 0.6, free = side.width > 0;
+    return { l: free && !wide ? side.right : 0, r: 0, t: free && wide ? side.bottom : 0, b: 0 };
+  };
+
   const view = {
     scene, camera, controls, labels, attachInput: rig.attachInput, ocean, terrain, relief, wool,
     nav: {
@@ -420,12 +430,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const site = ids.find((id) => SITES[id].name === p.name);
       const extent = p.line ? p.line.pts : p.outline?.shapes.flatMap((s) => s.ring); // a road, river or bordered region is framed whole
       if (extent && !site) {
-        const side = document.getElementById('side')!.getBoundingClientRect(); // the card, as it is now: a column on the left, or a band on top on a narrow screen
-        const wide = side.width > innerWidth * 0.6, free = side.width > 0;
-        rig.flyToFit(extent.map(([lon, lat]) => toVector(lat, lon, 1)), { l: free && !wide ? side.right : 0, r: 0, t: free && wide ? side.bottom : 0, b: 0 }, 16);
+        rig.flyToFit(extent.map(([lon, lat]) => toVector(lat, lon, 1)), covered(), 16);
         return;
       }
-      rig.flyToDir(at,site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) && !(p.kind === 'region' && !p.outline) ? p.lod[1] : p.lod[1] / 3); // a spot comes close, an area stays whole; a region with no border to frame comes close too
+      rig.flyToDir(at,site ? SITES[site].drawDistance * 0.4 : AREA_KINDS.has(p.kind) && !(p.kind === 'region' && !p.outline) ? p.lod[1] : p.lod[1] / 3, phone.matches ? covered() : undefined); // a spot comes close, an area stays whole; a region with no border to frame comes close too
     },
     /** The site whose centre the camera is within `d` metres of (a number, or one per site), if any. */
     siteWithin: (d: number | ((id: SiteId) => number)) =>

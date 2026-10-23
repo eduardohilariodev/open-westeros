@@ -220,6 +220,12 @@ renderer.setAnimationLoop((now) => {
   }
 });
 
+// The bottom sheets on a phone (style.css): their height goes to --sheet-h so the round buttons ride above them.
+const sheets = [$('place'), $('measure')];
+const syncSheet = () => document.documentElement.style.setProperty('--sheet-h', `${Math.max(0, ...sheets.map((el) => (el.hidden ? 0 : el.offsetHeight)))}px`);
+const sheetWatch = new ResizeObserver(syncSheet);
+sheets.forEach((el) => sheetWatch.observe(el));
+
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   for (const v of [globe, ...sites.views()] as (typeof globe | SiteView)[]) {

@@ -126,8 +126,17 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   let anim: { t0: number; d0: THREE.Vector3; d1: THREE.Vector3; a0: number; a1: number } | null = null;
   const tmp = new THREE.Vector3();
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-  const flyToDir = (dir: THREE.Vector3, a: number) =>
-    (anim = { t0: performance.now(), d0: camera.position.clone().normalize(), d1: dir.clone().normalize(), a0: alt, a1: a });
+  /** Fly to look at the spot `dir` from altitude `a`. With `inset` (px each side is covered), the spot lands in the middle of what is left free, not of the screen. */
+  const flyToDir = (dir: THREE.Vector3, a: number, inset?: { l: number; r: number; t: number; b: number }) => {
+    const d1 = dir.clone().normalize();
+    if (inset) {
+      const east = new THREE.Vector3(0, 1, 0).cross(d1).normalize(), north = d1.clone().cross(east);
+      const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)), right = d1.clone().cross(up).multiplyScalar(-1).normalize();
+      const mpp = (a * 2 * Math.tan(rad(camera.fov / 2))) / el.clientHeight;
+      d1.addScaledVector(right, (-((inset.l - inset.r) / 2) * mpp) / R).addScaledVector(up, (((inset.t - inset.b) / 2) * mpp) / R).normalize();
+    }
+    anim = { t0: performance.now(), d0: camera.position.clone().normalize(), d1, a0: alt, a1: a };
+  };
   /**
    * Fly so the unit directions `pts` fill the part of the screen that the overlays leave free: `inset` is the px each side
    * is covered (the sidebar), `pad` the gap kept round the points. Flat approximation of the ground: good for areas up to a few thousand km.

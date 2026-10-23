@@ -89,10 +89,11 @@ body:not(.drawer-open) #ui { display: none; }
 #place .body { padding: 0 20px 8px; }
 #place h1 { margin: 0 40px 4px 0; font-size: 26px; font-weight: 400; line-height: 1.1; }
 #place .kind { color: var(--muted); font-size: 15px; }
-#place .actions { display: flex; gap: 20px; padding: 14px 0; margin: 0 -20px; padding-inline: 20px; border-bottom: 1px solid var(--line); }
-#place .act { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
-#place .act span { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--edge); display: grid; place-items: center; }
-#place .act:hover span { background: var(--hover); }
+/* the Wiki button: a pill, between the title and the pictures */
+#place .actions { flex: none; display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+#place .act { display: inline-flex; align-items: center; gap: 8px; padding: 9px 20px 9px 16px; border-radius: 999px; background: var(--burgundy); color: var(--gold-hi); text-decoration: none; font-size: 15px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--edge); }
+#place .act span { display: grid; place-items: center; }
+#place .act:hover { background: var(--burgundy-hi); }
 #place .act svg { width: 20px; height: 20px; }
 #place .houses { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
 #place .houses:empty { display: none; }
@@ -313,3 +314,128 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
   #measure { opacity: 0; translate: 0 8px; }
 }
 @media (prefers-reduced-motion: reduce) { #ui, #measure, #results, #place { transition: none; } }
+
+/* ---------- phones: the place card and the measure card are bottom sheets, as in Google Maps ---------- */
+@media (max-width: 700px) {
+  #place, #measure {
+    position: fixed; inset: auto 0 0 0; width: auto; max-width: none; margin: 0; z-index: 25;
+    border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom);
+  }
+  #place { max-height: 46vh; }
+  #measure { max-height: 40vh; padding: 0 16px 12px; }
+  /* the grab handle */
+  #place::before, #measure::before { content: ''; flex: none; display: block; width: 38px; height: 4px; margin: 9px auto 0; border-radius: 2px; background: #f0d9a04d; }
+  #measure::before { margin-bottom: 8px; position: sticky; top: 9px; }
+  /* title first, then the picture, then the text, as the sheet reads in Google Maps */
+  #place .head { order: 1; padding-top: 10px; padding-right: 56px; }
+  #place .hero { order: 2; height: 128px; margin: 12px 16px 0; width: auto; border-radius: 14px; }
+  #place .body { order: 3; margin-top: 8px; }
+  #place .close { top: 12px; right: 14px; width: 34px; height: 34px; }
+  #place h1 { font-size: 24px; margin-right: 0; }
+  /* slide up from the bottom instead of drifting */
+  #place[hidden], #measure[hidden] { translate: 0 100%; }
+  @starting-style { #place, #measure { translate: 0 100%; } }
+  /* the round buttons ride above whichever sheet is up (--sheet-h, set in main.ts), and the scale bar gives way */
+  #nav { bottom: calc(var(--sheet-h, 0px) + 14px); transition: bottom .25s ease; }
+  body:has(#place:not([hidden])) #status, body:has(#measure:not([hidden])) #status { display: none; }
+}
+
+/* phones: the place sheet rests low with its picture hidden; a swipe up (or a scroll) takes it to full screen, as in Google Maps */
+@media (max-width: 700px) {
+  #place { height: 44vh; max-height: none; transition: height .32s cubic-bezier(.2, .8, .2, 1), border-radius .32s, opacity .25s ease, translate .25s ease, display .25s allow-discrete; }
+  #place .hero { display: none; }
+  #place .body { overflow: auto; overscroll-behavior: contain; } /* the text scrolls at rest too; only a swipe on the handle or title opens the sheet */
+  #place.full { height: 100dvh; border-radius: 0; }
+  #place.full .body { overflow: auto; overscroll-behavior: contain; }
+  #place.full .head { padding-top: calc(14px + env(safe-area-inset-top)); }
+  #place.full .close { top: calc(14px + env(safe-area-inset-top)); }
+  #place.full::before { margin-top: calc(9px + env(safe-area-inset-top)); }
+  body:has(#place.full) #nav { opacity: 0; pointer-events: none; }
+}
+
+/* ---------- safe areas: notch, home indicator and rounded corners (viewport-fit=cover in index.html) ---------- */
+#side { top: calc(12px + env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); max-height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); max-width: calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)); }
+#nav { right: max(16px, env(safe-area-inset-right)); bottom: calc(44px + env(safe-area-inset-bottom)); }
+#status { padding-bottom: calc(4px + env(safe-area-inset-bottom)); padding-right: calc(12px + env(safe-area-inset-right)); }
+#loadHint { bottom: calc(24px + env(safe-area-inset-bottom)); }
+#viewer { padding-top: calc(16px + env(safe-area-inset-top)); }
+#viewer .close { top: calc(16px + env(safe-area-inset-top)); }
+@media (min-width: 701px) { #measure { left: max(12px, env(safe-area-inset-left)); bottom: calc(44px + env(safe-area-inset-bottom)); } }
+@media (max-width: 700px) {
+  #side { right: max(12px, env(safe-area-inset-right)); max-width: none; }
+  /* above the sheet, or above the scale bar and the home indicator when no sheet is up */
+  #nav { bottom: max(calc(var(--sheet-h, 0px) + 14px), calc(64px + env(safe-area-inset-bottom))); }
+  #place, #measure { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  #measure { padding: 0 max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  #place { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* the row of picture tiles after the title: phones only, and instead of the lead picture and the Images tile */
+#place .photo-row { display: none; }
+@media (max-width: 700px) {
+  #place .hero, #place.full .hero:not([hidden]), #place .photos { display: none; }
+  #place .photo-row:not([hidden]) { order: 2; display: flex; flex: none; gap: 8px; padding: 12px max(16px, env(safe-area-inset-right)) 4px max(16px, env(safe-area-inset-left)); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
+  #place .photo-row::-webkit-scrollbar { display: none; }
+  #place .photo-row button { flex: none; width: 58%; max-width: 260px; height: 124px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: #1a0f11; scroll-snap-align: start; cursor: pointer; }
+  #place .photo-row img { display: block; width: 100%; height: 100%; object-fit: cover; }
+}
+
+@media (max-width: 700px) { #place .actions { order: 1; padding-inline: max(16px, env(safe-area-inset-left)); border-bottom: 0; padding-bottom: 2px; } }
+
+/* the close button sits in the top right corner of the title block */
+#place .head { position: relative; }
+#place .head .close { top: 10px; translate: none; right: 12px; }
+@media (max-width: 700px) { #place .head .close { top: 12px; right: max(14px, env(safe-area-inset-right)); } #place.full .head .close { top: calc(12px + env(safe-area-inset-top)); } }
+
+/* the tiles start in line with the title, and the first one rests there (snapping would otherwise pull it to the edge) */
+@media (max-width: 700px) {
+  #place .photo-row:not([hidden]) { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); scroll-padding-inline: max(20px, env(safe-area-inset-left)); }
+  #place .actions { padding-inline: max(20px, env(safe-area-inset-left)); }
+}
+
+/* phones: smaller round buttons */
+@media (max-width: 700px) {
+  #nav { --ctl: 40px; gap: 8px; }
+  .fab svg, .zoom svg { width: 20px; height: 20px; }
+  .compass svg { width: 32px; height: 32px; }
+  .fab.text { font-size: 13px; }
+  .layer .name { font-size: 9.5px; padding-top: 8px; }
+}
+
+/* the gallery: the picture with its caption and a link to its wiki file page right beneath it, then the strip; no arrows */
+#viewer { grid-template-rows: minmax(0, 1fr) auto; }
+#viewer .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 0; padding: 56px max(20px, env(safe-area-inset-right)) 8px max(20px, env(safe-area-inset-left)); box-sizing: border-box; cursor: zoom-out; }
+#viewer .big { flex: 0 1 auto; width: auto; height: auto; min-height: 0; max-width: 100%; object-fit: contain; border-radius: 8px; }
+#viewer .caption { flex: none; margin: 4px 0 0; max-width: min(100%, 720px); font-size: 14px; line-height: 1.4; color: var(--text); }
+#viewer .wiki-link { flex: none; color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+#viewer .wiki-link:hover { text-decoration: underline; }
+#viewer .strip { padding: 10px max(20px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); scroll-padding-inline: 20px; }
+
+/* gallery: more room at the sides; a scrolling row loses its end padding in some browsers, so the strip ends with a spacer */
+#viewer .stage { padding-inline: max(24px, env(safe-area-inset-left), env(safe-area-inset-right)); }
+#viewer .strip { padding-inline: max(24px, env(safe-area-inset-left), env(safe-area-inset-right)); scroll-padding-inline: 24px; box-sizing: border-box; width: 100%; max-width: 100%; }
+#viewer .strip::after { content: ''; flex: 0 0 1px; }
+#viewer .caption { padding-inline: 4px; }
+
+/* loading skeletons: a slow shimmer behind where a picture will be; the picture simply covers it once it has loaded */
+@keyframes shimmer { to { background-position: -200% 0; } }
+#place .hero, #place .tile, #place .photo-row button, #viewer .strip button, #viewer .big:not(.ready) { background: linear-gradient(100deg, #1a0f11 30%, #33202a 50%, #1a0f11 70%) 0 0 / 200% 100%; animation: shimmer 1.3s linear infinite; }
+#viewer .big:not(.ready) { min-width: min(72vw, 480px); aspect-ratio: 3 / 2; }
+@media (prefers-reduced-motion: reduce) { #place .hero, #place .tile, #place .photo-row button, #viewer .strip button, #viewer .big:not(.ready) { animation: none; } }
+
+/* close button: its middle on the first line of the title; the card has a third, minimised height (the title only) */
+#place .head .close { top: 14px; }
+@media (max-width: 700px) {
+  #place .head .close { top: 6px; }
+  #place.full .head .close { top: calc(10px + env(safe-area-inset-top)); }
+  #place.min { height: var(--min-h, 120px); }
+  #place.min .body, #place.min .photo-row, #place.min .actions { pointer-events: none; }
+}
+
+/* room under the end of the card's text; no stroke under the title when the card is minimised */
+#place .body { padding-bottom: 32px; }
+@media (max-width: 700px) { #place .body { padding-bottom: calc(32px + env(safe-area-inset-bottom)); } #place.min .head { border-bottom-color: transparent; } }
+
+#place .more { display: inline-block; margin: 10px 0 0; color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; }
+#place .more:hover { text-decoration: underline; }
+#place .more[hidden] { display: none; }

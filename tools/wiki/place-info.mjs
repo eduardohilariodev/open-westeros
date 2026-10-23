@@ -40,7 +40,9 @@ export function parse(md) {
   const score = (f) => { const s = `${f} ${found.get(f)}`; return /map/i.test(s) ? -5 : /Nasmith|TN-/.test(s) ? 4 : /Fantasy Flight|Jedruszek|Vela/.test(s) ? 3 : /\bby \S/.test(found.get(f)) ? 2 : 0; };
   const images = [...found.keys()].slice(0, 40).sort((a, b) => score(b) - score(a)), captions = images.map((f) => found.get(f));
   const hero = images.length && score(images[0]) > 0 ? `https://awoiaf.westeros.org/thumb.php?f=${images[0]}&width=350` : image;
-  return { title, summary, facts, image: hero, images, captions };
+  // more to read than the lead: a section after it that has some prose of its own (not just references or links)
+  const more = body.slice(body.indexOf('\n')).split(/^## /m).slice(1).some((sec) => !/^(References|External links|Gallery|See also|Notes|Sources|Further reading)/i.test(sec) && sec.split('\n').slice(1).join('').replace(/\s/g, '').length > 120);
+  return { title, summary, facts, image: hero, images, captions, more };
 }
 
 // A house article's infobox: its full name, coat-of-arms file (the picture in the infobox) and seats, [title, formerly?].
@@ -73,14 +75,14 @@ const MAX_HOUSES = 4;
 
 const out = {}, sigils = new Set();
 for (const [name, file] of Object.entries(places)) {
-  const { title, summary, facts, image, images, captions } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
+  const { title, summary, facts, image, images, captions, more } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
   // Houses first from its Government row (a link in its facts), then those whose seat it is, current seats before former ones.
   const government = [...(facts.find(([k]) => k === 'Government')?.[1] ?? '').matchAll(/\]\((House_[^)#\s]+)\)/g)].map((m) => titleOf(m[1]));
   const seated = Object.entries(houses).flatMap(([t, h]) => h.seats.filter(([s]) => s === title).map(([, formerly]) => [t, formerly]));
   const ranked = [REGION_HOUSE[name], ...government, ...seated.filter(([, f]) => !f).map(([t]) => t), ...seated.filter(([, f]) => f).map(([t]) => t)];
   const placeHouses = [...new Set(ranked)].filter((t) => houses[t]).slice(0, MAX_HOUSES)
     .map((t) => { sigils.add(houses[t].sigil); return [t, houses[t].sigil, houses[t].label ?? t]; });
-  out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(captions.some(Boolean) && { captions }), ...(summary && { summary }), ...(facts.length && { facts }), ...(placeHouses.length && { houses: placeHouses }) };
+  out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(captions.some(Boolean) && { captions }), ...(summary && { summary }), ...(more && { more: true }), ...(facts.length && { facts }), ...(placeHouses.length && { houses: placeHouses }) };
 }
 writeFileSync('src/place-wiki.json', JSON.stringify(out));
 writeFileSync(`${DIR}/_sigils.json`, JSON.stringify([...sigils].sort()));
