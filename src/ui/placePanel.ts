@@ -23,7 +23,7 @@ const nameLink = (page: string, label: string, ...kids: (Node | string)[]) => {
   const go = [title, `The ${title}`, label, `The ${label}`].reduce<(() => void) | null>((found, n) => found ?? resolve(n), null);
   if (!go) return anchor(WIKI + page, ...(kids.length ? kids : [label]));
   const a = document.createElement('a');
-  a.href = '#'; a.title = `Show ${label} on the map`;
+  a.href = '#'; a.className = 'to-map'; a.title = `Show ${label} on the map`;
   a.onclick = (e) => { e.preventDefault(); go(); };
   a.append(...(kids.length ? kids : [label]));
   return a;
