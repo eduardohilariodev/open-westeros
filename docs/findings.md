@@ -11,7 +11,12 @@
 `- So: what to do or avoid next time
 ````
 `
-`## 2026-10-30 deploy: vercel uploaded ~1 GB because .vercelignore missed docs/, tmp/, .cache/
+`## 2026-10-30 ui: spoiler gate removed; battle dates; 40 more card images
+- What: the wiki text now shows without the spoiler button (`src/ui/spoiler.ts` deleted, panels read the wiki directly). Every battle card has a Date fact: the wiki's, else "Not dated in canon" (place-info.mjs). `article.parse` rewrites `/images/...` picture links to the thumb.php form, and the hero falls back to the best article picture when the lead has none. Redgrass Field and Battle at Mummer's Ford now map to their battle articles (ALIASES in scrape.mjs).
+- Evidence: places without an image 177 -> 137; battles without a Date 11 -> 0 real gaps (9 say not dated).
+- So: the remaining 137 have no picture in their article; they need another source.
+
+## 2026-10-30 deploy: vercel uploaded ~1 GB because .vercelignore missed docs/, tmp/, .cache/
 - What: the CLI deploy (`npx vercel deploy --prod`, Git deploys off) uploads every file not in `.vercelignore`. `docs/` (349 MB, wiki and book dumps), `tmp/` (386 MB, screenshots) and `.cache/` (102 MB, scraper browser profile) went up next to `public/` (212 MB). Added all three to `.vercelignore`.
 - Evidence: `du -sh`; the last READY production deploy was 2026-10-23. The build reads `tools/books/timeline.json` (`src/state/changes.ts`), so `tools/` must stay uploaded.
 - So: a new large local folder outside `public/`, `src/`, `tools/` goes in `.vercelignore` too.

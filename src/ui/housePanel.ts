@@ -2,7 +2,6 @@ import type { House } from '../houseGraph';
 import type { HouseLayer } from '../globe/houses';
 import { tintOf } from '../sigilTint';
 import houseWiki from '../house-wiki.json'; // tools/wiki/house-info.mjs
-import { spoilerButton, spoilerSafe } from './spoiler';
 import { ERAS, EVENTS, WIKI_YEAR, YEAR_STOPS } from '../timeline';
 import { BOOKS, CHAPTERS, atEnd, EPISODES, chapterTitle, getBook, getMoment, onPeriod, setMoment, setPeriod, withMoment, type Moment } from '../state/time';
 
@@ -272,7 +271,6 @@ export function initHousePanel(o: HousePanelOptions) {
     history.replaceState(null, '', u);
   };
 
-  let revealed = ''; // the house whose wiki text the reader chose to see
   const show = (id: string | null) => {
     const g = o.layer.graph, h = id ? g.by.get(id) : null;
     card.hidden = !h;
@@ -292,13 +290,12 @@ export function initHousePanel(o: HousePanelOptions) {
     lordBox.querySelector('.h-chip')?.remove();
     if (lord) lordBox.append(chip(lord, () => o.flyTo(lord.id)));
     swornBox.querySelector('.h-list')!.replaceChildren(...sworn.sort((a, b) => shown(a).localeCompare(shown(b))).map((v) => chip(v, () => o.flyTo(v.id))));
-    // the wiki's lead and facts of the house: written after the whole story, so behind the spoiler button until its end
+    // the wiki's lead and facts of the house
     const wiki = (houseWiki as unknown as Record<string, { summary?: string; facts?: [string, string][] }>)[h.id], box = q('.h-wikitext');
     box.hidden = !wiki;
     if (wiki) {
       const sum = box.querySelector('.h-summary')!, wf = box.querySelector('.h-wfacts')!;
-      if (spoilerSafe(revealed === h.id)) { sum.textContent = wiki.summary ?? ''; wf.replaceChildren(...(wiki.facts ?? []).flatMap(([k, v]) => row(k, v))); }
-      else { sum.replaceChildren(spoilerButton(() => { revealed = h.id; show(h.id); })); wf.replaceChildren(); }
+      sum.textContent = wiki.summary ?? ''; wf.replaceChildren(...(wiki.facts ?? []).flatMap(([k, v]) => row(k, v)));
     }
     q('.h-note').textContent = h.seatOf ? `Shares its seat with ${g.by.get(h.seatOf)?.name ?? 'another house'}, whose land is shown.` : lord ? '' : 'Answers to no liege at this time (the wiki names none).';
     q('.h-note').hidden = !q('.h-note').textContent;

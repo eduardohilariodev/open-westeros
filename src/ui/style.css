@@ -675,8 +675,6 @@ body.timeline-on #yearBtn { top: calc(12px + env(safe-area-inset-top)); bottom: 
 #whenInfo .wi-track { display: flex; gap: 2px; }
 #whenInfo .wi-sel { max-width: 200px; flex: 1 1 110px; min-width: 0; }
 /* the wiki text waits behind this until the moment has reached the end of the story */
-button.spoiler { padding: 8px 12px; border: 1px dashed var(--muted); border-radius: 8px; background: transparent; color: var(--muted); font: 600 12.5px/1.2 inherit; cursor: pointer; text-align: left; }
-button.spoiler:hover { color: var(--gold-hi); border-color: var(--gold-hi); }
 /* the wiki's lead and facts in the house card */
 #house .h-wikitext { margin-top: 14px; }
 #house .h-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.5; white-space: pre-line; }

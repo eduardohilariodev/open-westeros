@@ -27,6 +27,7 @@ const REGION_HOUSE = {
 };
 const MAX_HOUSES = 4;
 
+const battles = new Set([...readFileSync('src/world-data.ts', 'utf8').matchAll(/\["([^"]+)","battle"/g)].map((m) => m[1]));
 const out = {}, sigils = new Set();
 for (const [name, file] of Object.entries(places)) {
   const { title, summary, facts, image, images, captions, more } = parse(readFileSync(`${DIR}/${decodeURIComponent(file)}`, 'utf8'));
@@ -34,6 +35,7 @@ for (const [name, file] of Object.entries(places)) {
   const government = [...(facts.find(([k]) => k === 'Government')?.[1] ?? '').matchAll(/\]\((House_[^)#\s]+)\)/g)].map((m) => titleOf(m[1]));
   const seated = Object.entries(houses).flatMap(([t, h]) => h.seats.filter(([s]) => s === title).map(([, formerly]) => [t, formerly]));
   const ranked = [REGION_HOUSE[name], ...government, ...seated.filter(([, f]) => !f).map(([t]) => t), ...seated.filter(([, f]) => f).map(([t]) => t)];
+  if (battles.has(name) && !facts.some(([k]) => k === 'Date')) facts.push(['Date', 'Not dated in canon']); // every battle shows when; canon-silent ones say so
   const placeHouses = [...new Set(ranked)].filter((t) => houses[t]).slice(0, MAX_HOUSES)
     .map((t) => { sigils.add(houses[t].sigil); return [t, houses[t].sigil, houses[t].label ?? t]; });
   out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(captions.some(Boolean) && { captions }), ...(summary && { summary }), ...(more && { more: true }), ...(facts.length && { facts }), ...(placeHouses.length && { houses: placeHouses }) };

@@ -28,7 +28,7 @@ const ALIASES = {
   'The Fallen Valyrian Freehold': 'Valyrian Freehold', 'The Mouths of the Rhoyne': 'Rhoyne', 'The Fallen Kingdom of Hyrkoon': 'Patrimony of Hyrkoon',
   'Lake Zamoyos': 'Zamoyos', 'Upper Zamoyos': 'Zamoyos', 'Lower Zamoyos': 'Zamoyos', 'The Jungles of Yi Ti': 'Yi Ti', 'The Straits of Leng': 'Leng',
   'Nightrunner Tribes': 'Nightrunners', 'Hornfoot Tribes': 'Hornfoot', "Storrord's Point": "Storrold's Point", "Hewett's Town": "Lord Hewett's Town",
-  'Thenn': 'Thenn (valley)', 'Sweetport': 'Sweetport Sound', 'Mouth of the Mander': 'Mander', 'Lorath Island': 'Lorath', 'Lonely Hill': 'Lonely Hills', 'Marahai Bay': 'Marahai', "Mormont's Keep": 'Hall of the Mormonts', 'Kingshouse (Skagos)': 'Kingshouse',
+  'Thenn': 'Thenn (valley)', 'Sweetport': 'Sweetport Sound', 'Mouth of the Mander': 'Mander', 'Lorath Island': 'Lorath', 'Lonely Hill': 'Lonely Hills', 'Marahai Bay': 'Marahai', "Mormont's Keep": 'Hall of the Mormonts', 'Kingshouse (Skagos)': 'Kingshouse', 'Redgrass Field': 'Battle of the Redgrass Field', "Battle at Mummer's Ford": "Battle at the Mummer's Ford",
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Title -> file name. Also run inside the page (as source text) to build link targets.

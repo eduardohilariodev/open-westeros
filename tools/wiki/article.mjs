@@ -3,7 +3,10 @@
 import { plain, rich, titleOf } from './md.mjs';
 
 export function parse(md) {
-  const body = md.replace(/^---[\s\S]*?---\s*/, '');
+  // Later scrapes link pictures by file path (/images/thumb/a/ab/F/350px-F, or /images/a/ab/F at full size) instead of thumb.php: same form for both.
+  const body = md.replace(/^---[\s\S]*?---\s*/, '')
+    .replace(/\]\(https:\/\/awoiaf\.westeros\.org\/images\/thumb\/\w\/\w\w\/([^/)\s]+)\/(\d+)px-[^)\s]+\)/g, '](https://awoiaf.westeros.org/thumb.php?f=$1&width=$2)')
+    .replace(/\]\(https:\/\/awoiaf\.westeros\.org\/images\/\w\/\w\w\/([^/)\s]+)\)/g, '](https://awoiaf.westeros.org/thumb.php?f=$1&width=350)');
   const title = body.match(/^# (.+)/m)[1];
   const lead = body.slice(body.indexOf('\n')).split(/^## /m)[0];
   const facts = [];
@@ -33,7 +36,7 @@ export function parse(md) {
   // caption/file name, a place whose art is uncredited stays as is.
   const score = (f) => { const s = `${f} ${found.get(f)}`; return /map/i.test(s) ? -5 : /Nasmith|TN-/.test(s) ? 4 : /Fantasy Flight|Jedruszek|Vela/.test(s) ? 3 : /\bby \S/.test(found.get(f)) ? 2 : 0; };
   const images = [...found.keys()].slice(0, 40).sort((a, b) => score(b) - score(a)), captions = images.map((f) => found.get(f));
-  const hero = images.length && score(images[0]) > 0 ? `https://awoiaf.westeros.org/thumb.php?f=${images[0]}&width=350` : image;
+  const hero = images.length && (score(images[0]) > 0 || !image) ? `https://awoiaf.westeros.org/thumb.php?f=${images[0]}&width=350` : image;
   // more to read than the lead: a section after it that has some prose of its own (not just references or links)
   const more = body.slice(body.indexOf('\n')).split(/^## /m).slice(1).some((sec) => !/^(References|External links|Gallery|See also|Notes|Sources|Further reading)/i.test(sec) && sec.split('\n').slice(1).join('').replace(/\s/g, '').length > 120);
   return { title, summary, facts, image: hero, images, captions, more };
