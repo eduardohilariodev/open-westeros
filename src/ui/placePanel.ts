@@ -5,6 +5,7 @@ import { endCharacter } from './characterPanel';
 import HOUSES from '../houses.json';
 import { stateAt } from '../state/changes';
 import { onPeriod, START } from '../state/time';
+import { spoilerButton, spoilerSafe } from './spoiler';
 
 /** "Held by" at the moment, as a wiki link, for a seat or a place some house has held by then (state/changes.ts); null otherwise. */
 const heldBy = (name: string): string | null => {
@@ -63,11 +64,12 @@ const fill = (el: HTMLElement, text: string) => {
 let baseTitle = '';
 const syncAddress = (c: Card) => {
   baseTitle ||= document.title;
-  document.title = c ? `${c.name} · ${baseTitle}` : baseTitle;
+  document.title = c ? `${stateAt(c.name).name ?? c.name} · ${baseTitle}` : baseTitle;
   const u = new URL(location.href);
   if (c) u.searchParams.set('place', c.name); else u.searchParams.delete('place');
   history.replaceState(null, '', u);
 };
+let revealed = ''; // the place whose wiki text the reader chose to see
 export const showCard = (c: Card) => {
   endCharacter(); // the card is a place's from here on: the character's journey leaves the map and the card's character parts go
   place.classList.remove('character');
@@ -82,22 +84,25 @@ export const showCard = (c: Card) => {
   const hero = q<HTMLImageElement>('.hero');
   hero.hidden = !info.image;
   hero.src = info.image ?? '';
-  q('h1').textContent = c.name;
+  q('h1').textContent = stateAt(c.name).name ?? c.name;
   const alt = (PLACE_ALT as Record<string, string>)[c.name];
   if (alt) q('h1').append(' ', Object.assign(document.createElement('small'), { textContent: `(${alt})` })); // the Dothraki or original name
   q('.kind').textContent = c.kind;
-  fill(q('.summary'), c.text ?? info.summary ?? '');
+  const wikiText = !c.text && !!(info.summary || info.facts?.length), safe = spoilerSafe(revealed === c.name), hide = wikiText && !safe; // the wiki lead and facts are written after the whole story
+  if (hide) q('.summary').replaceChildren(spoilerButton(() => { revealed = c.name; showCard(c); }));
+  else fill(q('.summary'), c.text ?? info.summary ?? '');
   const model = modelFor(c);
   q('.model').hidden = !model;
   q('.model').onclick = model;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   // the lead is all the card shows; a link at the end of it when the article has more to read
   const more = q<HTMLAnchorElement>('.more');
-  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !('more' in info && info.more) || !!c.text;
-  q('.credit').hidden = !info.wiki || !!c.text;
+  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !('more' in info && info.more) || !!c.text || hide;
+  q('.credit').hidden = !info.wiki || !!c.text || hide;
   // Houses of the place: the sigil opens the wiki's file page (author and licence), the name opens the house's article.
   q('.sigils-credit').hidden = !info.houses;
-  q('.houses').replaceChildren(...(info.houses ?? []).map(([, file, label]) => {
+  const holder = stateAt(c.name).holder; // a house that shares the seat (Bolton of Winterfell) shows only once it holds it
+  q('.houses').replaceChildren(...(info.houses ?? []).filter(([, , label]) => { const h = HOUSES.find((x) => x.name === label); return !h?.seatOf || (!!holder && (h.id === holder || h.id.startsWith(holder + '-'))); }).map(([, file, label]) => {
     const chip = document.createElement('button'), img = new Image();
     chip.type = 'button'; chip.className = 'house';
     img.src = `/sigils/${file.replace(/\.[^.]+$/, '.webp')}`; img.alt = `Coat of arms of ${label}`;
@@ -107,7 +112,7 @@ export const showCard = (c: Card) => {
     return chip;
   }));
   const held = heldBy(c.name);
-  const facts: [string, string][] = [...(held ? [['Held by', held] as [string, string]] : []), ...(c.region ? [['Region', `[${c.region}](${c.region.replace(/ /g, '_')})`] as [string, string]] : []), ...(info.facts ?? [])];
+  const facts: [string, string][] = [...(held ? [['Held by', held] as [string, string]] : []), ...(c.region ? [['Region', `[${c.region}](${c.region.replace(/ /g, '_')})`] as [string, string]] : []), ...(hide ? [] : info.facts ?? [])];
   if (c.lat !== undefined && c.lon !== undefined) facts.push(['Coordinates', `${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°`]);
   q('.facts').replaceChildren(...facts.map(([k, v]) => {
     const li = document.createElement('li');

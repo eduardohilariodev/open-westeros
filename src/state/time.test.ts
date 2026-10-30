@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOOKS, CHAPTERS, EPISODES, START, getBook, getMoment, getPeriod, momentFromSearch, onPeriod, setMoment, setPeriod, withMoment, yearOf } from './time.ts';
+import { BOOKS, CHAPTERS, EPISODES, START, atEnd, chapterLimit, getBook, getMoment, getPeriod, momentFromSearch, momentParam, onPeriod, setMoment, setPeriod, lastChapter, withMoment, yearOf } from './time.ts';
 
 test('listeners fire once per real change', () => {
   const seen: string[] = [];
@@ -62,4 +62,21 @@ test('the show has 73 episodes and borrows a book period per season', () => {
   setPeriod('acok'); // a book from the show track moves to the books
   assert.equal(getMoment().track, 'books');
   setMoment(START);
+});
+
+test('a year of the history has its own address', () => {
+  assert.deepEqual(momentFromSearch('?when=y-100'), { track: 'history', year: -100 });
+  assert.equal(momentParam({ track: 'history', year: -100 }), 'y-100');
+  assert.deepEqual(momentFromSearch(`?when=${momentParam({ track: 'history', year: 187 })}`), { track: 'history', year: 187 });
+});
+
+test('the wiki text opens only at the end of the story', () => {
+  assert.equal(atEnd({ track: 'books', at: 0 }), false);
+  assert.equal(atEnd({ track: 'books', at: lastChapter('adwd') }), true);
+  assert.equal(atEnd({ track: 'show', at: EPISODES.length - 1 }), true);
+  assert.equal(atEnd({ track: 'show', at: 3 }), false);
+  assert.equal(atEnd({ track: 'history', year: 100 }), false);
+  assert.equal(chapterLimit({ track: 'history', year: 100 }), -1);
+  assert.equal(chapterLimit({ track: 'books', at: 80 }), 80);
+  assert.equal(chapterLimit({ track: 'show', at: 0 }), lastChapter('agot'));
 });

@@ -16,7 +16,7 @@ Canon first, never invent (PRODUCT.md). Anything that says where something is (a
 |---|---|
 | `npm run lore -- find <term> [term ...]` | book sentences with every term, with book and chapter |
 | `npm run lore -- search <term> [--kind k]` / `near <lat> <lon>`, `near "Name"` | find places by name or neighbourhood, with the `/?place=Name` link |
-| `npm run shot -- "Name" ["Name" ...] [--flat] [--eval js]` | headless Chrome: opens the world, flies to each place, saves `tmp/shots/<Name>.png`, prints JSON (card, tab title, address, altitude, console errors). Starts the dev server itself, about 30 s per run, then ~3 s per extra place |
+| `npm run shot -- "Name" ["Name" ...] [--flat] [--eval js] [--when moment] [--houses] [--house id]` | headless Chrome: opens the world, flies to each place, saves `tmp/shots/<Name>.png`, prints JSON (card, tab title, address, altitude, console errors). Starts the dev server itself, about 30 s per run, then ~3 s per extra place |
 | `npm run lore -- place "Name"` | position, claims, wiki lead, book passages, distances to coast, rivers, roads |
 | `npm run lore -- check` | all lore checks; exit 1 on any failure (also runs in the pre-commit hook and after edits, via `.claude/settings.json`) |
 | `npm run lore -- roads` | regenerate places and roads, then check |

@@ -1,22 +1,24 @@
 // Open the world headless, fly to places, screenshot them and report what the page says: for agents, no browser window to drive.
-// Usage: npm run shot -- "Winterfell" ["The Wall" ...] [--flat] [--size 1280x720] [--out dir] [--zoom f] [--tilt rad] [--eval "js"] [--url http://localhost:5173] [--query quality=low]
+// Usage: npm run shot -- "Winterfell" ["The Wall" ...] [--flat] [--size 1280x720] [--out dir] [--zoom f] [--tilt rad] [--eval "js"] [--eval-file path] [--url http://localhost:5173] [--query quality=low]
+//   --when <moment> opens the map at that point in the story (acok, asos-sansa-v, s3e9, fab: the ?when= of the address); --houses switches on the houses overlay
+//   before the shot (the lands and borders at that moment); --house <id> flies to that house instead of a place (names are then ignored).
 //   Starts the vite dev server when --url is not given and nothing answers on 5199; stops it after. One page load serves every place.
 //   Per place: png in --out (default tmp/shots/<name>.png) and one JSON line: card title, tab title, address, camera altitude/centre, console errors.
 //   --zoom f multiplies the camera height by f after each fly-to (the camera stops 600 km above the ground: cameraRig.ts MIN_ALT).
 //   --eval runs in the page after each fly-to (window.__globe, __renderer, __THREE exist in dev) and its result goes in the JSON.
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args.splice(i, 2)[1]; };
 const flag = (k) => { const i = args.indexOf('--' + k); return i >= 0 && !!args.splice(i, 1); };
-const flat = flag('flat'), outDir = opt('out', 'tmp/shots'), expr = opt('eval'), zoom = +opt('zoom', 0), tilt = +opt('tilt', 0), given = opt('url');
+const flat = flag('flat'), outDir = opt('out', 'tmp/shots'), evalFile = opt('eval-file'), expr = opt('eval') ?? (evalFile && readFileSync(evalFile, 'utf8')), zoom = +opt('zoom', 0), tilt = +opt('tilt', 0), given = opt('url'), when = opt('when'), houses = flag('houses'), house = opt('house');
 const [width, height] = opt('size', '1280x720').split('x').map(Number);
-const names = args;
-if (!names.length) { console.log('usage: npm run shot -- "Place" ["Place" ...] [--flat] [--size WxH] [--out dir] [--eval js] [--url u]'); process.exit(1); }
+const names = house ? [house] : args;
+if (!names.length) { console.log('usage: npm run shot -- "Place" ["Place" ...] [--flat] [--size WxH] [--out dir] [--eval js] [--url u] [--when moment] [--houses] [--house id]'); process.exit(1); }
 
-const base = given ?? 'http://localhost:5199', extra = opt('query', '');
+const base = given ?? 'http://localhost:5199', extra = [opt('query', ''), when ? 'when=' + encodeURIComponent(when) : ''].filter(Boolean).join('&');
 const up = () => fetch(base).then((r) => r.ok, () => false);
 let server;
 if (!(await up())) {
@@ -35,11 +37,12 @@ try {
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   // the first place goes in the address, which is also what a shared link does
-  await page.goto(`${base}/?place=${encodeURIComponent(names[0])}${extra ? '&' + extra : ''}`);
+  await page.goto(`${base}/?${house ? '' : 'place=' + encodeURIComponent(names[0]) + '&'}${extra}`);
   await page.waitForSelector('#loading', { state: 'detached', timeout: 60_000 }); // the coin finale, at least ~4 s
   if (flat) await page.click('#reliefBtn');
+  if (houses || house) await page.click('[data-mode=houses]');
   for (const [k, name] of names.entries()) {
-    const found = await page.evaluate((n) => {
+    const found = house ? await page.evaluate((h) => { window.__wake?.(); window.__globe.flyToHouse(h); return true; }, name) : await page.evaluate((n) => {
       const i = window.__globe.places.findIndex((p) => p.name.toLowerCase() === n.toLowerCase());
       if (i >= 0) window.__wake?.(); if (i >= 0) window.__globe.flyToPlace(i);
       return i >= 0;

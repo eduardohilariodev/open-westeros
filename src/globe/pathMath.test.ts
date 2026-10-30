@@ -33,7 +33,8 @@ test('segmentsUpTo counts whole segments leg by leg', () => {
 test('chevrons sit on the line and point forward', () => {
   const { rings, at } = chevrons(route, deg / 2, 10_000);
   assert.equal(rings.length, at.length);
-  assert.equal(rings.length, 4);
+  assert.equal(rings.length, 3);
+  assert.deepEqual(chevrons(route, deg, 10_000).at, at.filter((_, i) => i % 2 === 1), 'doubling the spacing keeps every other arrow in place');
   for (const [w1, tip, w2] of rings as [Pt, Pt, Pt][]) {
     assert.equal(tip[1], 0);
     assert.ok(w1[0] < tip[0] && w2[0] < tip[0], 'wings trail behind the tip');

@@ -69,11 +69,12 @@ export function segmentsUpTo(r: Route, s: number): number {
 
 /**
  * Arrowheads along the route, one every `spacing` metres, each a 3-point open ring (wing, tip, wing) whose tip is on the
- * line and whose wings sweep back `size` metres at 28°. `at` is the route distance of each tip, ascending.
+ * line and whose wings sweep back `size` metres at 28°. `at` is the route distance of each tip, ascending. Tips sit on
+ * whole multiples of `spacing`, so doubling it keeps every other arrow where it was.
  */
 export function chevrons(r: Route, spacing: number, size: number): { rings: Pt[][]; at: number[] } {
   const rings: Pt[][] = [], at: number[] = [], A = (28 * Math.PI) / 180;
-  for (let s = spacing / 2; s < r.total; s += spacing) {
+  for (let s = spacing; s < r.total; s += spacing) {
     const { p, dir } = pointAt(r, s);
     const k = Math.cos(p[1] * COS) || 1;
     const wing = (side: number): Pt => {

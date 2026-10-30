@@ -8,7 +8,8 @@ export interface House {
 }
 
 /** `liege` gives the id of the house a house is sworn to, or null. */
-export function buildGraph(houses: House[], liege: (h: House) => string | null) {
+/** `crown` is the house of the Iron Throne: the great lords sit just below it. A king under no crown (the King in the North) is the head of his own realm. */
+export function buildGraph(houses: House[], liege: (h: House) => string | null, crown = 'baratheon-of-king-s-landing') {
   const by = new Map(houses.map((h) => [h.id, h]));
   const lieges = new Map(houses.map((h) => [h.id, liege(h)]));
   const sworn = new Map<string, House[]>();
@@ -29,12 +30,12 @@ export function buildGraph(houses: House[], liege: (h: House) => string | null) 
     }
     return depth;
   };
-  /** The great lord a house answers to: the highest house in its chain that still has a liege of its own (the crown has none). */
+  /** The great lord a house answers to: the highest house in its chain below the crown, or the head of a chain that never reaches it. */
   const realm = (id: string) => {
     let h = by.get(id)!;
     for (const seen = new Set([id]); ;) {
       const l = liegeOf(h.id);
-      if (!l || !liegeOf(l.id) || seen.has(l.id)) return h.id;
+      if (!l || l.id === crown || seen.has(l.id)) return h.id;
       seen.add(l.id); h = l;
     }
   };
@@ -43,5 +44,9 @@ export function buildGraph(houses: House[], liege: (h: House) => string | null) 
 
 export type Graph = ReturnType<typeof buildGraph>;
 
-/** Sigil size class: great houses hold many vassals. */
-export const tierOf = (g: Graph, id: string) => { const n = g.subtree(id).size - 1; return n >= 12 ? 0 : n >= 3 ? 1 : 2; };
+/** Sigil size class: great houses hold many vassals. Branches of one house on a shared seat (Harlaw's four) count once, and a mid house
+ * (Hightower, five) is no great house: its coat of arms comes in with the small ones. */
+export const tierOf = (g: Graph, id: string) => {
+  const n = new Set([...g.subtree(id).keys()].filter((v) => v !== id).map((v) => g.by.get(v)?.seatOf ?? v)).size;
+  return n >= 10 ? 0 : n >= 6 ? 1 : 2;
+};

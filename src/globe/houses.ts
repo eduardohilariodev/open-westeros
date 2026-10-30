@@ -6,7 +6,7 @@ import houseData from '../houses.json';
 import territoryData from '../house-territories.json';
 import { buildGraph, tierOf, type Graph, type House } from '../houseGraph';
 import { onPeriod } from '../state/time';
-import { liegeAt } from '../state/changes';
+import { houseExists, liegeAt, standIn, stateAt } from '../state/changes';
 import { inRing, lineGeometry, lineMesh } from './gpuVector';
 import { lifted } from './lift';
 import { tintOf } from '../sigilTint';
@@ -37,7 +37,6 @@ const SIGIL_BELOW = [16_000_000, 4_500_000, 2_200_000], SIGIL_PX = [38, 28, 22];
 // Land is flat, solid colour: every territory in its great house's arms colour on a canvas (PPD px per degree), then draped on the globe;
 // BLUR is the blur radius in px (0: none), the borders are lines over it.
 const PPD = 32, BLUR = [0], SWORN_ALPHA = 0.11, HEAD_ALPHA = 0.17, LIT_ALPHA = [0.4, 0.26, 0.2], HOVER_ALPHA = 0.22;
-const THIN_BELOW = [6_500_000, 9_000_000]; // thin borders fade out between these; the realm borders stay
 const THIN_OPACITY = 0.6, REALM_OPACITY = 0.9, RING_OPACITY = 0.85; // faint: the colour carries the land, the lines only hint at the edge
 /** The same hue, more saturated and mid-light, for the lit realm (a pale or muddy arms colour would drown in the map). */
 const vivid = ([r, g, b]: [number, number, number]): [number, number, number] => {
@@ -80,10 +79,20 @@ export interface HouseLayerOptions {
 export function createHouseLayer(o: HouseLayerOptions) {
   const r = o.R - 6, group = new THREE.Group();
   group.visible = false;
-  let graph: Graph = buildGraph(HOUSES, (h) => liegeAt(h.id));
+  let graph: Graph = buildGraph(HOUSES.filter((h) => houseExists(h.id)), (h) => liegeAt(h.id));
   let focusId: string | null = null, hoverId: string | null = null, built = false, version = 0;
   const tints = new Map<string, [number, number, number]>(); // each house's colour, from its sigil once that loads
   const territory = (id: string) => (T.houses[id] ? id : graph.by.get(id)?.seatOf ?? id); // a house on a shared seat is lit on the seat's holder
+  // Land follows who is sworn to whom, not who sits in the seat: a castle taken by an enemy does not change its vassals' allegiance.
+  // A house's own land takes the realm of whoever sits in its seat when that is another house (Stark land under the ironmen); the vassals' lands keep
+  // the realm they are sworn to, because a castle taken does not change who its vassals owe fealty to.
+  const realmOf = (id: string) => {
+    const lord = seatLord(own(id) ?? id);
+    return graph.by.has(lord) ? graph.realm(lord) : lord;
+  };
+  /** Who sits in the seat of house `id` now: another house in the graph, else the house itself. */
+  const seatLord = (id: string) => { const h = graph.by.get(id), occ = h ? stateAt(h.seat).holder : null; return occ && occ !== id && graph.by.has(occ) ? occ : id; };
+  const IDS = new Set(HOUSES.map((h) => h.id)), own = (id: string): string | null => (!IDS.has(id) || graph.by.has(id) ? id : standIn(id) ?? [...graph.by.values()].find((h) => h.seatOf === id)?.id ?? null), here = (id: string) => own(id) !== null; // land of a house not yet founded goes to the house that held the seat before (Durrandon for Baratheon), else it has no land, sigil or border
   const col = colours();
   const flat = (m: THREE.Object3D) => { Object.assign((m as THREE.Mesh).material, { depthTest: false, transparent: true }); return m; }; // over the relief, like regions.ts
 
@@ -131,37 +140,38 @@ export function createHouseLayer(o: HouseLayerOptions) {
     return coast;
   };
   const thinLines = new Map<string, Border>(), realmLines = new Map<string, Border>();
-  let thinFade = 1, borderSig = '';
+  let thinFades = [1, 1, 1], borderSig = ''; // per sigil class: how much of the inner borders shows (they come in with their houses' coats of arms)
   const drawBorders = () => {
-    const realmOf = (id: string) => (graph.by.has(id) ? graph.realm(id) : id);
     const colourOf = (id: string) => vivid(rgbOf(realmOf(id)));
     const css = (c: number[]) => `rgb(${edge(c).join(',')})`;
     const thin = new Map<string, Ring[]>(), between = new Map<string, Ring[]>();
     const push = (m: Map<string, Ring[]>, k: string, rings: Ring[]) => m.set(k, [...(m.get(k) ?? []), ...rings]);
-    for (const [id, rings] of coastOf()) push(between, css(colourOf(id)), rings); // the shore is drawn like a border between realms: same width and strength
+    for (const [id, rings] of coastOf()) if (here(id)) push(between, css(colourOf(id)), rings); // the shore is drawn like a border between realms: same width and strength
     for (const [a, b, ring] of T.borders) {
-      if (realmOf(a) === realmOf(b)) { push(thin, css(colourOf(a)), [ring]); continue; }
+      if (!here(a) || !here(b)) { if (here(a) || here(b)) push(between, css(colourOf(here(a) ? a : b)), [ring]); continue; } // beside a house not yet founded the border is a shore
+      // an inner border (inside one realm) is keyed by the smaller of its two houses' sigil classes: it shows with their coats of arms, not before
+      if (realmOf(a) === realmOf(b)) { push(thin, `${css(colourOf(a))}|${Math.max(tierOf(graph, own(a)!), tierOf(graph, own(b)!))}`, [ring]); continue; }
       const x = colourOf(a), y = colourOf(b);
       push(between, css(x.map((v, i) => (v + y[i]) >> 1)), [ring]);
     }
     const sig = [...thin, ...between].map(([k, v]) => `${k}:${v.length}:${v.reduce((n, rg) => n + rg.length, 0)}`).join('|');
     if (sig === borderSig) return;
     borderSig = sig;
-    const apply = (pool: Map<string, Border>, groups: Map<string, Ring[]>, width: number, order: number, opacity: number, fade: number) => {
+    const apply = (pool: Map<string, Border>, groups: Map<string, Ring[]>, width: number, order: number, opacity: number, fade: (k: string) => number) => {
       for (const [k, l] of pool) if (!groups.has(k)) l.set([]);
       for (const [k, rings] of groups) {
         let l = pool.get(k);
-        if (!l) { l = borderLine(k, width, order, opacity); l.fade(fade); pool.set(k, l); group.add(...l.meshes); }
+        if (!l) { l = borderLine(k.split('|')[0], width, order, opacity); l.fade(fade(k)); pool.set(k, l); group.add(...l.meshes); }
         l.set(rings);
       }
     };
-    apply(thinLines, thin, 1.5, 191, THIN_OPACITY, thinFade);
-    apply(realmLines, between, 2.5, 192, REALM_OPACITY, 1);
+    apply(thinLines, thin, 1.5, 191, THIN_OPACITY, (k) => thinFades[+k.split('|')[1]]);
+    apply(realmLines, between, 2.5, 192, REALM_OPACITY, () => 1);
   };
   // the focused realm's outline: borders with exactly one side inside it
   const outline = (set: Map<string, number>) => T.borders.filter(([a, b]) => set.has(a) !== set.has(b)).map((b) => b[2]);
 
-  const sigils: { id: string; tier: number; up: THREE.Vector3; pos: THREE.Vector3; obj: CSS2DObject; chars: number; dx: number; dy: number }[] = [];
+  const sigils: { id: string; skip?: boolean; shown: string; show: (id: string) => void; tier: number; up: THREE.Vector3; pos: THREE.Vector3; obj: CSS2DObject; chars: number; dx: number; dy: number }[] = [];
   const bounds = new Map<string, [number, number, number, number]>(); // lon0, lon1, lat0, lat1
 
   const build = () => {
@@ -213,7 +223,8 @@ export function createHouseLayer(o: HouseLayerOptions) {
       name.textContent = h.title; // "House Tully"
       el.title = h.name;
       el.append(img, name);
-      el.onclick = (e) => { e.stopPropagation(); o.onPick(h.id); };
+      let shownId = h.id; // the coat of arms follows the seat: the occupier's while another house sits there
+      el.onclick = (e) => { e.stopPropagation(); o.onPick(shownId); };
       el.onpointerenter = () => setHover(territory(h.id)); // the sigil sits over the land and takes the pointer, so it hovers the land for it
       el.onpointerleave = () => setHover(null);
       const [lon, lat] = centreOf(h.id, seat);
@@ -221,7 +232,8 @@ export function createHouseLayer(o: HouseLayerOptions) {
       obj.position.copy(up).multiplyScalar(o.R + 500);
       obj.visible = false;
       group.add(obj);
-      sigils.push({ id: h.id, tier: tierOf(graph, h.id), up, pos: obj.position, obj, chars: h.title.length, dx: 0, dy: 0 });
+      const show = (id: string) => { const w = HOUSES.find((x) => x.id === id) ?? h; shownId = w.id; img.src = sigilUrl(w); name.textContent = w.title; el.title = w.name; };
+      sigils.push({ id: h.id, shown: h.id, show, tier: tierOf(graph, h.id), up, pos: obj.position, obj, chars: h.title.length, dx: 0, dy: 0 });
     }
     refreshGraph();
   };
@@ -233,6 +245,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
     const [lon0, , , lat1] = paintBox, { width: w, height: h } = paintCtx.canvas;
     paintCtx.clearRect(0, 0, w, h);
     for (const [id, rings] of Object.entries(T.houses)) {
+      if (!here(id)) continue;
       const [[cr, cg, cb], a] = colourOf(id);
       paintCtx.beginPath();
       for (const rg of rings) rg.forEach(([x, y], i) => (i ? paintCtx.lineTo : paintCtx.moveTo).call(paintCtx, (x - lon0) * PPD, (lat1 - y) * PPD));
@@ -250,7 +263,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
     const depth = new Map<string, number>();
     set?.forEach((d, id) => { const t = territory(id); depth.set(t, Math.min(d, depth.get(t) ?? Infinity)); });
     const lord = focusId ? graph.liegeOf(focusId)?.id : null;
-    const head = (id: string) => (graph.by.has(id) ? graph.realm(id) : id);
+    const head = realmOf;
     drawLand((id) => {
       const d = depth.get(id);
       if (!set) return [vivid(rgbOf(head(id))), head(id) === id ? HEAD_ALPHA : SWORN_ALPHA]; // at rest: each house in its great house's colour, sworn houses fainter
@@ -263,10 +276,22 @@ export function createHouseLayer(o: HouseLayerOptions) {
     drawHover();
     version++;
   };
-  const refreshGraph = () => { for (const s of sigils) s.tier = tierOf(graph, s.id); paint(); };
+  const refreshGraph = () => {
+    // Each sigil shows the house that holds its seat now; one that stands in for a house not there yet (Targaryen for the Baratheon crown) takes its
+    // size class from the stand-in, and a stand-in shows once, at the crown's own seat first, not again at its other seat (Dragonstone).
+    const taken = new Set<string>(), standing = (s: (typeof sigils)[number]) => (graph.by.has(s.id) ? 0 : standIn(s.id) ? 1 : 2);
+    for (const s of [...sigils].sort((a, b) => standing(a) - standing(b))) {
+      const w = graph.by.has(s.id) ? seatLord(s.id) : own(s.id) ?? s.id;
+      s.skip = taken.has(w) && w !== s.id; taken.add(w);
+      s.tier = tierOf(graph, graph.by.has(w) ? w : s.id);
+      if (w !== s.shown) { s.shown = w; s.show(w); }
+    }
+    paint();
+  };
 
   const houseAt = (lat: number, lon: number) => {
     for (const [id, b] of bounds) {
+      if (!here(id)) continue;
       if (lon < b[0] || lon > b[1] || lat < b[2] || lat > b[3]) continue;
       if (T.houses[id].reduce((odd, rg) => (inRing(lon, lat, rg) ? !odd : odd), false)) return id;
     }
@@ -292,7 +317,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
     hoverCtx.clearRect(0, 0, w, h);
     hoverMesh.visible = !!hoverId;
     if (hoverId) {
-      const [cr, cg, cb] = vivid(rgbOf(focusId && graph.subtree(focusId).has(hoverId) ? focusId : graph.by.has(hoverId) ? graph.realm(hoverId) : hoverId));
+      const [cr, cg, cb] = vivid(rgbOf(focusId && graph.subtree(focusId).has(hoverId) ? focusId : realmOf(hoverId)));
       hoverCtx.filter = `blur(${BLUR[0]}px)`;
       hoverCtx.beginPath();
       for (const rg of T.houses[hoverId] ?? []) rg.forEach(([x, y], i) => (i ? hoverCtx.lineTo : hoverCtx.moveTo).call(hoverCtx, (x - lon0) * PPD, (lat1 - y) * PPD));
@@ -326,7 +351,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
     moved = e;
   });
   o.dom.addEventListener('pointerleave', () => setHover(null));
-  onPeriod(() => { graph = buildGraph(HOUSES, (h) => liegeAt(h.id)); if (built) { if (focusId && !graph.by.has(focusId)) focusId = null; refreshGraph(); o.onFocus(focusId); } });
+  onPeriod(() => { graph = buildGraph(HOUSES.filter((h) => houseExists(h.id)), (h) => liegeAt(h.id)); if (built) { if (focusId && !graph.by.has(focusId)) focusId = null; refreshGraph(); o.onFocus(focusId); } });
 
   const cam = new THREE.Vector3(), v = new THREE.Vector3();
   const api = {
@@ -361,13 +386,14 @@ export function createHouseLayer(o: HouseLayerOptions) {
      */
     update(camera: THREE.Camera, alt: number, cosLimit: number, now: number, reserved: number[][] = []) {
       if (!group.visible || !built) return;
-      const f = 1 - THREE.MathUtils.smoothstep(alt, THIN_BELOW[0], THIN_BELOW[1]);
-      if (f !== thinFade) { thinFade = f; thinLines.forEach((l) => l.fade(f)); }
+      const fs = SIGIL_BELOW.map((b) => 1 - THREE.MathUtils.smoothstep(alt, b * 0.7, b));
+      if (fs.some((x, i) => x !== thinFades[i])) { thinFades = fs; thinLines.forEach((l, k) => l.fade(fs[+k.split('|')[1]])); }
       cam.copy(camera.position).normalize();
       const lit = focusId ? graph.subtree(focusId) : null, taken = createDeclutter(2, 2);
       reserved.forEach((b) => taken.claim(b, true));
       const order = [...sigils].sort((a, b) => Number(lit?.has(b.id) ?? 0) - Number(lit?.has(a.id) ?? 0) || a.tier - b.tier);
       for (const s of order) {
+        if (!here(s.id) || s.skip) { setShown(s.obj, false, now); continue; }
         const isLit = !!lit?.has(s.id);
         let on = isLit ? alt < SIGIL_BELOW[0] : alt < SIGIL_BELOW[s.tier];
         if (on && cam.dot(s.up) <= cosLimit) on = false;

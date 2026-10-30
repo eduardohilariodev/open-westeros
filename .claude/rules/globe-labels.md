@@ -36,7 +36,9 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - In houses mode the coats of arms (`houses.ts`) keep clear of the focused seat's name (`seatBox`) and move off their land in
   the same rings (`RINGS`, `offset` in `declutter.ts`) rather than over a neighbour.
 - At the camera floor (below 1.1 × `MIN_ALT`) every point place is named: point places go first, and one with no free spot is forced in,
-  and area and line lettering (seas, lakes, rivers, roads) makes way for them.
+  and area lettering (seas, lakes, mountains) makes way for them. A river or road on screen keeps one name: its anchors first,
+  then any free stretch in view (`lineStretches` spares), and only then its best stretch over a neighbour. Line names claim a
+  chain of small boxes along their curve, not one rectangle.
 - A new kind must be added to `LOD`, `RANK`, `PLACE_KINDS` and `PLACE_ICONS` (`placeIcons.ts`), and to `AREA_KINDS`
   if it is lettering over an area rather than a symbol on a spot. It also needs a `.k-<kind>` colour in `style.css`
   (at least 4.5:1 against the dark `#101c1b` stroke), picked from its family: white only for capitals and castles, gold to

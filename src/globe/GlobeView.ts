@@ -490,7 +490,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
    * line. Repeats must be LINE_SPACING px apart. Samples run left to right so the text reads upright.
    * ponytail: windows every tw/4 and a greedy pick; a global optimiser if names still sit badly
    */
-  const lineStretches = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3, stride: number) => {
+  const lineStretches = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3, stride: number, anywhere = false) => {
     let run: Ring = [], bestRun = run; // the longest run of vertices on the near side, in screen px (every `stride`th vertex: finer than a pixel is lost to the simplify below)
     const v = new THREE.Vector3(), n = r.pos.length;
     for (let k = 0; k < n; k = k === n - 1 ? n : Math.min(k + stride, n - 1)) {
@@ -499,11 +499,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       run.push([((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight]);
       if (run.length > bestRun.length) bestRun = run;
     }
-    if (bestRun.length < 2) return [];
+    if (bestRun.length < 2) return { picked: [], spares: [] };
     const line = chaikin(simplify(bestRun, 1.5), 2), s = [0];
     for (let k = 1; k < line.length; k++) s.push(s[k - 1] + Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]));
     const L = s[s.length - 1];
-    if (L < tw * 1.1) return [];
+    if (L < tw * 1.1) return { picked: [], spares: [] };
     const at = (d: number): [number, number] => {
       let k = 1;
       while (k < line.length - 1 && s[k] < d) k++;
@@ -533,6 +533,14 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       }
       if (best && pickedS.every((p) => Math.abs(best!.s0 - p) >= tw + LINE_SPACING)) { picked.push(best.pts); pickedS.push(best.s0); }
     }
+    // At the camera floor a line on screen must be named even where its anchors are off screen or crowded: every other stretch
+    // in view follows, best first, as spares the caller tries one at a time only if no anchored copy found room.
+    const spares: Ring[] = [];
+    if (anywhere) {
+      const all: { q: number; pts: Ring }[] = [];
+      for (let s0 = 0; s0 <= L - tw; s0 += tw / 4) { const c = score(s0); if (c) all.push(c); }
+      spares.push(...all.sort((a, b) => a.q - b.q).map((c) => c.pts));
+    }
     function score(s0: number) {
       const pts = Array.from({ length: N + 1 }, (_, k) => at(s0 + (tw * k) / N));
       if (pts[N][0] < pts[0][0]) pts.reverse(); // keep upright: never read right to left
@@ -554,7 +562,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const S = Math.abs(s0 + tw / 2 - L / 2) / (L / 2);
       return { s0, pts, q: Q_W.curve * C + Q_W.offset * O + Q_W.orient * I + Q_W.spacing * S };
     }
-    return picked;
+    return { picked, spares };
   };
   // map pin on the place a search or a click flew to
   const pinEl = document.createElement('div');
@@ -744,16 +752,25 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
             // the line is a few px wide this far out (metres of a typical river over metres per pixel); the name sits just above it
             const off = Math.max(1.3, LINE_WIDTH_M[p.kind] / view.nav.metresPerPixel()) / 2 + 2;
-            for (const pts of lineStretches(p.line, tw, th, off, cosLimit, cam, Math.max(1, Math.floor((0.75 * mpp) / p.line.step)))) {
-              const h = off + th, xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
-              const b = [Math.min(...xs), Math.min(...ys) - h, Math.max(...xs), Math.max(...ys) + h];
-              if (!taken.claim(b)) continue;
-              const c = p.line.copies[shown.length];
+            const { picked, spares } = lineStretches(p.line, tw, th, off, cosLimit, cam, Math.max(1, Math.floor((0.75 * mpp) / p.line.step)), floor);
+            const place = (pts: Ring, force = false) => {
+              // a chain of small boxes along the bent name, not one rectangle round it: a slanted name would block a whole corner
+              const h = off + th, b = pts.slice(1).map((q, k) => {
+                const o = pts[k];
+                return [Math.min(o[0], q[0]), Math.min(o[1], q[1]) - h, Math.max(o[0], q[0]), Math.max(o[1], q[1]) + h];
+              });
+              if (!taken.claim(b, force)) return;
+              const c = p.line!.copies[shown.length];
               c.path.setAttribute('d', `M${pts.map((q) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join('L')}`);
               c.tp.setAttribute('dy', String(-off));
               c.text.style.fontSize = `${basePx.get(p.kind)! * p.scale * p.zs}px`;
               shown.push(pts);
-            }
+            };
+            picked.forEach((pts) => place(pts));
+            // at the floor every river or road on screen keeps one name: a free stretch anywhere in view, else its best one over a neighbour
+            for (const pts of spares) if (!shown.length) place(pts);
+            const first = picked[0] ?? spares[0];
+            if (floor && !shown.length && first) place(first, true);
           }
           p.line.copies.forEach((c, k) => c.text.classList.toggle('off', k >= shown.length));
           on = false;

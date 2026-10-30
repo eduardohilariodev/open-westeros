@@ -57,6 +57,9 @@ export function parseHouse(md) {
 
 const slug = (title) => title.replace(/^House /, '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+// The royal houses the Conquest or the Rebellion ended (Targaryen, 1-282 AC): kept so the map before 1 AC has kings (they exist until then, state/changes.ts reads `extinct`).
+const HISTORICAL = new Set(['House Gardener', 'House Durrandon', 'House Hoare', 'House Targaryen']);
+
 if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}` || process.argv[1]?.endsWith('houses.mjs')) {
   const { places } = JSON.parse(readFileSync(`${DIR}/_places.json`, 'utf8'));
   const placeOfTitle = new Map(Object.entries(places).map(([name, file]) => [titleOf(decodeURIComponent(file).replace(/\.md$/, '')), name]));
@@ -68,14 +71,14 @@ if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}` || pro
     const title = md.match(/^# (.+)/m)?.[1];
     const h = title && parseHouse(md);
     // Extinct houses are marked "Extinct" as head, or have neither a head nor an overlord row.
-    if (h?.sigil && h.head !== 'Extinct' && (h.head || h.overlords.length)) all[title] = h;
+    if (h?.sigil && (HISTORICAL.has(title) || (h.head !== 'Extinct' && (h.head || h.overlords.length)))) all[title] = h;
   }
 
   const kept = {}, unseated = [];
   for (const [title, h] of Object.entries(all)) {
     const pick = h.seats.find(([s, former]) => !former && placeOfTitle.has(s)) ?? h.seats.find(([s]) => placeOfTitle.has(s));
     if (!pick) { unseated.push(title); continue; }
-    kept[title] = { id: slug(title), name: h.label ?? title, title, sigil: h.sigil, ...(h.words && { words: h.words }), seat: placeOfTitle.get(pick[0]), ...(h.region && { region: h.region }), ...(h.head && { head: h.head }) };
+    kept[title] = { id: slug(title), name: h.label ?? title, title, sigil: h.sigil, ...(h.words && { words: h.words }), seat: placeOfTitle.get(pick[0]), ...(h.region && { region: h.region }), ...(h.head && h.head !== 'Extinct' && { head: h.head }), ...(HISTORICAL.has(title) && { extinct: true }) };
   }
   const byTitle = (t) => kept[t]?.id;
   const houses = Object.entries(kept).map(([title, h]) => {

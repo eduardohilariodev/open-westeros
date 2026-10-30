@@ -8,7 +8,7 @@
   <meta name="keywords" content="Westeros map, interactive map of Westeros, Game of Thrones map, A Song of Ice and Fire map, Known World, Essos, King's Landing, Winterfell, the Wall, 3D globe" />
   <meta name="theme-color" content="#150d0f" />
   <link rel="canonical" href="https://open-westeros.vercel.app/" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/webp" href="/coin/valar.webp" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Open Westeros" />
   <meta property="og:title" content="Open Westeros: The Known World of Ice and Fire" />
@@ -17,6 +17,7 @@
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Open Westeros: The Known World of Ice and Fire" />
   <meta name="twitter:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
+  <button id="yearBtn" type="button" aria-pressed="false" title="Show the timeline" aria-label="Show the timeline of years and chapters"><b></b><span></span></button>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Open Westeros: The Known World of Ice and Fire","alternateName":"Open Westeros","url":"https://open-westeros.vercel.app/","description":"A free interactive 3D atlas of the Known World of A Song of Ice and Fire.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","isAccessibleForFree":true,"inLanguage":"en","codeRepository":"https://github.com/eduardohilariodev/open-westeros"}</script>
   <link rel="preload" href="/fonts/SignikaNegative-300-700-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/fonts/fonts.css" />
@@ -100,6 +101,7 @@
       <div class="h-body">
         <dl class="h-facts"></dl>
         <section class="h-sworn" hidden><h2>Sworn to this house</h2><div class="h-list"></div></section>
+        <section class="h-wikitext" hidden><p class="h-summary"></p><dl class="h-wfacts"></dl></section>
         <p class="h-note"></p>
         <a class="h-wiki" target="_blank" rel="noopener">House page on the wiki</a>
         <p class="credit">Lieges from <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>, per book, and from the novels chapter by chapter where they say when a house turns. Lands are drawn around each seat: canon gives seats and allegiances, not borders. Coats of arms by the wiki's contributors (CC BY-SA 3.0).</p>
@@ -151,9 +153,6 @@
       <button type="button" data-mode="regions" aria-pressed="true" title="Show the regions">Regions</button>
       <button type="button" data-mode="houses" aria-pressed="false" title="Show the houses of Westeros and their lands">Houses</button>
     </div>
-    <button id="timelineBtn" class="fab" aria-pressed="false" title="Show the timeline" aria-label="Show the timeline of years and books">
-      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.2 3.1.8-1.2-4.5-2.7V7z" /></svg>
-    </button>
     <button id="homeBtn" class="fab" title="Reset view" aria-label="Reset view">
       <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3h-2.1A7 7 0 0 0 13 5.1V3h-2v2.1A7 7 0 0 0 5.1 11H3v2h2.1a7 7 0 0 0 5.9 5.9V21h2v-2.1a7 7 0 0 0 5.9-5.9H21v-2zm-9 6a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" /></svg>
     </button>

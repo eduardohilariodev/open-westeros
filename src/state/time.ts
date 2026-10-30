@@ -34,6 +34,8 @@ const firstChapter = (b: Book) => CHAPTERS.findIndex((c) => c.book === b);
 /** "asos-sansa-iv", "affc-the-prophet", "agot-prologue": a chapter's name in the address. */
 const slug = (c: Chapter) => c.t.replace(/^\w+(?:-\d+)?: /, `${c.book}-`).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '');
 const SLUGS = CHAPTERS.map(slug);
+/** A chapter's own title without the book prefix ("Bran VI"). */
+export const chapterTitle = (c: Chapter) => c.t.replace(/^\w+(?:-\d+)?: /, '');
 /** The index of a chapter by its address name ("asos-sansa-iv"), or -1. */
 export const chapterIndex = (s: string) => SLUGS.indexOf(s);
 /** The index of an episode by its code ("s3e9"), or -1. */
@@ -67,6 +69,12 @@ export const getPeriod = (m = current): Period => (m.track === 'show' ? SHOW_PER
 /** The year AC of the moment; null on the show track, whose years canon does not give. */
 export const yearOf = (m = current): number | null => (m.track === 'books' ? CHAPTERS[m.at].year : m.track === 'history' ? m.year : null);
 
+/** True once the moment has reached the end of the story on its track (the last chapter of A Dance with Dragons, the last episode):
+ * only then is the wiki's text, written after all of it, free of spoilers. */
+export const atEnd = (m = current) => (m.track === 'books' ? m.at >= lastChapter('adwd') : m.track === 'show' && m.at >= EPISODES.length - 1);
+/** The last chapter the moment has reached (-1 in the history before the books); on the show, the last chapter of the book its season adapts. */
+export const chapterLimit = (m = current) => (m.track === 'books' ? m.at : m.track === 'show' ? lastChapter(getBook(m)) : -1);
+
 export function setMoment(m: Moment) {
   if (same(m, current)) return;
   current = m;
@@ -87,11 +95,13 @@ export function onPeriod(fn: (b: Book) => void) {
 }
 
 /** The moment in an address' query, or null when absent or unknown: `?when=acok` (a book), `?when=asos-sansa-iv` (a chapter),
- * `?when=s3e9` (an episode). */
+ * `?when=s3e9` (an episode), `?when=y-100` (a year of the history, 100 BC). */
 export function momentFromSearch(search: string): Moment | null {
   const v = new URLSearchParams(search).get('when')?.toLowerCase();
   if (!v) return null;
   if (/^s\d+e\d+$/.test(v)) { const at = episodeIndex(v); return at < 0 ? null : { track: 'show', at }; }
+  const y = /^y(-?\d+)$/.exec(v);
+  if (y && +y[1] < 297) return { track: 'history', year: +y[1] };
   if (isBook(v)) { const i = firstChapter(v); return i >= 0 ? { track: 'books', at: i } : { track: 'history', year: BOOKS.find((b) => b.id === v)!.from }; }
   const at = chapterIndex(v);
   return at < 0 ? null : { track: 'books', at };
@@ -100,7 +110,7 @@ export function momentFromSearch(search: string): Moment | null {
 /** How a moment is written in the address: a book when at its first chapter (or year), else the chapter or episode. */
 export function momentParam(m: Moment) {
   if (m.track === 'show') return `s${EPISODES[m.at].s}e${EPISODES[m.at].e}`;
-  if (m.track === 'history') return getBook(m);
+  if (m.track === 'history') { const b = getBook(m); return BOOKS.find((k) => k.id === b)!.from === m.year ? b : `y${m.year}`; }
   const b = CHAPTERS[m.at].book;
   return firstChapter(b) === m.at ? b : SLUGS[m.at];
 }

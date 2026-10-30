@@ -46,7 +46,7 @@ function base(subject: string, m: Moment): State {
   if (subject.startsWith('house:')) {
     const f = filled.get(subject.slice(6));
     // the show borrows a book period per season until it has changes of its own (roadmap step 7)
-    return { liege: f ? f[m.track === 'show' ? getPeriod(m) : 'agot'] : null };
+    return { liege: f ? f[m.track === 'show' ? getPeriod(m) : 'agot'] : null, state: FIRST.has(subject) ? 'gone' : 'built' };
   }
   return { holder: HOUSES.find((h) => h.seat === subject && !h.seatOf)?.id ?? null, state: FIRST.has(subject) ? 'gone' : 'built', name: subject };
 }
@@ -55,9 +55,20 @@ function base(subject: string, m: Moment): State {
 export function stateAt(subject: string, m: Moment = getMoment()): State {
   const changes = (bySubject.get(subject) ?? []).filter((c) =>
     m.track === 'history' ? c.year != null && c.year <= m.year : c[m.track] != null && c[m.track]! <= m.at);
-  if (m.track !== 'history') changes.sort((a, b) => a[m.track]! - b[m.track]!); // stable: same-chapter changes keep file order
-  return changes.reduce<State>((s, c) => ({ ...s, ...c.set }), base(subject, m));
+  changes.sort((a, b) => (m.track === 'history' ? a.year! - b.year! : a[m.track]! - b[m.track]!)); // stable: same-chapter changes keep file order
+  const st = changes.reduce<State>((s, c) => ({ ...s, ...c.set }), base(subject, m));
+  const stand = !subject.startsWith('house:') && st.holder ? standIn(st.holder, m) : null; // the seat of a house not there yet is held by the house that stood in for it
+  return stand ? { ...st, holder: stand } : st;
 }
 
 /** The liege of a house at the moment (a house id), or null. */
-export const liegeAt = (id: string, m: Moment = getMoment()) => stateAt(`house:${id}`, m).liege ?? null;
+/** The house that held a seat before another did: a house sworn to the later one, when that is not there yet, is sworn to this one. */
+const STAND_IN: Record<string, string> = { baratheon: 'durrandon', 'baratheon-of-king-s-landing': 'targaryen' };
+/** The house standing in for `id` while `id` is not there yet (Targaryen for the Baratheon crown, Durrandon for Baratheon), or null. */
+export const standIn = (id: string, m: Moment = getMoment()) => (STAND_IN[id] && !houseExists(id, m) && houseExists(STAND_IN[id], m) ? STAND_IN[id] : null);
+export const liegeAt = (id: string, m: Moment = getMoment()) => {
+  const l = stateAt(`house:${id}`, m).liege ?? null;
+  return (l && standIn(l, m)) || l;
+};
+/** Whether the house is there at the moment: the Baratheons are made in 1 AC, the crown house in 283 AC. */
+export const houseExists = (id: string, m: Moment = getMoment()) => stateAt(`house:${id}`, m).state !== 'gone';

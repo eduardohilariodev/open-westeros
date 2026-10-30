@@ -655,3 +655,31 @@ body.timeline-on #nav { bottom: calc(var(--wheel-h, 104px) + 56px); }
 #when .t-wheel.far .t-y:not(.big) { font-size: 0; }
 /* the other name of a place, in parentheses under its label */
 .globe-place > span > small { display: block; font: italic 400 1em/1.15 var(--font-map); text-transform: none; letter-spacing: 0; }
+/* the chapters and the quiet years on the wheel: ticks without a label, lighter than the wiki's years */
+#when .t-y.ch::before, #when .t-y.fine::before { height: 7px; opacity: .6; }
+#when .t-y.ch.big::before { height: 14px; opacity: 1; }
+#when .t-y.fine { font-size: 9px; font-weight: 500; }
+/* the year, always shown at the bottom of the screen; a click opens the timeline (it sits just above the wheel while that is open) */
+#yearBtn { position: fixed; left: 50%; translate: -50% 0; bottom: calc(34px + env(safe-area-inset-bottom)); z-index: 19; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 16px 6px; border: 1px solid #0008; border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text); box-shadow: var(--shadow); cursor: pointer; font: inherit; max-width: calc(100vw - 32px); }
+#yearBtn b { font: 700 15px/1.1 inherit; letter-spacing: .04em; color: var(--gold-hi); }
+#yearBtn span { font: 500 11px/1.2 inherit; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#yearBtn:hover { background: var(--surface); }
+#yearBtn[aria-pressed="true"] { border-color: var(--gold-hi); }
+body.timeline-on #yearBtn { top: calc(12px + env(safe-area-inset-top)); bottom: auto; flex-direction: row; align-items: baseline; gap: 8px; padding: 3px 12px; } /* open: up top, clear of the wheel and the cards */
+@media (max-width: 700px) { #yearBtn { bottom: calc(var(--sheet-h, 0px) + 12px + env(safe-area-inset-bottom)); } body.timeline-on #yearBtn { top: auto; bottom: calc(var(--sheet-h, 0px) + var(--wheel-h, 104px) + 20px + env(safe-area-inset-bottom)); } }
+/* the picker in the timeline window: track, book or season, chapter or episode, step back and forward */
+#whenInfo .wi-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+#whenInfo .wi-pick button, #whenInfo .wi-sel { height: 28px; border: 1px solid #0008; border-radius: 8px; background: color-mix(in srgb, var(--surface) 80%, #fff 6%); color: var(--text); font: 600 12px/1 inherit; cursor: pointer; padding: 0 10px; }
+#whenInfo .wi-pick button[aria-pressed="true"] { background: var(--burgundy); color: var(--gold-hi); }
+#whenInfo .wi-pick button:disabled, #whenInfo .wi-sel:disabled { opacity: .4; cursor: default; }
+#whenInfo .wi-track { display: flex; gap: 2px; }
+#whenInfo .wi-sel { max-width: 200px; flex: 1 1 110px; min-width: 0; }
+/* the wiki text waits behind this until the moment has reached the end of the story */
+button.spoiler { padding: 8px 12px; border: 1px dashed var(--muted); border-radius: 8px; background: transparent; color: var(--muted); font: 600 12.5px/1.2 inherit; cursor: pointer; text-align: left; }
+button.spoiler:hover { color: var(--gold-hi); border-color: var(--gold-hi); }
+/* the wiki's lead and facts in the house card */
+#house .h-wikitext { margin-top: 14px; }
+#house .h-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.5; white-space: pre-line; }
+#house .h-wfacts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+#house .h-wfacts dt { color: var(--muted); }
+#house .h-wfacts dd { margin: 0; }

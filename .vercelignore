@@ -6,3 +6,6 @@ assets/
 /*.webp
 /*.jpg
 /*.png
+docs/
+tmp/
+.cache/

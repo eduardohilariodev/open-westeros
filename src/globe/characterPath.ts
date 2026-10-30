@@ -91,15 +91,18 @@ export function createCharacterLayer(o: {
     headImg.src = `${import.meta.env.BASE_URL}sigils/${c.house[1]}.webp`;
   };
 
-  /** Arrowheads for the camera's height: spaced and sized by altitude, so they read at any zoom and never merge. */
+  /**
+   * Arrowheads for the camera's height, so they read at any zoom and never merge. Spacing steps by powers of two and tips sit
+   * on its multiples, so zooming only adds or drops every other arrow and never slides one; size follows height in 5% steps.
+   */
   const fitArrows = () => {
     if (!arrows || !aCasing || !route.total) return;
-    const spacing = THREE.MathUtils.clamp(rig.alt * 0.12, 6_000, 400_000);
-    const bucket = Math.round(Math.log(spacing) / Math.log(1.6));
+    const want = THREE.MathUtils.clamp(rig.alt * 0.12, 6_000, 400_000);
+    const sp = Math.pow(2, Math.round(Math.log2(want)));
+    const bucket = Math.round(Math.log(want) / Math.log(1.05));
     if (bucket === arrowBucket) return;
     arrowBucket = bucket;
-    const sp = Math.pow(1.6, bucket);
-    const { rings, at } = chevrons(route, sp, sp * 0.24);
+    const { rings, at } = chevrons(route, sp, Math.pow(1.05, bucket) * 0.24);
     arrowAt = at;
     arrowGeo?.dispose();
     arrowGeo = rings.length ? lineGeometry(rings, r, false) : lineGeometry([[[0, 0], [0, 0]]], r, false);

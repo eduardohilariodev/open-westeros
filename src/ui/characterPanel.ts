@@ -1,4 +1,5 @@
-import { CHAPTERS, CHARACTER_INFO } from '../character-info';
+import { CHAPTERS, CHARACTER_INFO, known } from '../character-info';
+import { spoilerButton, spoilerSafe } from './spoiler';
 import type { Character, CharStep } from '../globe/characterPath';
 
 // A character's journey in the place card (index.html #place): the player bar under the title, the wiki lead, and the steps.
@@ -26,6 +27,7 @@ const stepText = (s: CharStep) => {
 
 let current: { c: Character; layer: Layer } | null = null;
 let off: (() => void) | null = null;
+let revealed = ''; // the character whose wiki text the reader chose to see
 
 const syncAddress = (c: Character | null) => {
   const u = new URL(location.href);
@@ -47,8 +49,9 @@ const refresh = () => {
 };
 
 /** Opens the card on `c` and shows its journey on the globe. */
-export function showCharacter(c: Character, layer: Layer) {
+export function showCharacter(whole: Character, layer: Layer) {
   off?.();
+  const c = known(whole), safe = spoilerSafe(revealed === c.id);
   layer.open(c);
   current = { c, layer };
   const info = CHARACTER_INFO[c.id] ?? {};
@@ -63,8 +66,8 @@ export function showCharacter(c: Character, layer: Layer) {
   q('.model').hidden = true;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent(c.wiki);
   const more = q<HTMLAnchorElement>('.more');
-  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !info.more;
-  q('.credit').hidden = !info.summary;
+  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !info.more || !safe;
+  q('.credit').hidden = !info.summary || !safe;
   q('.sigils-credit').hidden = false;
   const chip = document.createElement('span'), img = new Image();
   chip.className = 'house';
@@ -74,8 +77,10 @@ export function showCharacter(c: Character, layer: Layer) {
   a.href = WIKI + c.house[0]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = c.house[2];
   chip.append(img, a);
   q('.houses').replaceChildren(chip);
-  q('.summary').textContent = info.summary ?? '';
-  q('.facts').replaceChildren(...(info.facts ?? []).map(([k, v]) => {
+  const hidden = !safe && !!(info.summary || info.facts?.length);
+  if (hidden) q('.summary').replaceChildren(spoilerButton(() => { revealed = c.id; showCharacter(whole, layer); }));
+  else q('.summary').textContent = info.summary ?? '';
+  q('.facts').replaceChildren(...(hidden ? [] : info.facts ?? []).map(([k, v]) => {
     const li = document.createElement('li');
     li.innerHTML = '<span class="k"></span><span></span>';
     li.firstElementChild!.textContent = k; li.lastElementChild!.textContent = v;

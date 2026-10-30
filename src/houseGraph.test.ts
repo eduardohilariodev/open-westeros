@@ -38,3 +38,10 @@ test('tiers: a great house is bigger than a leaf', () => {
   const g = buildGraph(houses, (h) => h.liege.agot);
   assert.ok(tierOf(g, 'stark') < tierOf(g, 'karstark'));
 });
+
+test('a king under no crown heads his own realm', () => {
+  const mk = (id: string, l: string | null) => ({ id, name: id, title: id, sigil: '', seat: id, liege: { agot: l, acok: l, asos: l, adwd: l } });
+  const g = buildGraph([mk('stark', null), mk('glover', 'stark'), mk('crown', null), mk('tully', 'crown'), mk('frey', 'tully')], (h) => h.liege.agot, 'crown');
+  assert.equal(g.realm('glover'), 'stark');
+  assert.equal(g.realm('frey'), 'tully');
+});

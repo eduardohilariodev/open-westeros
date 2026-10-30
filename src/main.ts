@@ -5,7 +5,7 @@ import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, onHouse, onModel, onNavigate, showCard } from './ui/placePanel';
 import { showCharacter } from './ui/characterPanel';
 import { initHousePanel, initWhen, sigilUrl } from './ui/housePanel';
-import { momentFromSearch, setMoment, START } from './state/time';
+import { BOOKS, CHAPTERS, EPISODES, chapterTitle, getBook, getMoment, momentFromSearch, onPeriod, setMoment, START, yearOf } from './state/time';
 import type { House } from './houseGraph';
 import houseData from './houses.json';
 import { CHARACTERS } from './character-info';
@@ -144,14 +144,23 @@ const setHouses = (on: boolean) => {
   wake();
 };
 modeBtns.forEach((b) => { b.onclick = () => setHouses(b.dataset.mode === 'houses'); });
-const timelineBtn = $('timelineBtn');
+const timelineBtn = $('yearBtn');
 const setTimeline = (on: boolean) => {
   showTimeline(on);
   document.body.classList.toggle('timeline-on', on);
   timelineBtn.setAttribute('aria-pressed', String(on));
   timelineBtn.title = on ? 'Hide the timeline' : 'Show the timeline';
+  timelineBtn.setAttribute('aria-label', timelineBtn.title);
   wake();
 };
+// the year at the bottom of the screen, always shown: the year (or the episode) and under it the chapter; a click opens or closes the timeline
+const showMoment = () => {
+  const m = getMoment(), c = m.track === 'books' ? CHAPTERS[m.at] : null, ep = m.track === 'show' ? EPISODES[m.at] : null, y = yearOf(m);
+  timelineBtn.querySelector('b')!.textContent = ep ? `S${ep.s}E${ep.e}` : y === null ? '' : y < 0 ? `${(-y).toLocaleString('en')} BC` : `${y} AC`;
+  timelineBtn.querySelector('span')!.textContent = c ? `${BOOKS.find((k) => k.id === c.book)!.short} · ${chapterTitle(c)}` : ep ? ep.t : BOOKS.find((k) => k.id === getBook())!.label;
+};
+onPeriod(showMoment); showMoment();
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('timeline-on') && !(e.target instanceof HTMLInputElement)) setTimeline(false); });
 timelineBtn.onclick = () => setTimeline(!document.body.classList.contains("timeline-on"));
 if (linkedMoment) setTimeline(true); // a ?when= link opens the timeline
 globe.onHouseFocus((id) => { if (id) globe.clearPlace(); housePanel.show(id); wake(1500); }); // a house card and a place card are never open together

@@ -45,33 +45,42 @@ The map shows the world as a reader or viewer knows it at a chosen point: up to 
   - [x] the 4 wiki periods of `houses.json` are seed changes dated at the **last** chapter of their book (the first would spoil the book: ADWD's Glover-to-Stannis would show from its prologue); a blank period keeps the last liege. Quoted changes refine them (Robb crowned, the river lords, the Red Wedding)
   - [x] `src/state/changes.ts`: `stateAt(subject, moment)`, `liegeAt(id)`; the houses overlay builds its graph from `liegeAt` (`buildGraph` takes a liege function); tests in `src/state/changes.test.ts` (Winterfell, Moat Cailin, Harrenhal, the Freys, seeds, show, history)
   - Show: only S1E10 is dated so far; 59 of 73 episode pages are missing from the wiki mirror, so other show dates wait for step 7
-- [ ] **3. Places through time** (done: hiding, ruins, renames, battles, held-by row, pin arms; open: more seats changing hands)
-  - [ ] places hidden before they exist or are known (`state`), drawn as ruin, or renamed, at the moment; label and search follow
-  - [ ] the 58 battles of `tools/books/battles.json` appear from the chapter or year they are fought (or first told)
-  - [ ] the card's "held by" row reads `holder` at the moment
-  - [ ] first pass: the seats that change hands in the series (Winterfell, Moat Cailin, Deepwood Motte, Torrhen's Square, Harrenhal, Riverrun, Seagard, Dragonstone, Storm's End, the Twins' grants, Darry, Raventree Hall, Griffin's Roost, Rain House...), each with a quote
-- [ ] **4. Territories and realms**
-  - [ ] a seat taken by another house paints its territory in the holder's colour and realm (the polygon stays; its owner changes)
-  - [ ] realm outlines from the liege graph at the moment (already runtime; feed it the resolved graph)
-  - [ ] the ten regions stay static during the series
-- [ ] **4b. Kingdoms before the Conquest** (history by year)
-  - [ ] pick the source for the old borders (wiki kingdom articles, TWOIAF maps) and record it; until then an `assumption`
-  - [ ] region polygons get dated changes: the riverlands under the Storm Kings, then Hoare's Kingdom of the Isles and the Rivers (-100 AC), the Seven Kingdoms at the Conquest, Dorne joining in 187 AC
-  - [ ] kingdom names lettered over their land at the year
-- [ ] **5. Spoiler-safe text**
-  - [ ] book passages per chapter (rebuild `place-books.json` from `docs/sources/books/text` with chapter indexes); the card shows only passages at or before the moment
-  - [ ] wiki lead hidden behind a "may contain spoilers" reveal when the moment is before the end of ADWD (or the show's end on that track)
-  - [ ] house card: head and lord at the moment, not today's
-  - [ ] characters: steps after the moment are not drawn (already chapter-keyed)
-- [ ] **6. The control**
-  - [ ] the year always shown at the bottom of the screen ("299 AC"), with the chapter or episode under it ("ACOK · Bran VI", "S2E6"); a click (or Enter) opens the timeline with the same `setTimeline(true)` the clock button calls (`src/main.ts`), clicking again or Esc closes it. It replaces `#timelineBtn` in `#nav` (one way in, not two), follows `onPeriod` as the drum turns, and sits clear of the phone bottom sheet and the safe-area inset
-  - [ ] the `#when` drum gains a picker: track (Books / Show), then book and chapter, or season and episode; history years stay
-  - [ ] step back and forward one chapter or episode
-  - [ ] phone sheet
+- [x] **3. Places through time** (done: hiding, ruins, renames, battles, held-by row, pin arms, 9 seats; left: Darry, Raventree Hall, Griffin's Roost, Rain House, Twins grants, nine undated battles)
+  - [x] places hidden before they exist or are known (`state`), drawn as ruin, or renamed, at the moment; label and search follow
+  - [x] the 58 battles of `tools/books/battles.json` appear from the chapter or year they are fought (or first told)
+  - [x] the card's "held by" row reads `holder` at the moment
+  - [x] first pass: the seats that change hands in the series (Winterfell, Moat Cailin, Deepwood Motte, Torrhen's Square, Harrenhal, Riverrun, Seagard, Dragonstone, Storm's End, the Twins' grants, Darry, Raventree Hall, Griffin's Roost, Rain House...), each with a quote
+- [x] **4. Territories and realms** (land follows allegiance, not occupation; not checked on screen)
+  - [x] an occupied seat does not recolour its land: vassals stay sworn where the liege graph says
+  - [x] realm outlines from the liege graph at the moment (already runtime; feed it the resolved graph)
+  - [x] the ten regions stay static during the series
+- [x] **4b. Kingdoms before the Conquest** (history by year) (done: names, royal houses and their realms; the ten region outlines stay today's)
+  - [x] pick the source for the old borders (wiki kingdom articles, TWOIAF maps) and record it; until then an `assumption`
+  - [x] the lands follow dated realms instead of moving outlines (the outlines are only drawn when a region is clicked): the riverlands under the Storm Kings, then Hoare's Kingdom of the Isles and the Rivers (-100 AC), the Seven Kingdoms at the Conquest, Dorne joining in 187 AC
+  - [x] kingdom names lettered over their land at the year
+- [x] **5. Spoiler-safe text** (done except the per-chapter passages, which nothing shows yet)
+  - [ ] book passages per chapter: the place card does not show `place-books.json` (mentions by book) at all today, so nothing leaks; build the per-chapter list only when the card gets such a row
+  - [x] wiki lead and facts behind a "may contain spoilers" button until the end of the story (last chapter of ADWD, or the last episode) on place and character cards; the wiki's year summaries for 297-300 AC in the timeline window too
+  - [x] house card: the wiki's current head only at the end; lord and sworn houses were already the moment's
+  - [x] characters: steps that begin after the moment are neither drawn nor listed (`known` in `character-info.ts`)
+  - [x] a house that shares a seat (Bolton of Winterfell) shows on the place card only once it holds it
+- [x] **6. The control** (done; the drum was broken: it only switched the book, never the year, so years before 1 AC and between books did nothing)
+  - [x] **6a. Drum fix**: every stop sets a moment: a year before the books sets `{track:'history', year}`, a chapter stop sets `{track:'books', at}`; the pill and info window follow
+  - [x] **6b. Chapters on the wheel**: the 345 chapters in publication order replace the years 297-300 (book bands span their chapters; the year shows where it changes; the info window names chapter and POV)
+  - [x] **6c. Years expand with the scroll**: every year from 3 BC to 296 AC is a stop, collapsed at the default zoom and unfolding as you scroll in, so the quiet years can be picked; coarse stops (wiki years) stay as before
+  - [x] **6d. The year at the bottom**: always shown ("299 AC", chapter or episode under it), click or Enter opens the timeline with `setTimeline(true)`, replaces `#timelineBtn`, clear of the phone sheet
+  - [x] **6e. Picker and steps**: track (Books / Show), book and chapter, season and episode; step back and forward one chapter or episode; phone sheet
 - [ ] **7. Show track**
   - [ ] episode list and show changes (only after decision on the source)
   - [ ] show-only differences recorded once per subject, e.g. Winterfell to Stark in S6E9, Hardhome destroyed in S5E8
 - [ ] **8. Verify and record**: tests, `npm run lore -- check`, screenshots at AGOT start, ACOK end, ADWD end, S8E6; `lore-verifier` pass on the change list; findings, ARCHITECTURE, decision note
+
+## What is left (2026-10-30)
+
+- 3: nothing canon can date (Andal-era battles stay visible); 4: the regions' polygons stay today's; 4b: polygons and the houses overlay before the Conquest, Crownlands name
+- 5 spoiler-safe text (per-chapter place passages, wiki lead behind a reveal, house card at the moment, characters' steps)
+- 6 the control (6a-6e above), then 7 the show track, then 8 verification (shots at AGOT start, ACOK end, ADWD end, S8E6, y-100; lore-verifier pass)
+- Allegiances still from the wiki: the Vale, Dorne during the war, the Lannister bannermen
 
 ## Decided (2026-10-29, owner)
 
