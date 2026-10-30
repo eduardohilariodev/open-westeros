@@ -10,4 +10,4 @@ export const CHARACTERS = characterData.characters as unknown as Character[];
 export { CHAPTERS } from './state/time';
 /** The character as the moment knows them: the steps that have begun by its chapter, none before the books. */
 export const known = (c: Character): Character => { const at = chapterLimit(); return { ...c, steps: c.steps.filter((s) => s.chapters[0] <= at) }; };
-export const CHARACTER_INFO = wiki as Record<string, CharacterInfo>;
+export const CHARACTER_INFO = wiki as unknown as Record<string, CharacterInfo>;
