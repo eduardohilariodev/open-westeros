@@ -1,8 +1,8 @@
-// Offline gap report: wiki places the map lacks. Reads the mirrored articles in docs/wiki (categories + links) and the map's
-// names (src/world-data.ts). Writes docs/wiki/_place-gap.json. Usage: node tools/wiki/place-gap.mjs
+// Offline gap report: wiki places the map lacks. Reads the mirrored articles in docs/sources/wiki (categories + links) and the map's
+// names (src/world-data.ts). Writes docs/sources/wiki/_place-gap.json. Usage: node tools/wiki/place-gap.mjs
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const W = 'docs/wiki';
+const W = 'docs/sources/wiki';
 const src = readFileSync('src/world-data.ts', 'utf8');
 const mapNames = JSON.parse(src.slice(src.indexOf('[['), src.lastIndexOf(']') + 1)).map(([n]) => n);
 const norm = (s) => s.toLowerCase().replace(/^the /, '').replace(/_/g, ' ').trim();

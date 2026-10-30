@@ -1,7 +1,7 @@
+import { Q } from '../quality';
 import * as THREE from 'three';
 import { PLANET } from '../config';
-import { DISPLACE, LIFT_GLSL, PEAKS } from './lift';
-import { GROUND_VERT_GLSL, origin } from './groundMap';
+import { DISPLACE, LIFT_GLSL, PEAKS, RIVER_GLSL } from './lift';
 
 // The relief as real height, detailed as you zoom (the Google Earth recipe): a quadtree over the bake's grid splits each
 // node until its vertices are about TARGET_PX apart on screen, culled to the view and the horizon. Every node is the
@@ -10,22 +10,18 @@ import { GROUND_VERT_GLSL, origin } from './groundMap';
 // procedural detail (lift.ts detailH: rugged in the mountains, gentle in the lowlands) for the octaves the node is fine
 // enough to show. A skirt round each node hides the cracks where neighbours differ in level. The shader drops what lies
 // under half land cover, which traces the coast to a fraction of a pixel; the vector coast line is drawn over it.
-const N = 32, ROOT = 1024, MAX_DEPTH = 8, TARGET_PX = 6, MAX_NODES = 4096; // nodes of ROOT >> MAX_DEPTH = 4 cells: ~0.5 km vertices
+const N = 32, ROOT = 1024, MAX_DEPTH = 8, TARGET_PX = Q.targetPx, MAX_NODES = 4096; // nodes of ROOT >> MAX_DEPTH = 4 cells: ~0.5 km vertices
 
 export const MESH_VERT = `#include <common>
 #include <logdepthbuf_pars_vertex>
 ${LIFT_GLSL}
+${RIVER_GLSL}
 attribute vec3 aNode; // first cell x, y and size in cells
 uniform float uCellKm; // km per cell, north-south
+uniform sampler2D tA; // the baked slope (R east, G north): the gullies run down it
+uniform float uGradMax;
 varying vec3 vDir;
 varying float vCover;
-#ifdef GROUND
-${GROUND_VERT_GLSL}
-attribute vec4 aOrg; // the node's ground-texture origin: x, y (m, mod Q), radius and angle in the cone (groundMap.ts)
-attribute float aPhi; // and its latitude
-varying vec2 vG, vGo; // a vertex's offset from the origin (m), and the origin
-varying float vZ; // its height as drawn (m above the sphere)
-#endif
 float cliffH(vec2 uv) { // the baked height of the land about a pixel in from here (km), for the vertices that lie off the coast
   vec2 s = 1.0 / vec2(textureSize(tH, 0));
   float m = 0.0;
@@ -40,19 +36,24 @@ void main() {
   float lon = radians(mix(uBounds.x, uBounds.y, uv.x)), lat = radians(mix(uBounds.w, uBounds.z, uv.y));
   vDir = vec3(cos(lat) * sin(lon), sin(lat), cos(lat) * cos(lon));
   float spacing = aNode.z / ${N}.0 * uCellKm, base = baseHeight(uv);
-  float km = base + detailH(vDir, base, spacing) * smoothstep(0.0, 0.03, base) -(g != position.xy ? 0.1 + spacing * 0.5 : 0.0); // skirt
   vCover = textureLod(tH, uv, 0.0).g;
+  // Close to the camera the detail buffer (detail.ts) gives the height over the baked one: the erosion filter's gullies, rolling ground and the
+  // river's channel. Where no buffer reaches (W 0), and in the blend band at its edge, the procedural detail and the relief-e channel stand in.
+  float dW, dh = detailHV(vDir, spacing, dW), old = 0.0;
+  if (dW < 0.999) {
+    float rCarve, rFlat, rDeff, rHalf, rDepth, rCreek; vec2 rGrad;
+    riverAt(uv, vDir, base, vCover, rCarve, rFlat, rDeff, rHalf, rDepth, rGrad, rCreek);
+    vec2 slope = textureLod(tA, uv, 0.0).rg * 2.0 - 1.0;
+    float gully = gullies(vDir, sign(slope) * slope * slope * uGradMax, spacing).x;
+    old = (detailH(vDir, base, spacing) * (1.0 - rFlat) + gully) * smoothstep(0.0, 0.03, base) - rCarve;
+  }
+  float lk = textureLod(tL, uv, 0.0).r; // a canon lake: no detail, and the ground sinks under the water, so the outline's smooth shore shows, not the bake's 4.2 km steps
+  float km = base + mix(old, dh, dW) * (1.0 - lk) - 0.05 * lk - (g != position.xy ? 0.1 + spacing * 0.5 : 0.0); // skirt
   // A sea cliff: the coast is where cover is 0.5 and the fragment shader cuts the mesh there, so the vertices on the sea side
   // sink under the water by the height of the cliff next to them, in proportion to how far out they are. The face between
   // them and the cliff top then crosses the water exactly at the cut (cover falls linearly, 1 inland to 0.5 at the cut):
   // a wall into the sea, with nothing hanging open behind it.
   if (vCover < 0.5) km -= 2.0 * cliffH(uv) * (0.5 - vCover);
-  #ifdef GROUND
-  vec2 cells = g / ${N}.0 * aNode.z, size = vec2(textureSize(tH, 0));
-  vG = groundDelta(cells * vec2(radians(uBounds.y - uBounds.x) / size.x, -radians(uBounds.w - uBounds.z) / size.y), aOrg, aPhi);
-  vGo = aOrg.xy;
-  vZ = km * (1.0 + uPeaks * smoothstep(0.3, 3.0, km)) * 1000.0 * uDisplace * siteFade(vDir * ${(PLANET.radius - 7).toFixed(1)});
-  #endif
   gl_Position = projectionMatrix * viewMatrix * vec4(raise(vDir * ${(PLANET.radius - 7).toFixed(1)}, km), 1.0);
   #include <logdepthbuf_vertex>
 }`;
@@ -74,6 +75,9 @@ type Bounds = { lon0: number; lon1: number; lat0: number; lat1: number; heightMa
 export async function createReliefMesh(url: string, r: number, b: Bounds, material: THREE.ShaderMaterial) {
   const { W, H, data } = await pixels(url);
   // The shader's baseHeight (lift.ts), in TS: cubic B-spline of the 4×4 pixels round the point, so a query sees the ground as drawn.
+  // Like the procedural detail (detailH), it leaves out the Phacelle gullies (gullies(), at most +-0.15 km on the steepest ground, a few
+  // metres on plains) and the river channels (at most 0.02 km deep): the camera's clearance and measuring are off by that much, as they
+  // already are by the detail's, and the camera keeps its margin above the ground.
   const px = (x: number, y: number) => { const p = (Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))) * 4; return (data[p] * 256 + data[p + 1]) / 65535; };
   const spline = (f: number) => [(1 - f) ** 3 / 6, (4 - 6 * f * f + 3 * f ** 3) / 6, (1 + 3 * f + 3 * f * f - 3 * f ** 3) / 6, f ** 3 / 6];
   const heightAt = (lonDeg: number, latDeg: number) => {
@@ -131,10 +135,7 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     idx.push(a, c, a + 1, a + 1, c, c + 1);
   }
   const nodes = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES * 3), 3).setUsage(THREE.DynamicDrawUsage);
-  const org = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES * 4), 4).setUsage(THREE.DynamicDrawUsage);
-  const phi = new THREE.InstancedBufferAttribute(new Float32Array(MAX_NODES), 1).setUsage(THREE.DynamicDrawUsage);
-  const geometry = new THREE.InstancedBufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('aNode', nodes)
-    .setAttribute('aOrg', org).setAttribute('aPhi', phi).setIndex(idx);
+  const geometry = new THREE.InstancedBufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)).setAttribute('aNode', nodes).setIndex(idx);
   geometry.instanceCount = 0;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false; // culled per node below
@@ -147,7 +148,6 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     const lon = rad(b.lon0 + ((x + 0.5) / W) * (b.lon1 - b.lon0)), lat = rad(b.lat1 - ((y + 0.5) / H) * (b.lat1 - b.lat0));
     return out.set(Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)).multiplyScalar(r);
   };
-  const org0 = { x: 0, y: 0, rho: 0, theta: 0 };
   const frustum = new THREE.Frustum(), sphere = new THREE.Sphere(), m4 = new THREE.Matrix4(), cam = new THREE.Vector3(), camDir = new THREE.Vector3(), size = new THREE.Vector2();
   const raised = b.heightMax * 1000 * DISPLACE * (1 + PEAKS);
   const peakHorizon = Math.acos(r / (r + raised)); // a peak shows this much farther round the curve than the ground
@@ -170,8 +170,6 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
         for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) visit(d + 1, nx * 2 + cx, ny * 2 + cy);
         return;
       }
-      const lon = rad(b.lon0 + ((x0 + 0.5) / W) * (b.lon1 - b.lon0)), lat = rad(b.lat1 - ((y0 + 0.5) / H) * (b.lat1 - b.lat0)), o = origin(lon, lat, org0);
-      org.setXYZW(n, o.x, o.y, o.rho, o.theta); phi.setX(n, lat);
       nodes.setXYZ(n++, x0, y0, S);
     };
     for (let ny = 0; ny * ROOT < H; ny++) for (let nx = 0; nx * ROOT < W; nx++) visit(0, nx, ny);
@@ -179,8 +177,6 @@ export async function createReliefMesh(url: string, r: number, b: Bounds, materi
     nodes.clearUpdateRanges();
     nodes.addUpdateRange(0, n * 3);
     nodes.needsUpdate = true;
-    org.clearUpdateRanges(); org.addUpdateRange(0, n * 4); org.needsUpdate = true;
-    phi.clearUpdateRanges(); phi.addUpdateRange(0, n); phi.needsUpdate = true;
   }
   return { mesh, texture, heightAt, update };
 }

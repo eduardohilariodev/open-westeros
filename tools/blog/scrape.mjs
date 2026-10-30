@@ -1,5 +1,5 @@
-// Mirror the ASOIAF posts of the Atlas of Ice and Fire blog (atlasoficeandfireblog.wordpress.com) into docs/atlas-blog/<slug>.md,
-// with every post image at full size in docs/atlas-blog/img/<slug>/. Uses the public WordPress.com API (no browser needed).
+// Mirror the ASOIAF posts of the Atlas of Ice and Fire blog (atlasoficeandfireblog.wordpress.com) into docs/sources/atlas-blog/<slug>.md,
+// with every post image at full size in docs/sources/atlas-blog/img/<slug>/. Uses the public WordPress.com API (no browser needed).
 // Resumable: posts whose .md exists are skipped, so delete a file to refetch it.
 // Usage: node tools/blog/scrape.mjs
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
 const SITE = 'atlasoficeandfireblog.wordpress.com';
-const OUT = 'docs/atlas-blog';
+const OUT = 'docs/sources/atlas-blog';
 // Only keep ASOIAF posts; the blog also covers Forgotten Realms, Wheel of Time, Malazan, etc.
 const KEEP = new Set(['a song of ice and fire', 'atlas of ice and fire', 'game of thrones', 'george r.r. martin']);
 const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }).use(gfm);

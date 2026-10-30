@@ -1,5 +1,4 @@
 import wiki from './place-wiki.json';
-import books from './place-books.json';
 import siteWiki from './sites/site-wiki.json';
 
 // What the place panel shows about a place, by its name on the map. Summaries and facts come from A Wiki of Ice and Fire
@@ -29,8 +28,3 @@ for (const [name, info] of Object.entries(siteWiki as unknown as Record<string, 
 const SHARED: Record<string, string> = { Kingsroad: 'The Kingsroad', Goldroad: 'The Gold Road', 'Blackwater Rush': 'The Blackwater Rush' };
 for (const [name, key] of Object.entries(SHARED)) if (PLACE_INFO[key]) PLACE_INFO[name] ??= PLACE_INFO[key];
 
-// Where the novels mention each place (book and POV chapters, references only; src/place-books.json, tools/books/place-books.mjs).
-for (const [name, text] of Object.entries(books as Record<string, string>)) {
-  const info = (PLACE_INFO[name] ??= {});
-  info.facts = [...(info.facts ?? []), ['In the books', text]];
-}

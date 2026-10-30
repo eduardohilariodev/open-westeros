@@ -15,6 +15,7 @@ if (!p) {
 const [, kind, lat, lon] = p, at = [lon, lat];
 const raw = readFileSync('tools/world/places.raw.txt', 'utf8').split('\n').find((l) => l.startsWith(p[0] + '|'))?.split('|');
 console.log(`## ${p[0]} (${kind}) at ${lat}, ${lon}   [data is rounded to 0.01 deg, about 0.75 mi]`);
+console.log(`link: /?place=${encodeURIComponent(p[0])}`);
 console.log(`source row: ${raw ? `position field "${raw[2]}"${raw[2].includes('>') || raw[2].startsWith('ll:') ? '  (fixed on the globe by canon)' : '  (consensus of the source maps)'}` : 'not in places.raw.txt (generated, e.g. a wall castle: src/globe/wallLine.ts)'}`);
 
 const claims = JSON.parse(readFileSync('tools/books/place-checks.json', 'utf8')).filter((c) => c.place === p[0] || c.to === p[0]);
@@ -33,16 +34,16 @@ const lakes = W.lakes.map((l) => [l.id, nearestOf(at, l.rings)[0]]).sort((a, b) 
 console.log(`  lake ${lakes.map(([n, d]) => `${n} ${d.toFixed(1)} mi`).join('')}`);
 console.log(`  main road ${Math.min(...roads.map((r) => r.pts.reduce((m, q) => Math.min(m, gc(at, q)), Infinity))).toFixed(1)} mi (to a vertex)`);
 
-const wikiMap = existsSync('docs/wiki/_places.json') ? JSON.parse(readFileSync('docs/wiki/_places.json', 'utf8')) : { places: {} };
+const wikiMap = existsSync('docs/sources/wiki/_places.json') ? JSON.parse(readFileSync('docs/sources/wiki/_places.json', 'utf8')) : { places: {} };
 const page = wikiMap.places[p[0]];
 console.log(`\nwiki: ${page ?? 'no page (canon from the wiki is silent, or scrape: node tools/wiki/scrape.mjs "Title")'}`);
-if (page && existsSync(`docs/wiki/${page}`)) {
-  const lead = readFileSync(`docs/wiki/${page}`, 'utf8').split('\n').find((l) => /^\*\*|^The \*\*/.test(l));
+if (page && existsSync(`docs/sources/wiki/${page}`)) {
+  const lead = readFileSync(`docs/sources/wiki/${page}`, 'utf8').split('\n').find((l) => /^\*\*|^The \*\*/.test(l));
   if (lead) console.log('  ' + lead.replace(/\]\([^)]*\)/g, '').replace(/[[\]]|\\/g, '').slice(0, 420));
 }
-if (existsSync('docs/books/places.json')) {
-  const e = JSON.parse(readFileSync('docs/books/places.json', 'utf8'))[p[0]];
+if (existsSync('docs/sources/books/places.json')) {
+  const e = JSON.parse(readFileSync('docs/sources/books/places.json', 'utf8'))[p[0]];
   console.log(`\nbooks: ${e ? Object.entries(e.mentions).map(([b, n]) => `${b} ${n}`).join(', ') : 'not indexed (name under 4 letters, a region, or sea)'}`);
   for (const n of e?.notes.slice(0, 5) ?? []) console.log(`  ${n.book} | ${n.chapter} | ${n.s.slice(0, 220)}`);
   console.log('  (more: npm run lore -- find "' + p[0] + '" <word>)');
-} else console.log('\nbooks: docs/books/places.json missing: node tools/books/extract.mjs && node tools/books/place-index.mjs');
+} else console.log('\nbooks: docs/sources/books/places.json missing: node tools/books/extract.mjs && node tools/books/place-index.mjs');

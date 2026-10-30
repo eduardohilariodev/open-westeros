@@ -5,8 +5,19 @@
   "lat1": 77,
   "exaggeration": 6,
   "gradMax": 0.6,
-  "heightMax": 8,
+  "heightMax": 9,
   "seaMax": 600,
+  "riverSigned": true,
+  "riverDistMax": 40,
+  "riverWidthKm": [
+    0.12,
+    1.6
+  ],
+  "riverDepthKm": [
+    0.003,
+    0.02
+  ],
+  "riverCells": 90,
   "sun": [
     -0.5996605595645501,
     0.5996605595645501,

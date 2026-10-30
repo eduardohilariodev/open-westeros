@@ -1,0 +1,51 @@
+# Roadmap: houses overlay
+
+Overlay of the houses of Westeros, independent of the terrain look: every house boundary, seats with sigils, click a lord to light its vassals (and theirs, nested), click a vassal to light the houses sworn to it, a sigil-led sidebar, and a shared book-period switcher. Ticked as each step lands. Decisions: `docs/decisions/0004-houses-overlay-territories.md`. Territories are a weighted Voronoi of the seat places (assumption, not traced from the reference images).
+
+- [ ] **0. Prep**: `tools/books/house-reference.json` (house, region, tier, island, landless/extinct, neighbours) transcribed from the reference maps
+- [x] **1. Time store**
+  - [x] `src/state/time.ts` with get / set / subscribe
+  - [x] `?when=` read (`main.ts`) and write (`housePanel.ts initWhen`)
+  - [x] unit test (`src/state/time.test.ts`)
+- [ ] **2. House data**
+  - [x] `tools/wiki/houses.mjs` parses Seat, Region, Head, Overlords per book period
+  - [x] generate `src/houses.json` (172 houses with a map seat)
+  - [x] resolve seats to map places
+  - [ ] coverage report vs the reference checklist (needs step 0)
+  - [ ] log wiki/book conflicts in `docs/lore-conflicts.md`; add claims; canon overrides for the books the wiki leaves blank (ACOK, ASOS)
+  - [x] `houses.test.mjs`
+- [ ] **3. Territories and boundaries**
+  - [x] borders traced from the reference house map, warped onto our seats (decision 0006); weights file removed
+  - [x] `tools/world/house-territories.mjs`: poster colour-edge flood clipped to region and coast, the Gift unheld, islets get a small round holding
+  - [x] shared-edge border lines for all houses, drawn once; realm outlines come from the liege graph at runtime
+  - [x] tests: seat inside its own territory, borders join real houses, no stretch drawn twice
+  - [ ] test: adjacency vs the reference (needs step 0)
+- [x] **4. Overlay engine** (`src/globe/houses.ts`)
+  - [x] graph-coloured cell fills
+  - [x] all house borders drawn, thin ones fade with height, realm borders thick
+  - [x] seat sigils by rank, with height bands and collision
+  - [x] focus highlight (focused / sworn / lord)
+  - [x] `view.houses`, `view.flyToHouse`, `view.onHouseFocus`
+- [x] **5. Interaction**
+  - [x] ground click picks a house
+  - [x] click a lord: it and everyone sworn to it, nested; click a vassal: its own sworn houses
+  - [x] sigil and sidebar chip clicks, Esc/close clears
+  - [x] re-focus on period change
+- [ ] **6. House sidebar**
+  - [x] `#house` card: big coat of arms, seat, head, lord, sworn houses, wiki link
+  - [x] period switcher (the `#when` pill under the map, shared with every layer)
+  - [ ] houses without a territory of their own (shared seat) open the card with the seat holder's land: done; landless and extinct houses: not listed (needs step 0)
+  - [x] phone bottom sheet at one height
+  - [ ] phone sheet in three heights with swipe, like the place card
+- [x] **7. Wiring**
+  - [x] Houses toggle in the nav (`#housesBtn`)
+  - [x] `?house=id` in the address
+  - [x] house entries in search
+- [ ] **8. Verify**
+  - [x] `npm test`, type-check, `npm run lore -- check`
+  - [x] screenshots: Riverlands and Westerlands against the reference crops (relief and flat), phone width
+  - [ ] the other regions against their crops (Reach, Stormlands, Dorne, Vale, North, Iron Islands, Crownlands)
+  - [ ] `lore-verifier` pass on liege chains
+- [x] **9. Record**
+  - [x] `docs/findings.md`, `docs/ARCHITECTURE.md`, `docs/decisions/0004`
+  - [x] this roadmap

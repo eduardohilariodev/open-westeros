@@ -5,7 +5,7 @@
 export const PLACE_KINDS: [string, string, string][] = [
   ['continent', 'Continents', 'Continent'], ['ocean', 'Oceans', 'Ocean'], ['sea', 'Seas & bays', 'Sea'], ['region', 'Regions', 'Region'], ['city', 'Cities', 'City'],
   ['capital', 'Regional capitals', 'Regional capital'], ['town', 'Towns', 'Town'], ['castle', 'Castles', 'Castle'],
-  ['minor', 'Keeps & villages', 'Keep or village'], ['ruin', 'Ruins', 'Ruin'], ['island', 'Islands', 'Island'],
+  ['minor', 'Keeps & villages', 'Keep or village'], ['ruin', 'Ruins', 'Ruin'], ['island', 'Islands', 'Island'], ['archipelago', 'Archipelagos', 'Archipelago'], ['inn', 'Inns', 'Inn'],
   ['mountain', 'Mountains & hills', 'Mountain'], ['forest', 'Forests', 'Forest'], ['wild', 'Deserts & wastes', 'Wasteland'],
   ['lake', 'Lakes', 'Lake'], ['river', 'Rivers', 'River'], ['road', 'Roads', 'Road'], ['landmark', 'Landmarks', 'Landmark'], ['battle', 'Battles', 'Battlefield'], ['monument', 'Monuments', 'Monument'], ['population', 'Peoples', 'Population'],
 ];
@@ -15,6 +15,10 @@ export const PIN_BOX = '134 115 348 806';
 
 export const PLACE_ICONS: Record<string, string> = {
   // two people, drawn here: head and shoulders, one behind the other
+  // three islands of different size over the water, drawn here
+  archipelago: '<path d="M30 330a95 110 0 0 1 190 0zM200 330a70 70 0 0 1 140 0zM320 330a85 90 0 0 1 170 0z"/><path d="M20 380q59-40 118 0t118 0 118 0 118 0v40q-59 40-118 0t-118 0-118 0-118 0z"/>',
+  // a tankard, drawn here: lid, body and handle
+  inn: '<path d="M110 60h230v50H110zM120 140h210v290a40 40 0 0 1-40 40H160a40 40 0 0 1-40-40z"/><path d="M330 200h40a70 70 0 0 1 70 70v30a70 70 0 0 1-70 70h-40v-40h40a30 30 0 0 0 30-30v-30a30 30 0 0 0-30-30h-40z"/>',
   population: '<circle cx="176" cy="150" r="66"/><path d="M40 450c0-95 62-158 136-158s136 63 136 158z"/><circle cx="350" cy="186" r="54"/><path d="M300 304c18-10 34-14 50-14 70 0 122 50 122 160H340c0-62-14-112-40-146z"/>',
   // crossed swords, drawn here: two blades turned 45 degrees either way about the middle
   battle: ['45', '-45'].map((a) => `<g transform="rotate(${a} 256 256)"><path d="M256 18l20 56v268h-40V74zM168 342h176v32H168zM240 374h32v76h-32zM256 446m-22 0a22 22 0 1 0 44 0a22 22 0 1 0-44 0z"/></g>`).join(''),
@@ -40,3 +44,5 @@ export const PLACE_ICONS: Record<string, string> = {
 PLACE_ICONS.continent = PLACE_ICONS.region; // a continent is a bigger region
 // a road running to the horizon, its centre line dashed (hand-drawn; the second run of each subpath winds the other way, so it is a hole)
 PLACE_ICONS.road = '<path d="M205 30h102l125 452H80zM248 90v50h16V90zm0 110v60h16v-60zm0 130v70h16v-70z"/>';
+// a character (search results, the character panel): head and shoulders
+PLACE_ICONS.character = '<circle cx="256" cy="150" r="82"/><path d="M92 450c0-96 70-160 164-160s164 64 164 160z"/>';

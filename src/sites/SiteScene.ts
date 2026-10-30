@@ -1,3 +1,4 @@
+import { Q } from '../quality';
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { SiteId } from '../config';
@@ -6,9 +7,8 @@ import { AREA_KINDS, easeFont, FONT_DEFAULT, FONT_PX, wrap } from '../globe/labe
 import { PLACE_ICONS } from '../globe/placeIcons';
 
 // What a 3D place adds to the globe: a scene in a local frame in metres (x = east, y = up, z = south, origin at the site),
-// with a sun and shadows, clickable labels, and a fade-in. It has no controls of its own: main.ts drives its camera from
-// the globe's, so there is one view. It is drawn over the globe (its own frame keeps float precision at planet scale).
-// A site module (kingsLanding/, winterfell/) adds the content.
+// with a sun and shadows, clickable labels, and a fade-in. It is shown in the full-screen model view (ui/modelViewer.ts),
+// whose orbit controls drive its camera. A site module (kingsLanding/, winterfell/) adds the content.
 
 /** A named, clickable place. pos = [x, z, groundHeight] in the site frame. */
 export type Place = { name: string; kind: string; pos: [number, number, number]; radius?: number };
@@ -19,7 +19,7 @@ export const GLOBE_KIND: Record<string, string> = {
   place: 'minor', wood: 'forest', hill: 'mountain', district: 'region', water: 'lake', street: 'road', road: 'road',
 };
 
-/** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the globe flies for a place (x, z in the site frame, camera altitude in m). */
+/** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the camera goes for a place (x, z in the site frame, camera height in m). */
 export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; focus(p: Place): { x: number; z: number; alt: number } };
 
 type Options = {
@@ -41,7 +41,7 @@ export function edgeFade<M extends THREE.MeshStandardMaterial>(m: M, width = 0.1
 }
 
 export function createSiteScene(labelsEl: HTMLElement, o: Options) {
-  // No background: this scene is drawn over the globe's, with the globe camera's fov and far plane (its pose is copied in each frame).
+  // No background: the model view's renderer clears to a hazy sky.
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 3e8);
   const labels = new CSS2DRenderer({ element: labelsEl });
@@ -49,7 +49,7 @@ export function createSiteScene(labelsEl: HTMLElement, o: Options) {
   scene.add(new THREE.HemisphereLight(0xe2ecf4, 0x6b5a40, 1.2));
   const sun = new THREE.DirectionalLight(0xfff0d4, 2.8);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.mapSize.set(Q.shadow, Q.shadow);
   const e = o.shadowExtent;
   Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e, near: 10, far: e * 5 });
   sun.shadow.bias = -0.0004;

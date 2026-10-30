@@ -2,23 +2,23 @@ node_modules/
 dist/
 *.log
 .DS_Store
+.vercel
+.env*
+.cache/
+tmp/
 
-# Copyrighted source data (maps, game/mod assets) — never commit; see README "Run it".
+# Source maps and game/mod assets, local only; see README "Run it"
 assets/
 /*.webp
 /*.jpg
 /*.png
 
-# Generated from the sources above by tools/ — rebuild locally.
+# Built from the sources by tools/; rebuild locally
 public/world/
+public/world-test/
 public/sites/
 
-# awoiaf mirror (CC BY-SA, ~10k pages) and its Chrome profile: npm run wiki
-docs/wiki/
-.cache/
-
-.vercel
-.env*
-
-# Books (copyrighted, local only) and their extracted text: node tools/books/extract.mjs
-docs/books/
+# Reference sources, local only; catalogue and rebuild steps in docs/sources/README.md
+docs/sources/*
+!docs/sources/README.md
+!docs/sources/atlas-blog/

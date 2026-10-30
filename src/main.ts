@@ -2,22 +2,36 @@ import * as THREE from 'three';
 import { inject } from '@vercel/analytics';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
-import { isOpen, onClose, onNavigate, showCard } from './ui/placePanel';
-import { createSites } from './sites/handoff';
-import { GLOBE_KIND, type SiteView } from './sites/SiteScene';
+import { isOpen, onClose, onHouse, onModel, onNavigate, showCard } from './ui/placePanel';
+import { showCharacter } from './ui/characterPanel';
+import { initHousePanel, initWhen, sigilUrl } from './ui/housePanel';
+import { momentFromSearch, setMoment, START } from './state/time';
+import type { House } from './houseGraph';
+import houseData from './houses.json';
+import { CHARACTERS } from './character-info';
+import { GLOBE_KIND, type Place, type SiteView } from './sites/SiteScene';
+import { closeModel, modelOpen, modelViews, onModelPick, onModelShow, openModel } from './ui/modelViewer';
+import { SITES, type SiteId } from './config';
+import { PLACE_INFO } from './place-info';
+import PLACE_ALT from './place-alt.json';
 import { initMeasurePanel } from './ui/measurePanel';
 import { initNav } from './ui/nav';
+import { Q } from './quality';
+
+// Built only: the service worker keeps fetched files for the next visit (public/sw.js); the dev server always serves fresh ones.
+declare const __BUILD__: string;
+if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=${__BUILD__}`);
 
 // Initialize Vercel Web Analytics
 inject();
 
-// One renderer, several scenes: the planet (planet-centred frame) and one local scene per 3D place.
-// Zooming close to such a place on the globe hands the camera over to its scene, and back.
-const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-const MAX_RATIO = Math.min(devicePixelRatio, 2);
+// The globe's renderer. The 3D places have their own, in the full-screen model view (ui/modelViewer.ts).
+const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+renderer.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault()); // lets the browser restore the context instead of leaving a dead canvas
+const MAX_RATIO = Math.min(devicePixelRatio, Q.ratio);
 renderer.setPixelRatio(MAX_RATIO);
 renderer.setSize(innerWidth, innerHeight);
-renderer.autoClear = false; // the globe's pass clears; the site scene is drawn over it
+renderer.autoClear = false; // the globe's pass clears (its background colour)
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -32,8 +46,18 @@ await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 const globe = createGlobeView(renderer, $('globeLabels'), showCard);
 onClose(() => globe.deselect());
 
-// 3D place scenes (and their models) load on demand, the first time the camera zooms in on them.
-const sites = createSites(renderer, globe, showCard);
+// 3D places open in their own full-screen view from the card's "3D model" button; their models load the first time.
+const SITE_IDS = Object.keys(SITES) as SiteId[];
+const KIND_NAME = Object.fromEntries(PLACE_KINDS.map(([k, , one]) => [k, one]));
+const siteOf = (name: string) => SITE_IDS.find((id) => SITES[id].name === name);
+/** The card of a building in a 3D place: the wiki's passage (place-info.ts) when it has one, the hand-written lore otherwise. */
+const showSitePlace = (v: SiteView, p: Place) =>
+  showCard({ kind: KIND_NAME[GLOBE_KIND[p.kind]] ?? p.kind, name: p.name, text: PLACE_INFO[p.name]?.summary ? undefined : v.lore[p.name] });
+onModelPick((_id, v, p) => showSitePlace(v, p));
+onModel((c) => {
+  const id = siteOf(c.name) ?? modelViews().find(([, v]) => v.labelObjs.some((l) => l.place.name === c.name))?.[0];
+  return id ? () => void openModel(id, siteOf(c.name) ? undefined : c.name) : null;
+});
 
 $('showNames').addEventListener('change', (e) => globe.setNamesVisible((e.target as HTMLInputElement).checked));
 // Terrain button (top of the nav): 3D relief or the flat parchment map. The page starts in 3D, see the await below.
@@ -65,7 +89,7 @@ reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== '
 reliefBtn.querySelector('.name')!.textContent = 'Map';
 
 // Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
-const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).map(([kind, label]) => {
+const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).sort((a, b) => a[1].localeCompare(b[1])).map(([kind, label]) => {
   const row = document.createElement('label');
   row.className = 'legend-row';
   row.innerHTML = `<span class="what"><input type="checkbox" checked /><svg class="k-${kind}" viewBox="0 0 512 512">${PLACE_ICONS[kind]}</svg>${label}</span><span class="n">${globe.kindCounts[kind]}</span>`;
@@ -74,6 +98,8 @@ const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).map((
   $('legend').append(row);
   return { kind, box };
 });
+const OFF_AT_START = ['battle']; // kinds that start unchecked
+legendBoxes.forEach(({ kind, box }) => { if (OFF_AT_START.includes(kind)) { box.checked = false; globe.setKindVisible(kind, false); } });
 const setAllKinds = (on: boolean) => legendBoxes.forEach(({ kind, box }) => { box.checked = on; globe.setKindVisible(kind, on); });
 $('legendAll').onclick = () => setAllKinds(true);
 $('legendNone').onclick = () => setAllKinds(false);
@@ -88,13 +114,60 @@ $('menuBtn').onclick = () => { // with a place open, the menu closes it and brin
 const nav = initNav(renderer.domElement, () => globe.nav);
 initMeasurePanel(globe.wool, () => globe.deselect());
 
-// Search: every place name on the map, plus the places inside any 3D site that has loaded (Winterfell's keeps, gates...). Fuzzy.
-type Item = { label: string; kind: string; go: () => void };
-const mapItems: Item[] = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, go: () => globe.flyToPlace(i) }));
-const siteItems = (): Item[] => sites.views().flatMap((v) => v.labelObjs.map(({ place: p }) => ({ label: p.name, kind: GLOBE_KIND[p.kind] ?? 'town', go: () => v.onPick(p) })));
+// Search: every place name on the map, plus the places inside any 3D site opened so far (Winterfell's keeps, gates...). Fuzzy.
+type Item = { label: string; kind: string; go: () => void; img?: string; alt?: string[] };
+/** Other names a place is searched by: its Dothraki or original name (place-alt.json) and its wiki article's title ("Gift" for Brandon's Gift). */
+const aliases = (name: string) => {
+  const w = PLACE_INFO[name]?.wiki?.replace(/_/g, ' ').replace(/ \(.*\)$/, '');
+  return [(PLACE_ALT as Record<string, string>)[name], w].filter((a): a is string => !!a && a !== name);
+};
+const mapItems: Item[] = globe.places.map((p, i) => ({ label: p.name, kind: p.kind, alt: aliases(p.name), go: () => { closeModel(); globe.flyToPlace(i); } })); // a place on the map closes the 3D model view
+// A character: its journey on the map and its card (characterPanel.ts). Searched like a place.
+const characterItems: Item[] = CHARACTERS.map((c) => ({ label: c.name, kind: 'character', go: () => { closeModel(); globe.deselect(); showCharacter(c, globe.characters); } }));
+// The houses overlay (globe/houses.ts, ui/housePanel.ts): every house's land and borders, the coats of arms, and a house card, over either terrain look.
+const modeBtns = [...document.querySelectorAll<HTMLButtonElement>('#modeSwitch button')]; // Regions | Houses, top right
+// read before initWhen, which writes the address for the moment it shows
+const linkedMoment = momentFromSearch(location.search);
+setMoment(linkedMoment ?? START); // ?when=asos, asos-sansa-iv, s3e9: the moment every layer follows
+const showTimeline = initWhen();
+const housePanel = initHousePanel({
+  layer: globe.houses,
+  flyTo: (id) => globe.flyToHouse(id),
+  goToSeat: (name) => mapItems.find((x) => fold(x.label) === fold(name))?.go(),
+  onClose: () => globe.houses.focus(null),
+});
+let awakeUntil = performance.now() + 5000;
+const wake = (ms = 1000) => { awakeUntil = Math.max(awakeUntil, performance.now() + ms); };
+const setHouses = (on: boolean) => {
+  globe.houses.setVisible(on);
+  modeBtns.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'houses') === on)));
+  wake();
+};
+modeBtns.forEach((b) => { b.onclick = () => setHouses(b.dataset.mode === 'houses'); });
+const timelineBtn = $('timelineBtn');
+const setTimeline = (on: boolean) => {
+  showTimeline(on);
+  document.body.classList.toggle('timeline-on', on);
+  timelineBtn.setAttribute('aria-pressed', String(on));
+  timelineBtn.title = on ? 'Hide the timeline' : 'Show the timeline';
+  wake();
+};
+timelineBtn.onclick = () => setTimeline(!document.body.classList.contains("timeline-on"));
+if (linkedMoment) setTimeline(true); // a ?when= link opens the timeline
+globe.onHouseFocus((id) => { if (id) globe.clearPlace(); housePanel.show(id); wake(1500); }); // a house card and a place card are never open together
+addEventListener('placeopen', () => globe.houses.focus(null));
+const houseItems: Item[] = (houseData as unknown as House[]).map((h) => ({ label: h.name, kind: 'house', img: sigilUrl(h), go: () => { closeModel(); if (!globe.houses.visible) setHouses(true); globe.flyToHouse(h.id); } }));
+onHouse((label, file) => {
+  const stem = file.replace(/\.[^.]+$/, '');
+  const h = (houseData as unknown as House[]).find((x) => x.name === label) ?? (houseData as unknown as House[]).find((x) => !x.seatOf && x.sigil.replace(/\.[^.]+$/, '') === stem);
+  if (!h) return;
+  closeModel(); if (!globe.houses.visible) setHouses(true); globe.flyToHouse(h.id);
+});
+const SHIELD ='<path d="M256 32 64 96v128c0 120 82 224 192 256 110-32 192-136 192-256V96z" />';
+const siteItems = (): Item[] => modelViews().flatMap(([id, v]) => v.labelObjs.map(({ place: p }) => ({ label: p.name, kind: GLOBE_KIND[p.kind] ?? 'town', alt: aliases(p.name), go: () => { showSitePlace(v, p); void openModel(id, p.name); } })));
 const search = $('search') as HTMLInputElement;
 const results = $('results');
-const kindLabel = Object.fromEntries(PLACE_KINDS);
+const kindLabel: Record<string, string> = { ...Object.fromEntries(PLACE_KINDS), character: 'Character', house: 'House' };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const lev = (a: string, b: string) => {
@@ -119,10 +192,16 @@ const scoreTerm = (label: string, q: string) => {
   return d <= room ? 3 + d : -1;
 };
 /** Every term of the query must match, in any order ("keep great" finds the Great Keep). */
-const score = (label: string, q: string) => {
+const scoreOne = (label: string, q: string) => {
   let sum = 0;
   for (const t of q.split(/\s+/)) { const x = scoreTerm(label, t); if (x < 0) return -1; sum += x; }
   return sum;
+};
+/** The best of the name and its aliases; an alias costs a little, so the name itself wins a tie. `via` is the alias that matched. */
+const score = (m: Item, q: string) => {
+  let best = scoreOne(m.label, q), via: string | undefined;
+  for (const a of m.alt ?? []) { const x = scoreOne(a, q); if (x >= 0 && (best < 0 || x + 0.5 < best)) { best = x + 0.5; via = a; } }
+  return { sc: best, via };
 };
 // Names in the place card that are places on the map go there instead of to the wiki.
 onNavigate((name) => {
@@ -142,14 +221,18 @@ const renderResults = () => {
   const raw = search.value.trim(), q = fold(raw);
   if (!q) return closeResults();
   // best match first, then alphabetical
-  shown = [...siteItems(), ...mapItems].map((m) => ({ m, sc: score(m.label, q) })).filter((x) => x.sc >= 0)
-    .sort((a, b) => a.sc - b.sc || a.m.label.localeCompare(b.m.label)).slice(0, 8).map((x) => x.m);
+  const ranked = [...siteItems(), ...characterItems, ...houseItems, ...mapItems.filter((_, i) => !globe.placeGone(i))].map((m) => ({ m, ...score(m, q) })).filter((x) => x.sc >= 0)
+    .sort((a, b) => a.sc - b.sc || a.m.label.localeCompare(b.m.label)).slice(0, 40);
+  const hits = ranked.map((x) => x.via);
+  shown = ranked.map((x) => x.m);
   results.innerHTML = shown.length
     ? shown.map((m, k) => {
-      const l = m.label, i = fold(l).indexOf(q); // the matched letters are marked when the query is a plain substring
+      const via = hits[k], l = m.label, i = fold(l).indexOf(q); // the matched letters are marked when the query is a plain substring
       const name = i >= 0 && fold(l).length === l.length ? `${esc(l.slice(0, i))}<mark>${esc(l.slice(i, i + q.length))}</mark>${esc(l.slice(i + q.length))}` : esc(l);
-      return `<li role="option" data-k="${k}"><svg class="k-${m.kind}" viewBox="0 0 512 512">${PLACE_ICONS[m.kind]}</svg>` +
-        `<span class="nm">${name}</span><span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
+      const icon = m.img ? `<img src="${m.img}" alt="" onerror="this.style.visibility='hidden'">` // a house shows its arms
+        : `<svg class="k-${m.kind}" viewBox="0 0 512 512">${PLACE_ICONS[m.kind] ?? SHIELD}</svg>`;
+      return `<li role="option" data-k="${k}">${icon}` +
+        `<span class="nm">${name}${via ? ` <small>(${esc(via)})</small>` : ''}</span><span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
     }).join('')
     : '<li class="none">No such place in the known world</li>';
   document.body.classList.remove('drawer-open'); // the menu and the search results are never open together
@@ -175,6 +258,23 @@ results.addEventListener('mousedown', (e) => {
 // Start in 3D: keep the loading screen up until the relief maps and mesh are in (on failure it resolves and stays flat).
 await globe.relief.ready;
 globe.relief.warm(renderer, globe.camera);
+// A link with ?place=Name opens on that place.
+// With &view=3d it opens that place's 3D model too: a site, or a building in one (each site is tried until one has it).
+const params = new URLSearchParams(location.search), linked = params.get('place');
+const linkedHouse = params.get('house');
+if (linkedHouse) houseItems[(houseData as unknown as House[]).findIndex((h) => h.id === linkedHouse)]?.go(); // ?house=tully opens the overlay on that house
+const linkedItem = linked ? mapItems.find((m) => fold(m.label) === fold(linked)) : undefined;
+linkedItem?.go();
+const linkedCharacter = params.get('character');
+if (linkedCharacter) characterItems[CHARACTERS.findIndex((c) => c.id === linkedCharacter)]?.go(); // ?character=eddard opens that journey
+if (linked && params.get('view') === '3d') void (async () => {
+  if (siteOf(linkedItem?.label ?? '')) return void openModel(siteOf(linkedItem!.label)!);
+  if (linkedItem) return;
+  for (const id of SITE_IDS) {
+    const v = await openModel(id, linked), p = v?.labelObjs.find((l) => fold(l.place.name) === fold(linked))?.place;
+    if (p) return showSitePlace(v!, p);
+  }
+})();
 
 let ready = false;
 let last = performance.now();
@@ -204,12 +304,10 @@ if (import.meta.env.DEV) Object.assign(window, { __globe: globe, __renderer: ren
 // Render on demand: a still globe costs nothing. The loop keeps running but only draws while something is awake: an input
 // event (a drag counts, a bare mouse move does not), the camera moving, the measuring wool, a 3D place in view, and the
 // first seconds (textures arrive on their own).
-let awakeUntil = performance.now() + 5000;
-const wake = (ms = 1000) => { awakeUntil = Math.max(awakeUntil, performance.now() + ms); };
 for (const t of ['pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'input', 'change', 'click', 'resize', 'visibilitychange'])
   addEventListener(t, () => wake(), { capture: true, passive: true });
 addEventListener('pointermove', (e) => { if (e.buttons) wake(); }, { capture: true, passive: true });
-globe.relief.onGround = () => wake(1500); // a ground photo arrived (relief/ground.ts): draw it
+onModelShow((open) => { if (!open) wake(); }); // the globe sleeps under the 3D model view and is drawn again when it closes
 
 // Slow GPUs, in order: while the camera moves the ground shader goes lean (no fine procedural detail, `relief.lean`) at full
 // resolution; only if frames still run long does the canvas shrink to `moveRatio`. Both undo after two quiet seconds of fast
@@ -218,14 +316,11 @@ const cam = globe.camera, lastPos = new THREE.Vector3(), lastQuat = new THREE.Qu
 const MIN_MOVE_RATIO = Math.min(MAX_RATIO, 0.75); // never blurrier than this: a safety net for slow GPUs, not the way to be fast
 let ratio = MAX_RATIO, moveRatio = MAX_RATIO, lean = false, movedAt = -1e9, frameMs = 16.7, fastFrames = 0;
 renderer.setAnimationLoop((now) => {
-  if (now >= awakeUntil && !globe.wool.active && sites.drawnId() === null) { last = now; return; }
+  if ((ready && modelOpen()) || (now >= awakeUntil && !globe.wool.active && !globe.characters.busy)) { last = now; return; } // the first frame is drawn even under the 3D model view, to lift the loading screen
   const cpu0 = performance.now(), gap = now - last;
   const dt = Math.min(0.1, gap / 1000);
   last = now;
-  // The globe is the only view. A 3D place loads as the camera nears it and is drawn over the globe from the camera's own
-  // pose, faded in over the last stretch of its draw distance.
   globe.update(dt, now);
-  $('loadHint').hidden = !sites.update();
   globe.setSky();
   // moved = by more than ~1% of a pixel (the zoom's ease creeps for seconds at float precision); drift adds up against the last position that counted
   const step = globe.nav.altitude() * 4e-6;
@@ -244,9 +339,8 @@ renderer.setAnimationLoop((now) => {
   const want = moving ? moveRatio : MAX_RATIO;
   if (want !== ratio) { ratio = want; renderer.setPixelRatio(ratio); }
   globe.relief.lean = moving && lean;
-  renderer.render(globe.scene, globe.camera); // clears to the sky colour; the site is drawn over it
+  renderer.render(globe.scene, globe.camera); // clears to the sky colour
   globe.labels.render(globe.scene, globe.camera);
-  sites.render();
   if (pendingStyle !== null) { crossfade(pendingStyle); pendingStyle = null; } // after the whole frame, so the copy is complete
   nav.update();
   cpuMs += (performance.now() - cpu0 - cpuMs) * 0.05;
@@ -255,7 +349,6 @@ renderer.setAnimationLoop((now) => {
     const n = globe.nav, c = n.pick(new THREE.Vector2(0, 0)), deg = THREE.MathUtils.radToDeg;
     debugText.textContent = [
       [
-        sites.drawnId() ?? 'globe',
         c ? `centre ${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°` : 'centre: sky',
         `alt ${(n.altitude() / 1000).toFixed(1)} km`,
         `tilt ${deg(n.tilt()).toFixed(1)}°`,
@@ -301,18 +394,16 @@ renderer.setAnimationLoop((now) => {
 });
 
 // The bottom sheets on a phone (style.css): their height goes to --sheet-h so the round buttons ride above them.
-const sheets = [$('place'), $('measure')];
+const sheets = [$('place'), $('measure'), $('house')];
 const syncSheet = () => document.documentElement.style.setProperty('--sheet-h', `${Math.max(0, ...sheets.map((el) => (el.hidden ? 0 : el.offsetHeight)))}px`);
 const sheetWatch = new ResizeObserver(syncSheet);
 sheets.forEach((el) => sheetWatch.observe(el));
 
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
-  for (const v of [globe, ...sites.views()] as (typeof globe | SiteView)[]) {
-    v.camera.aspect = innerWidth / innerHeight;
-    v.camera.updateProjectionMatrix();
-    v.labels.setSize(innerWidth, innerHeight);
-  }
+  globe.camera.aspect = innerWidth / innerHeight;
+  globe.camera.updateProjectionMatrix();
+  globe.labels.setSize(innerWidth, innerHeight);
 });
 globe.labels.setSize(innerWidth, innerHeight);
 

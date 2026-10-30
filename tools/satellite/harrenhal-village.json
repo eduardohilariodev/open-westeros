@@ -1,5 +1,5 @@
 {
-  "about": "Harrenhal and Harrenton (Harrentown) on the north shore of the Gods Eye, drafted from book text for tools/satellite/control.mjs. Metres, x east, y south, origin at the centre of Harrenhal's curtain wall. Every feature names its source; 'guess' means canon is silent. Wiki: docs/wiki/Harrenhal.md, docs/wiki/Harrenton.md, docs/wiki/Godswood_of_Harrenhal.md.",
+  "about": "Harrenhal and Harrenton (Harrentown) on the north shore of the Gods Eye, drafted from book text for tools/satellite/control.mjs. Metres, x east, y south, origin at the centre of Harrenhal's curtain wall. Every feature names its source; 'guess' means canon is silent. Wiki: docs/sources/wiki/Harrenhal.md, docs/sources/wiki/Harrenton.md, docs/sources/wiki/Godswood_of_Harrenhal.md.",
   "crop": { "x0": -1068, "y0": -900, "size": 1536 },
   "features": [
     { "kind": "water", "name": "Gods Eye", "source": "Harrenton.md: the town lies on the northern shore of the Gods Eye; shore line is a guess",

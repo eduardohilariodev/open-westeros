@@ -29,11 +29,11 @@ Read `CLAUDE.md` first (sources, claims, commands). These are the traps.
 
 ## Roads
 
-- Roads are routed from `tools/books/lore-roads.json`: `via` waypoints (first and last are terminals, the rest are passed), `direct` for a leg the painted map lacks and that does not cross water, `far` for a place more than ~110 mi from any painted road. Every road needs book or wiki cites.
-- A place off the painted road gets a spur drawn with the network. A road ends at its terminals and passes the places between, so it never detours into a spur and back.
+- Roads are routed over the relief, not traced (`docs/roads.md`, decision 0007). `tools/books/lore-roads.json` gives each road's places in order (`via`) and its book or wiki cites; `straight: true` for a Valyrian road (ruled lines), `joins` for a branch whose junction no text names, `along` for a river the road follows, `@lat,lon` for a bend the official map shows at no place of ours. *The Lands of Ice and Fire* outranks the painted map: read its course with `tools/books/liaf-grid.mjs` and `liaf-fit.mjs` (`docs/roads.md`). The ground picks the way between; the painted map is only a pull.
+- To change a road's course, change its places or add one the lore names on it; never hand-draw or patch the output. To change how all roads behave, change a cost in `roads-trace.mjs` and update the table in `docs/roads.md`.
+- Every seat gets a track to the nearest road by the same costs; a track several places share is drawn as a road. A place the road runs out to and back is a spur: the named line passes it by.
 - A named road is lettered only if a place row of kind `road` has exactly its name. Landmark passes (Boneway, Prince's Pass) stay landmarks.
-- After any move run `npm run lore -- roads`; a leg that winds over 1.6x, or does not connect, is a defect in the network or a misplaced place.
-- Do not draw a straight link across water (the Boneway across the Sea of Dorne): leave the painted detour and note it.
+- After any move run `npm run lore -- roads`; a leg that winds over 1.6x, or does not connect, is a defect in the network or a misplaced place. `npm test` fails if a lore place is off the network or a stretch crosses itself.
 
 ## After the change
 

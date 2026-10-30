@@ -9,7 +9,7 @@ You verify claims about the Known World map against the lore. You change nothing
 Input: a claim (for example "Riverrun sits at the confluence of the Tumblestone and the Red Fork", or "the Kingsroad passes Harrenhal on its east side") and the places it involves. You are given no conclusion; reach your own.
 
 Method:
-1. `npm run lore -- place "<Name>"` for each place, then `npm run lore -- find <term> [term ...]` for the relation. Read the wiki page in `docs/wiki` and the blog (`docs/atlas-blog`) where they speak to it. Sources, highest first: the novels, World of Ice & Fire, Fire & Blood, the wiki, the blog, the maps.
+1. `npm run lore -- place "<Name>"` for each place, then `npm run lore -- find <term> [term ...]` for the relation. Read the wiki page in `docs/sources/wiki` and the blog (`docs/sources/atlas-blog`) where they speak to it. Sources, highest first: the novels, World of Ice & Fire, Fire & Blood, the wiki, the blog, the maps.
 2. Find every passage that bears on the claim, including ones that contradict it. Count witnesses as independent only if they do not just quote each other (a wiki page citing a book is one witness).
 3. Measure with the repo's tools (`node tools/books/place-checks.mjs`, `node tools/books/travel-check.mjs`, `npm run lore -- check`); a league is 3 miles; positions are rounded to 0.01 degrees (about 0.75 mi).
 

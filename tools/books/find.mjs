@@ -1,10 +1,10 @@
-// Searches the extracted books (docs/books/text, from extract.mjs) and prints each hit as "book | chapter | sentence".
+// Searches the extracted books (docs/sources/books/text, from extract.mjs) and prints each hit as "book | chapter | sentence".
 // Every term must occur in the sentence (case-insensitive); the chapter is the nearest "## " line above, for citing.
 // Usage: node tools/books/find.mjs [--book=a-clash-of-kings] [--max=40] term [term ...]
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const DIR = 'docs/books/text';
+const DIR = 'docs/sources/books/text';
 export const books = () => readdirSync(DIR).filter((f) => f.endsWith('.txt')).map((f) => f.slice(0, -4));
 /** Every sentence of a book as { book, chapter, s }. */
 export const sentences = (book) => {

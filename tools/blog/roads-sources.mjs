@@ -1,6 +1,6 @@
 // The maps the roads are read off. `known` (Danny Selvag's Known World map, assets/world/roads/) is the one used: its roads
 // are the more reasonable ones (they cross the lakes and passes where the books do), and it carries the road names.
-// `blog` is the Atlas of Ice and Fire blog's master map (docs/atlas-blog), kept for comparison.
+// `blog` is the Atlas of Ice and Fire blog's master map (docs/sources/atlas-blog), kept for comparison.
 // Per source: the image; `skip` (x, y) true off the map (title bars, scale box); `sea` (r, g, b) the sea
 // fill, for fitting to our land; `road` (r, g, b) the road ink; `seed` a rough placement to start the fit from (King's
 // Landing at pixel x, y; at flat lon -7.8, lat 35.1) and the range of pixels a degree; `fit` where the fit is saved.
@@ -15,7 +15,7 @@ export const SOURCES = {
     fit: 'tools/blog/roads-fit.known.json',
   },
   blog: {
-    image: 'docs/atlas-blog/img/2016-03-28-details-of-the-maps-roads-mountains-forests/world-map-roads-forests-mountains.png',
+    image: 'docs/sources/atlas-blog/img/2016-03-28-details-of-the-maps-roads-mountains-forests/world-map-roads-forests-mountains.png',
     skip: (x, y) => x > 3000 && y > 2800, // the scale box at the bottom right
     sea: (r, g, b) => b - r >= 30,
     road: (r, g, b) => r > 225 && b < 175 && r - b > 70 && g > 150,

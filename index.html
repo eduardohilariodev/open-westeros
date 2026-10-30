@@ -18,9 +18,8 @@
   <meta name="twitter:title" content="Open Westeros: The Known World of Ice and Fire" />
   <meta name="twitter:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Open Westeros: The Known World of Ice and Fire","alternateName":"Open Westeros","url":"https://open-westeros.vercel.app/","description":"A free interactive 3D atlas of the Known World of A Song of Ice and Fire.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","isAccessibleForFree":true,"inLanguage":"en","codeRepository":"https://github.com/eduardohilariodev/open-westeros"}</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,400;0,700;1,400&family=Signika+Negative:wght@300..700&display=swap" />
+  <link rel="preload" href="/fonts/SignikaNegative-300-700-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body data-mode="globe">
@@ -37,7 +36,13 @@
     <div class="strip"></div>
   </div>
   <div id="debug" hidden></div>
-  <div id="loadHint" hidden>Loading 3D models…</div>
+  <!-- a 3D site in its own full-screen view (src/ui/modelViewer.ts); the place panel stays above it -->
+  <div id="model3d" hidden>
+    <div class="stage"></div>
+    <div class="bar"><h2 class="title"></h2><span class="tip">Drag to turn · right-drag to move · scroll to zoom · click a name</span></div>
+    <p class="hint" hidden>Loading the 3D model…</p>
+    <button class="close" aria-label="Close the 3D model" title="Close (Esc)">×</button>
+  </div>
 
   <!-- top left: search pill + drawer -->
   <div id="side">
@@ -58,8 +63,16 @@
         <div class="kind"></div>
       </header>
         <div class="actions">
-          <a class="act" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" /></svg></span>Wiki</a>
+          <a class="act wiki" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" /></svg></span>Wiki</a>
+          <button class="act model" type="button" hidden><span><svg viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.3L18.7 8 12 11.7 5.3 8 12 4.3zM5 9.7l6 3.3v6.7l-6-3.3V9.7zm8 10v-6.7l6-3.3v6.7l-6 3.3z" /></svg></span>3D model</button>
         </div>
+      <!-- a character's journey (src/ui/characterPanel.ts): the player stays above the scrolling text -->
+      <div class="char-bar" hidden>
+        <button type="button" class="prev" aria-label="Previous step" title="Previous step"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg></button>
+        <button type="button" class="play" aria-label="Play" title="Play"><svg viewBox="0 0 24 24"><path class="p-play" d="M8 5v14l11-7z" /><path class="p-pause" d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg></button>
+        <button type="button" class="next" aria-label="Next step" title="Next step"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" /></svg></button>
+        <span class="now" aria-live="polite"></span>
+      </div>
       <div class="photo-row" hidden></div>
       <div class="body">
         <div class="houses"></div>
@@ -70,7 +83,26 @@
           <h2>Images</h2>
           <button class="tile" type="button"><img alt="" /><span></span></button>
         </div>
-        <p class="credit" hidden>From <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.<span class="sigils-credit" hidden> Coats of arms by its contributors (CC BY-SA 3.0): click one for its file page.</span></p>
+        <ol class="char-steps" hidden></ol>
+        <p class="char-credit" hidden>Journeys follow the chapters of the novels; stops and order after <a href="https://quartermaester.info" target="_blank" rel="noopener">quartermaester.info</a>, placed on this map.</p>
+        <p class="credit" hidden>From<a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>.<span class="sigils-credit" hidden> Coats of arms by its contributors (CC BY-SA 3.0).</span></p>
+      </div>
+    </div>
+    <!-- house panel (src/ui/housePanel.ts): the houses overlay's own sidebar, a big coat of arms and the house's lords and sworn houses -->
+    <div id="house" class="card" hidden>
+      <header class="h-head">
+        <button class="close" aria-label="Close" title="Close">×</button>
+        <div class="crest"><img alt="" /></div>
+        <h1></h1>
+        <div class="kind"></div>
+        <div class="h-lord" hidden><span>Sworn to</span></div>
+      </header>
+      <div class="h-body">
+        <dl class="h-facts"></dl>
+        <section class="h-sworn" hidden><h2>Sworn to this house</h2><div class="h-list"></div></section>
+        <p class="h-note"></p>
+        <a class="h-wiki" target="_blank" rel="noopener">House page on the wiki</a>
+        <p class="credit">Lieges from <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>, per book, and from the novels chapter by chapter where they say when a house turns. Lands are drawn around each seat: canon gives seats and allegiances, not borders. Coats of arms by the wiki's contributors (CC BY-SA 3.0).</p>
       </div>
     </div>
     <div id="ui" class="card">
@@ -105,12 +137,22 @@
     </div>
   </div>
 
+  <!-- the timeline (src/state/time.ts): years and books; later layers follow the same book -->
+  <div id="when" role="group" aria-label="Timeline" hidden></div>
+
   <!-- bottom right: navigation -->
   <div id="nav">
     <button id="reliefBtn" class="layer" aria-pressed="true" title="Switch to the flat map" aria-label="Switch terrain between 3D relief and flat map">
       <svg class="thumb flat" viewBox="0 0 56 56" preserveAspectRatio="xMidYMid slice"><rect width="56" height="56" fill="#0f2f30"/><path d="M-2 30C8 22 14 30 22 24 30 18 34 8 44 6L58 4V58H-2Z" fill="#d8c79a" stroke="#b8954f" stroke-width="1.2"/><path d="M12 44l5-9 5 9zM24 48l4-7 4 7zM36 30l4-8 4 8z" fill="#b39a68" stroke="#6b5a3a" stroke-width=".8"/><path d="M6 36c4-3 8 0 10-3-3-4-8-3-10 3z" fill="#4f7a70"/><path d="M46 14c-4 8-6 8-8 16s-8 12-8 26" fill="none" stroke="#1f5552" stroke-width="1.2"/></svg>
       <svg class="thumb relief" viewBox="0 0 56 56" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="rs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#184a4c"/><stop offset="1" stop-color="#0a2426"/></linearGradient><linearGradient id="rl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f8a3c"/><stop offset="1" stop-color="#2f4a1c"/></linearGradient></defs><rect width="56" height="56" fill="url(#rs)"/><path d="M-2 30C8 22 14 30 22 24 30 18 34 8 44 6L58 4V58H-2Z" fill="url(#rl)"/><path d="M8 50l8-18 8 18zM26 52l9-22 9 22zM42 54l6-12 6 12z" fill="#8c7a58"/><path d="M16 32l8 18-8 0zM35 30l9 22-9 0zM48 42l6 12-6 0z" fill="#3b2f1e" opacity=".55"/><path d="M16 32l-3 7 3-1 2 2zM35 30l-3 8 3-2 2 3z" fill="#f4f0e4"/><path d="M46 14c-4 8-6 8-8 16s-8 12-8 26" fill="none" stroke="#3a8a96" stroke-width="1.4"/></svg>
       <span class="name"></span>
+    </button>
+    <div id="modeSwitch" role="group" aria-label="What the map shows">
+      <button type="button" data-mode="regions" aria-pressed="true" title="Show the regions">Regions</button>
+      <button type="button" data-mode="houses" aria-pressed="false" title="Show the houses of Westeros and their lands">Houses</button>
+    </div>
+    <button id="timelineBtn" class="fab" aria-pressed="false" title="Show the timeline" aria-label="Show the timeline of years and books">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.2 3.1.8-1.2-4.5-2.7V7z" /></svg>
     </button>
     <button id="homeBtn" class="fab" title="Reset view" aria-label="Reset view">
       <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3h-2.1A7 7 0 0 0 13 5.1V3h-2v2.1A7 7 0 0 0 5.1 11H3v2h2.1a7 7 0 0 0 5.9 5.9V21h2v-2.1a7 7 0 0 0 5.9-5.9H21v-2zm-9 6a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" /></svg>
@@ -137,7 +179,7 @@
     <div class="scale"><span id="scaleMi"></span><span id="scaleKm"></span></div>
     <span id="coords"></span>
     <span id="altitude"></span>
-    <span class="credit">Maps © George R. R. Martin · Ground textures from <a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a> · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
+    <span class="credit">Maps © George R. R. Martin · Open Westeros by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></span>
     <button id="contributeBtn" type="button">Contribute</button>
     <button id="creditsBtn" type="button">Credits</button>
   </div>
@@ -150,7 +192,6 @@
       <li>Icons: <a href="https://game-icons.net/" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0)</li>
       <li>Place text: <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>; coats of arms by its contributors</li>
       <li>Red comet: <a href="https://www.deviantart.com/sreekuttan09/art/Red-comet-650108832" target="_blank" rel="noopener">Red comet</a> by sreekuttan09 on DeviantArt</li>
-      <li>Ground textures:<a href="https://polyhaven.com" target="_blank" rel="noopener">Poly Haven</a> (CC0), by Rob Tuytel, Amal Kumar, Charlotte Baglioni, Dimitrios Savva, Rico Cilliers, Rohit Seervi and eye-candy.xyz</li>
     </ul>
     <p class="made">Made with love and respect by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></p>
     <form method="dialog"><button>Close</button></form>

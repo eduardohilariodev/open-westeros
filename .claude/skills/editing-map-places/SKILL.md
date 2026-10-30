@@ -21,7 +21,7 @@ The mechanics of a move. First decide where it belongs with the `lore-check` ski
 ## Red flags
 
 - Moving a place from a screenshot or "it looks off".
-- Citing canon without a quote from `docs/books` or `docs/wiki`.
+- Citing canon without a quote from `docs/sources/books` or `docs/sources/wiki`.
 - Regenerating places but not roads.
 - Trusting a river's lettering spot as its location.
 - Editing a generated file (`world-data.ts`, `roads.json`) or a Wall castle's row.

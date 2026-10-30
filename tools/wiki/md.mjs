@@ -1,4 +1,4 @@
-// Markdown helpers for the scraped wiki articles (docs/wiki), shared by place-info.mjs and tools/sites/site-wiki.mjs.
+// Markdown helpers for the scraped wiki articles (docs/sources/wiki), shared by place-info.mjs and tools/sites/site-wiki.mjs.
 // No citation marks, emphasis or escapes.
 export const strip = (md) => md
   .replace(/\\\[[^\]]*\\\]/g, '')

@@ -14,7 +14,8 @@ const rad = (d) => (d * Math.PI) / 180;
 /** Great-circle miles between [lon, lat] points. */
 export const gc = ([lo1, la1], [lo2, la2]) => PLANET.radius / MILE * 2 * Math.asin(Math.sqrt(Math.sin(rad(la2 - la1) / 2) ** 2 + Math.cos(rad(la1)) * Math.cos(rad(la2)) * Math.sin(rad(lo2 - lo1) / 2) ** 2));
 /** A place's [lon, lat]. */
-export const place = (n) => { const p = PLACES.find((q) => q[0] === n && q[1] !== 'road'); if (!p) throw new Error('no place ' + n); return [p[3], p[2]]; };
+/** A place's [lon, lat]; a lore-roads waypoint read off a map (`@lat,lon`) is its own spot. */
+export const place = (n) => { if (n.startsWith('@')) { const [lat, lon] = n.slice(1).split(',').map(Number); return [lon, lat]; } const p = PLACES.find((q) => q[0] === n && q[1] !== 'road'); if (!p) throw new Error('no place ' + n); return [p[3], p[2]]; };
 /** The road node nearest a place: [node id, miles]. */
 export const snap = (n) => {
   const at = place(n); let best = [null, Infinity];

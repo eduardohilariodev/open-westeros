@@ -1,501 +1,369 @@
-// Traces the road network off the blog's master map into src/roads.json: { roads, named }, each [{ miles, pts: [[lon, lat], ...] }]:
-// `roads` has one entry per stretch between junctions / ends (the network, drawn), `named` one line per road in
-// tools/books/lore-roads.json (which carries the name on the globe). Roads are the map's only yellow pixels; thin them to one pixel,
-// walk the skeleton, simplify, and place with the fit from roads-fit.mjs (blog px -> flat lon/lat -> globe lon/lat).
+// Builds the road network into src/roads.json: { roads, minor, named }. `roads` has one line per stretch between junctions (the
+// network, drawn, ends shared exactly at junctions), `minor` the tracks from castles and towns, `named` one line per road of
+// tools/books/lore-roads.json (which carries the name on the globe).
+// The lore says which places a road runs through; the ground says how it gets there. Each leg between two of a road's places is
+// the cheapest way over the baked relief (public/world/relief-h.webp): steep ground, swamp and high passes cost more, sea and
+// lakes cannot be crossed, a river costs a crossing (cheap at a town, free at a place the road is named through), its banks
+// are cheap. The painted road map (roads-fit.mjs) is only a gentle pull, the lowest source. A stretch already laid is cheap,
+// so later roads join it instead of running beside it, and the junctions fall where the roads part.
 // Usage: node tools/blog/roads-trace.mjs   (run roads-fit.mjs first)
 import sharp from 'sharp';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { flatten, unflatten, METRES_PER_DEGREE, MILE } from '../../src/config.ts';
+import { unflatten, METRES_PER_DEGREE, MILE } from '../../src/config.ts';
 import { PLACES } from '../../src/world-data.ts';
 import { IMAGE, FIT } from './roads-fit.mjs';
 import { source } from './roads-sources.mjs';
-import { WALL_CASTLES } from '../../src/globe/wallLine.ts';
+import { WALL_CASTLES, wallLine } from '../../src/globe/wallLine.ts';
 
-const { fits, split } = JSON.parse(readFileSync(FIT, 'utf8'));
-const { data, info } = await sharp(IMAGE).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-const W = info.width, H = info.height;
+const MILES_PER_DEG = METRES_PER_DEGREE / MILE;
 
-// road mask (the source says which pixels are road ink and which are off the map)
-let on = new Uint8Array(W * H);
-for (let i = 0; i < W * H; i++) on[i] = source.road(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]) && !source.skip(i % W, (i / W) | 0) ? 1 : 0;
-// The map draws a place's dot over its road, which cuts the ink for ~15 px: close such gaps (dilate, then erode, by a square
-// of CLOSE px each side) before thinning, so the road stays one piece. Separable, so it is cheap.
-const CLOSE = 7;
-const slide = (src, horizontal, pick) => { // max (pick = 1) or min (pick = 0) over a window of 2*CLOSE+1 along one axis
-  const out = new Uint8Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let v = pick ? 0 : 1;
-    for (let k = -CLOSE; k <= CLOSE; k++) {
-      const xx = horizontal ? x + k : x, yy = horizontal ? y : y + k;
-      const s = xx < 0 || yy < 0 || xx >= W || yy >= H ? (pick ? 0 : 1) : src[yy * W + xx];
-      if (pick ? s : !s) { v = pick ? 1 : 0; break; }
+// ---- the painted roads, as lon/lat lines (the pull) ----
+const painted = await (async () => {
+  const { fits, split, warp: windows } = JSON.parse(readFileSync(FIT, 'utf8'));
+  const { data, info } = await sharp(IMAGE).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height;
+  let on = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) on[i] = source.road(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]) && !source.skip(i % W, (i / W) | 0) ? 1 : 0;
+  // close the gaps a place's dot or a name plate cuts in the ink (dilate, then erode)
+  const CLOSE = 7;
+  const slide = (src, horizontal, pick) => {
+    const out = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let v = pick ? 0 : 1;
+      for (let k = -CLOSE; k <= CLOSE; k++) {
+        const xx = horizontal ? x + k : x, yy = horizontal ? y : y + k;
+        const s = xx < 0 || yy < 0 || xx >= W || yy >= H ? (pick ? 0 : 1) : src[yy * W + xx];
+        if (pick ? s : !s) { v = pick ? 1 : 0; break; }
+      }
+      out[y * W + x] = v;
     }
-    out[y * W + x] = v;
-  }
-  return out;
-};
-on = slide(slide(slide(slide(on, true, 1), false, 1), true, 0), false, 0);
-/** Globe lon/lat -> pixel of the source image, through its fit. */
-const toPx = (lon, lat) => {
-  const flat = flatten(lon, lat), f = flat < split ? fits.westeros : fits.east;
-  return [f.p[0] * flat + f.p[1], f.p[2] * lat + f.p[3]];
-};
-
-// Zhang-Suen thinning
-const N = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]]; // P2..P9 clockwise from north
-for (let changed = true; changed;) {
-  changed = false;
-  for (const pass of [0, 1]) {
-    const kill = [];
-    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-      const i = y * W + x;
-      if (!on[i]) continue;
-      const p = N.map(([dx, dy]) => on[i + dy * W + dx]);
-      const B = p.reduce((a, v) => a + v, 0);
-      if (B < 2 || B > 6) continue;
-      let A = 0;
-      for (let k = 0; k < 8; k++) A += !p[k] && p[(k + 1) % 8] ? 1 : 0;
-      if (A !== 1) continue;
-      if (pass === 0 ? p[0] * p[2] * p[4] || p[2] * p[4] * p[6] : p[0] * p[2] * p[6] || p[0] * p[4] * p[6]) continue;
-      kill.push(i);
+    return out;
+  };
+  on = slide(slide(slide(slide(on, true, 1), false, 1), true, 0), false, 0);
+  // Zhang-Suen thinning, so the pull is the road's middle and not its width
+  const N = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const pass of [0, 1]) {
+      const kill = [];
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x;
+        if (!on[i]) continue;
+        const p = N.map(([dx, dy]) => on[i + dy * W + dx]);
+        const B = p.reduce((a, v) => a + v, 0);
+        if (B < 2 || B > 6) continue;
+        let A = 0;
+        for (let k = 0; k < 8; k++) A += !p[k] && p[(k + 1) % 8] ? 1 : 0;
+        if (A !== 1) continue;
+        if (pass === 0 ? p[0] * p[2] * p[4] || p[2] * p[4] * p[6] : p[0] * p[2] * p[6] || p[0] * p[4] * p[6]) continue;
+        kill.push(i);
+      }
+      for (const i of kill) on[i] = 0;
+      changed ||= kill.length > 0;
     }
-    for (const i of kill) on[i] = 0;
-    changed ||= kill.length > 0;
   }
-}
-
-// walk the skeleton: nodes are pixels with != 2 neighbours; an edge is the pixel chain between two nodes
-const nb = (i) => N.map(([dx, dy]) => i + dy * W + dx).filter((j) => on[j]);
-const isNode = (i) => nb(i).length !== 2;
-const seen = new Set();
-let edges = [];
-const key = (a, b) => (a < b ? a * 1e8 + b : b * 1e8 + a);
-for (let i = 0; i < W * H; i++) {
-  if (!on[i] || !isNode(i)) continue;
-  for (const first of nb(i)) {
-    if (seen.has(key(i, first))) continue;
-    const chain = [i]; let prev = i, cur = first; seen.add(key(i, first));
-    for (;;) {
-      chain.push(cur);
-      if (isNode(cur)) break;
-      const next = nb(cur).find((j) => j !== prev && !seen.has(key(cur, j))); // 2 neighbours: the one we did not come from
-      if (next === undefined) break;
-      seen.add(key(cur, next)); prev = cur; cur = next;
-    }
-    edges.push(chain.map((j) => [j % W, (j / W) | 0]));
-  }
-}
-
-const lengthPx = (s) => s.reduce((n, p, i) => n + (i ? Math.hypot(p[0] - s[i - 1][0], p[1] - s[i - 1][1]) : 0), 0);
-const nodeId = (p) => p[0] + p[1] * W;
-
-// Thinning leaves a knot of nodes where lines meet (they draw as little triangles) and short stubs. Merge nodes within
-// 6 px into one at their centre, drop the stubs between them, and drop spurs under 8 px that end in nothing.
-{
-  const pts = new Map(edges.flatMap((e) => [e[0], e.at(-1)]).map((p) => [nodeId(p), p])), ids = [...pts.keys()];
-  const parent = new Map(ids.map((i) => [i, i])), find = (a) => { while (parent.get(a) !== a) a = parent.get(a); return a; };
-  for (const a of ids) for (const b of ids) if (a < b && Math.max(Math.abs(pts.get(a)[0] - pts.get(b)[0]), Math.abs(pts.get(a)[1] - pts.get(b)[1])) <= 6) parent.set(find(a), find(b));
-  const sum = new Map();
-  for (const i of ids) { const r = find(i), s = sum.get(r) ?? [0, 0, 0]; s[0] += pts.get(i)[0]; s[1] += pts.get(i)[1]; s[2]++; sum.set(r, s); }
-  const cluster = (p) => find(nodeId(p)), centre = (p) => { const s = sum.get(cluster(p)); return [Math.round(s[0] / s[2]), Math.round(s[1] / s[2])]; };
-  const merged = [];
-  for (const e of edges) {
-    if (cluster(e[0]) === cluster(e.at(-1)) && lengthPx(e) < 12) continue;
-    const m = [...e]; m[0] = centre(e[0]); m[m.length - 1] = centre(e.at(-1));
-    merged.push(m);
-  }
-  const deg = new Map();
-  for (const e of merged) for (const p of [e[0], e.at(-1)]) deg.set(nodeId(p), (deg.get(nodeId(p)) ?? 0) + 1);
-  edges = merged.filter((e) => !(lengthPx(e) < 8 && (deg.get(nodeId(e[0])) === 1) !== (deg.get(nodeId(e.at(-1))) === 1)));
-}
-
-if (process.env.DBG === '7') writeFileSync(`${process.env.DBGDIR}/dbg.json`, JSON.stringify({ edges, bridges: [] })); // before the warp, to lay over the source image
-// The two affine fits leave the map tens of px off our coasts in places; roads-fit.mjs matched windows of it to our coast.
-// Move every road point by the distance-weighted mean shift of the nearest windows (Shepard), so roads sit where our land is.
-{
-  const { warp: windows } = JSON.parse(readFileSync(FIT, 'utf8'));
-  const shift = ([x, y]) => {
+  // each skeleton pixel, moved by the coast registration (Shepard over the nearest windows) and placed with the fit
+  const shift = (x, y) => {
     const near = windows.map((w) => ({ w, d: Math.hypot(w.x - x, w.y - y) })).sort((a, b) => a.d - b.d).slice(0, 6);
     let sw = 0, sx = 0, sy = 0;
     for (const { w, d } of near) { const k = 1 / (d * d + 2500); sw += k; sx += k * w.dx; sy += k * w.dy; }
-    return [Math.round(x + sx / sw), Math.round(y + sy / sw)];
+    return [x + sx / sw, y + sy / sw];
   };
-  edges = edges.map((e) => e.map(shift));
-}
-
-// A road drawn twice between the same two nodes (parallel strands) is one road: keep the shortest, unless the others are a
-// real detour. And a road that loops back to its own start is a knot, not a road.
-{
-  const key = (e) => { const a = nodeId(e[0]), b = nodeId(e.at(-1)); return a < b ? `${a}-${b}` : `${b}-${a}`; }, best = new Map();
-  for (const e of edges) if (!best.has(key(e)) || lengthPx(e) < lengthPx(best.get(key(e)))) best.set(key(e), e);
-  edges = edges.filter((e) => e === best.get(key(e)) || lengthPx(e) > 1.6 * lengthPx(best.get(key(e)))).filter((e) => nodeId(e[0]) !== nodeId(e.at(-1)));
-}
-
-// The map breaks its roads where it draws a place's dot or a road's name plate over them. Join a road's loose end to the
-// nearest other piece of the network that lies ahead of it: within GAP px (~170 miles, a plate is ~60 px) and no more than
-// 30 degrees off the way the road was heading (45 for a short hop). Another loose end must face back at it. The join is a
-// straight edge; an end that meets the side of a road cuts it there. Nearest first, until none is left.
-const par = new Map(), degree = new Map();
-const root = (a) => { while (par.get(a) !== a) a = par.get(a); return a; };
-const endDir = (e, atStart) => { // the way a road runs out of its end, as a unit vector
-  const a = atStart ? e[0] : e.at(-1), b = atStart ? e[Math.min(12, e.length - 1)] : e[Math.max(e.length - 13, 0)], d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
-  return [(a[0] - b[0]) / d, (a[1] - b[1]) / d];
-};
-const angle = (u, v) => (Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1]))) * 180) / Math.PI;
-const bridges = [];
-// first loose ends facing each other (a dot or a plate between them), then loose ends running into the side of a road, near and then further off at a sharper angle
-for (const [looseOnly, gap, turn] of [[true, 100, 50], [true, 60, 75], [false, 40, 30], [false, 60, 60]]) for (;;) {
-  par.clear(); degree.clear();
-  for (const e of edges) for (const p of [e[0], e.at(-1)]) { par.set(nodeId(p), nodeId(p)); degree.set(nodeId(p), (degree.get(nodeId(p)) ?? 0) + 1); }
-  for (const e of edges) par.set(root(nodeId(e[0])), root(nodeId(e.at(-1))));
-  const dirs = new Map(); // loose ends: node -> outward direction
-  for (const e of edges) for (const [p, s] of [[e[0], true], [e.at(-1), false]]) if (degree.get(nodeId(p)) === 1) dirs.set(nodeId(p), endDir(e, s));
-  let best = null;
-  for (const [id, dir] of dirs) {
-    const ax = id % W, ay = (id / W) | 0, ra = root(id);
-    edges.forEach((e, k) => e.forEach((q, i) => {
-      if (nodeId(e[0]) === id || nodeId(e.at(-1)) === id) return; // (two loose ends facing each other are a gap whatever else joins them)
-      const dx = q[0] - ax, dy = q[1] - ay, d = Math.hypot(dx, dy);
-      if (d > gap || d < 1) return;
-      const a = angle(dir, [dx / d, dy / d]);
-      if (a > (d < 20 ? 45 : turn)) return;
-      const end = i === 0 || i === e.length - 1, qd = end && degree.get(nodeId(q)) === 1 ? dirs.get(nodeId(q)) : null;
-      if (looseOnly && !qd) return;
-      if (qd && angle(qd, [-dx / d, -dy / d]) > 65) return; // the other loose end must face this way
-      const score = d * (1 + a / 45);
-      if (!best || score < best.score) best = { score, id, k, i, q, d };
-    }));
-  }
-  if (!best) break;
-  const e = edges[best.k], q = best.q;
-  if (best.i > 0 && best.i < e.length - 1) edges.splice(best.k, 1, e.slice(0, best.i + 1), e.slice(best.i)); // meets a road's side: cut it there
-  edges.push([[best.id % W, (best.id / W) | 0], [q[0], q[1]]]);
-  bridges.push(best);
-}
-console.log(`${bridges.length} gaps bridged`);
-
-// Strands that run side by side between the same places are spaghetti, and a small ring is a knot: a short road that has a
-// way round of about its own length (<= 1.4x), or that closes a ring under 150 px round, is dropped, longest first. (Bigger
-// rings, a real circuit of roads, stay.)
-{
-  const dead = new Set(), len = edges.map(lengthPx);
-  const reach = (from, to, skip, cap) => { // is `to` within `cap` px of `from` without edge `skip`? (Dijkstra, bounded)
-    const dist = new Map([[from, 0]]), todo = [from];
-    while (todo.length) {
-      todo.sort((a, b) => dist.get(b) - dist.get(a));
-      const u = todo.pop();
-      if (u === to) return true;
-      for (let k = 0; k < edges.length; k++) {
-        if (k === skip || dead.has(k)) continue;
-        const a = nodeId(edges[k][0]), b = nodeId(edges[k].at(-1)), v = a === u ? b : b === u ? a : null;
-        if (v === null) continue;
-        const d = dist.get(u) + len[k];
-        if (d <= cap && d < (dist.get(v) ?? Infinity)) { dist.set(v, d); todo.push(v); }
-      }
-    }
-    return false;
+  const toGlobe = ([x, y]) => {
+    let f = fits.westeros, flat = (x - f.p[1]) / f.p[0];
+    if (flat >= split) { f = fits.east; flat = (x - f.p[1]) / f.p[0]; }
+    const lat = (y - f.p[3]) / f.p[2];
+    return [unflatten(flat, lat), lat];
   };
-  for (const k of edges.map((_, i) => i).filter((i) => len[i] <= 100).sort((i, j) => len[j] - len[i])) {
-    if (reach(nodeId(edges[k][0]), nodeId(edges[k].at(-1)), k, Math.max(len[k] * 1.4, 150 - len[k]))) dead.add(k);
-  }
-  edges = edges.filter((_, k) => !dead.has(k));
-  console.log(`${dead.size} parallel strands dropped`);
-}
-if (process.env.DBG === '6') writeFileSync(`${process.env.DBGDIR}/dbg.json`, JSON.stringify({ edges, bridges: bridges.map((b) => [b.id % W, (b.id / W) | 0, b.q[0], b.q[1]]) }));
-if (process.env.DBG === '3') { // the separate pieces of the network, biggest first
-  const comp = new Map(), f = (a) => { while (comp.get(a) !== a) a = comp.get(a); return a; };
-  for (const e of edges) for (const p of [e[0], e.at(-1)]) if (!comp.has(nodeId(p))) comp.set(nodeId(p), nodeId(p));
-  for (const e of edges) comp.set(f(nodeId(e[0])), f(nodeId(e.at(-1))));
-  const g = new Map();
-  for (const e of edges) { const c = f(nodeId(e[0])), s = g.get(c) ?? { px: 0, n: 0, b: [1e9, 0, 1e9, 0] }; s.px += lengthPx(e); s.n++; for (const [x, y] of e) { s.b = [Math.min(s.b[0], x), Math.max(s.b[1], x), Math.min(s.b[2], y), Math.max(s.b[3], y)]; } g.set(c, s); }
-  for (const s of [...g.values()].sort((a, b) => b.px - a.px).slice(0, 25)) console.log(Math.round(s.px), 'px', s.n, 'edges', 'x', s.b[0], s.b[1], 'y', s.b[2], s.b[3]);
-}
-
-const dp = (pts, tol) => { // Douglas-Peucker
-  if (pts.length < 3) return pts;
-  const [a, b] = [pts[0], pts.at(-1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-  let m = 0, k = 0;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const d = Math.abs((b[1] - a[1]) * pts[i][0] - (b[0] - a[0]) * pts[i][1] + b[0] * a[1] - b[1] * a[0]) / L;
-    if (d > m) { m = d; k = i; }
-  }
-  return m > tol ? [...dp(pts.slice(0, k + 1), tol).slice(0, -1), ...dp(pts.slice(k), tol)] : [a, b];
-};
-const MILES_PER_DEG = METRES_PER_DEGREE / MILE;
-const toGlobe = ([x, y]) => {
-  let f = fits.westeros, flat = (x - f.p[1]) / f.p[0];
-  if (flat >= split) { f = fits.east; flat = (x - f.p[1]) / f.p[0]; }
-  const lat = (y - f.p[3]) / f.p[2];
-  return [+unflatten(flat, lat).toFixed(3), +lat.toFixed(3)];
-};
-const pxMiles = MILES_PER_DEG / -fits.east.p[2]; // the map is drawn at one scale: miles per pixel
-/** Chaikin corner cutting: rounds the traced pixel steps into curves (the ends stay). */
-const chaikin = (pts, rounds) => {
-  for (let k = 0; k < rounds; k++) {
-    const out = [pts[0]];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
-      out.push([0.75 * ax + 0.25 * bx, 0.75 * ay + 0.25 * by], [0.25 * ax + 0.75 * bx, 0.25 * ay + 0.75 * by]);
-    }
-    out.push(pts.at(-1));
-    pts = out;
-  }
+  const pts = [];
+  for (let i = 0; i < W * H; i++) if (on[i]) pts.push(toGlobe(shift(i % W, (i / W) | 0)));
   return pts;
-};
-const densify = (pts, step) => pts.flatMap((a, i) => {
-  if (!i) return [a];
-  const b = pts[i - 1], n = Math.max(1, Math.ceil(Math.hypot(a[0] - b[0], a[1] - b[1]) / step));
-  return Array.from({ length: n }, (_, k) => [b[0] + ((a[0] - b[0]) * (k + 1)) / n, b[1] + ((a[1] - b[1]) * (k + 1)) / n]);
-});
+})();
 
-// Our land, rasterised, so a road that the painted map puts in the sea (its coasts differ from ours) is moved to the nearest
-// ground at least a cell inland. Globe lon/lat, 0.02 degrees (~2.3 km) a cell; lakes are not ground.
-const RES = 0.02, LON0 = -56, LAT1 = 76, GW = Math.round(168 / RES), GH = Math.round(80 / RES);
-const ring = (r) => 'M' + r.map(([lon, lat]) => `${((lon - LON0) / RES).toFixed(1)} ${((LAT1 - lat) / RES).toFixed(1)}`).join('L') + 'Z';
+// ---- the grid: the relief bake's own cells (~0.035 degrees, 2-3 miles) ----
+const B = JSON.parse(readFileSync('src/globe/relief-bounds.json', 'utf8'));
+const relief = await sharp('public/world/relief-h.webp').raw().toBuffer({ resolveWithObject: true });
+const GW = relief.info.width, GH = relief.info.height, CH = relief.info.channels;
+const DLON = (B.lon1 - B.lon0) / GW, DLAT = (B.lat1 - B.lat0) / GH;
+const height = new Float32Array(GW * GH); // km
+for (let i = 0; i < GW * GH; i++) height[i] = ((relief.data[i * CH] * 256 + relief.data[i * CH + 1]) / 65535) * B.heightMax;
+const cellOf = (lon, lat) => { const x = Math.floor((lon - B.lon0) / DLON), y = Math.floor((B.lat1 - lat) / DLAT); return x < 0 || y < 0 || x >= GW || y >= GH ? -1 : y * GW + x; };
+const centre = (i) => [B.lon0 + ((i % GW) + 0.5) * DLON, B.lat1 - (((i / GW) | 0) + 0.5) * DLAT];
+const svgXY = ([lon, lat]) => `${((lon - B.lon0) / DLON).toFixed(1)} ${((B.lat1 - lat) / DLAT).toFixed(1)}`;
+/** An SVG drawn over the grid, read back as one byte a cell. */
+const raster = async (body) => sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${GW}" height="${GH}"><rect width="100%" height="100%" fill="#000"/>${body}</svg>`)).greyscale().raw().toBuffer();
+const rings = (rs) => rs.map((r) => 'M' + r.map(svgXY).join('L') + 'Z').join('');
+const polyline = (pts) => 'M' + pts.map(svgXY).join('L');
+
 const world = JSON.parse(readFileSync('src/vector-world.json', 'utf8'));
-const ground = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${GW}" height="${GH}"><rect width="100%" height="100%" fill="#000"/>
-  <path d="${world.land.map(ring).join('')}" fill="#fff" fill-rule="evenodd"/><path d="${world.lakes.flatMap((l) => l.rings.map(ring)).join('')}" fill="#000" fill-rule="evenodd"/></svg>`))
-  .greyscale().raw().toBuffer();
-const isLand = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH && ground[y * GW + x] > 127;
-const isCore = (x, y) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!isLand(x + dx, y + dy)) return false; return true; };
-const onGround = ([lon, lat]) => {
-  const cx = Math.floor((lon - LON0) / RES), cy = Math.floor((LAT1 - lat) / RES);
-  if (isLand(cx, cy)) return [lon, lat];
-  for (let r = 1; r <= 100; r++) { // rings of cells outwards: the nearest inland cell
-    let best = null;
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !isCore(cx + dx, cy + dy)) continue;
-      const d = dx * dx + dy * dy;
-      if (!best || d < best.d) best = { d, x: cx + dx, y: cy + dy };
-    }
-    if (best) return [+(LON0 + (best.x + 0.5) * RES).toFixed(3), +(LAT1 - (best.y + 0.5) * RES).toFixed(3)];
+// land is the drawn coast less the lakes; a road keeps to cells that are mostly land, so it never touches the sea
+const land = await raster(`<path d="${rings(world.land)}" fill="#fff" fill-rule="evenodd"/><path d="${rings(world.lakes.flatMap((l) => l.rings))}" fill="#000" fill-rule="evenodd"/>`);
+const COVER = { forest: 1, swamp: 2, desert: 3, snow: 4 }, COVER_COST = [1, 1.25, 3, 1.4, 2]; // plains, forest, swamp (the Neck), desert, snow
+const { features: cover } = JSON.parse(readFileSync('src/terrain.json', 'utf8'));
+const ground = await raster(cover.filter((f) => COVER[f.properties.c]).map((f) => `<path d="${f.geometry.coordinates.map(rings).join('')}" fill="rgb(${COVER[f.properties.c] * 50},0,0)" fill-rule="evenodd" shape-rendering="crispEdges"/>`).join(''));
+// rivers, as cells (the size, 0..1) and as banks two cells either side: the relief's (lon, lat, size triples) and the flat
+// map's canon lines (which lie a few miles off them, and a road drawn on one would look like it runs in the river)
+const bakedRivers = JSON.parse(readFileSync('public/world/relief-rivers.json', 'utf8')).map((l) => Array.from({ length: l.length / 3 }, (_, k) => [l[k * 3], l[k * 3 + 1], l[k * 3 + 2]]));
+const riverBody = (w) => [...bakedRivers, ...world.rivers.map((l) => l.map(([lon, lat]) => [lon, lat, 0.5]))]
+  .map((l) => `<path d="${polyline(l)}" stroke="rgb(${Math.round(255 * Math.max(...l.map((p) => p[2])))},0,0)" stroke-width="${w}" fill="none" shape-rendering="crispEdges"/>`).join('');
+const river = await raster(riverBody(1.6)), bank = await raster(riverBody(5));
+const pull = new Uint8Array(GW * GH); // cells the painted roads cross, and their neighbours
+for (const [lon, lat] of painted) { const i = cellOf(lon, lat); if (i >= 0) for (const d of [0, 1, -1, GW, -GW]) pull[i + d] = 1; }
+
+/** What a mile of a cell costs before its slope and the painted road's pull: high ground, cover, a river bank. */
+const cellCost = new Float32Array(GW * GH);
+for (let i = 0; i < GW * GH; i++) cellCost[i] = (1 + 0.12 * height[i]) * COVER_COST[Math.round(ground[i] / 50)] * (bank[i] && !river[i] ? 0.9 : 1);
+// How the road being laid weighs the ground. A road follows the lie of the land (a 5% grade is already a burden) and leans to the
+// painted road. A Valyrian road (lore-roads.json `straight`: "straight as a Dothraki arrow", AGOT) was cut through it: it shrugs off
+// grades up to ~15% and owes nothing to the painted line.
+let GRADE = 0.05, PULL = 0.75;
+// A road the lore and the maps run along a river (lore-roads.json `along`: the river road "followed the course of the Red Fork",
+// AFFC) finds that river's banks half price: ALONG is the band for the road being laid, null for the others. A river is the canon
+// line nearest the spot of its name, as the globe letters it.
+let ALONG = null;
+const bands = new Map();
+const bandOf = async (name) => {
+  if (bands.has(name)) return bands.get(name);
+  const p = PLACES.find((q) => q[0] === name && q[1] === 'river');
+  if (!p) throw new Error(`no river "${name}"`);
+  let best = [Infinity, null];
+  for (const r of world.rivers) for (const [lon, lat] of r) { const d = Math.hypot(lon - p[3], lat - p[2]); if (d < best[0]) best = [d, r]; }
+  const band = await raster(`<path d="${polyline(best[1])}" stroke="#fff" stroke-width="5" fill="none"/>`);
+  bands.set(name, band);
+  return band;
+};
+// a road keeps to cells that are mostly land; by a place on the shore (a port) it may use the cells round it that are partly land
+const harbour = new Set();
+// The Wall is no way through, but at its gates: "All tunnels have been sealed except for those at Castle Black, Eastwatch, and the Shadow Tower" (wiki Wall)
+const wall = await raster(`<path d="${polyline(wallLine())}" stroke="#fff" stroke-width="2.5" fill="none"/>`);
+for (const g of ['Castle Black', 'Eastwatch-by-the-Sea', 'Shadow Tower']) { const [lat, lon] = WALL_CASTLES[g], c = cellOf(lon, lat); for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) wall[c + dy * GW + dx] = 0; }
+const passable = (i) => (land[i] > 200 || harbour.has(i)) && !wall[i];
+const moor = (i) => { for (const d of [0, 1, -1, GW, -GW, GW + 1, GW - 1, -GW + 1, -GW - 1]) if (land[i + d] > 60) harbour.add(i + d); };
+
+// fords: a river crossing is cheap by a settlement (a bridge, a ferry) and free at a place a road is named through
+const ford = new Float32Array(GW * GH).fill(1);
+const stamp = (i, r, v) => { const x = i % GW, y = (i / GW) | 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const j = (y + dy) * GW + x + dx; if (j >= 0 && j < GW * GH) ford[j] = Math.min(ford[j], v); } };
+// a waypoint read off a map, where the road bends at no place of ours, is `@lat,lon` (a pseudo-place, kind `waypoint`)
+const placeAt = (name) => { if (name.startsWith('@')) { const [lat, lon] = name.slice(1).split(',').map(Number); return [name, 'waypoint', lat, lon]; } const p = PLACES.find((q) => q[0] === name && q[1] !== 'road'); if (!p) throw new Error(`no place "${name}"`); return p; };
+for (const p of PLACES) if (['capital', 'city', 'town', 'castle'].includes(p[1])) stamp(cellOf(p[3], p[2]), 2, 0.2);
+const spec = JSON.parse(readFileSync('tools/books/lore-roads.json', 'utf8'));
+for (const n of new Set(spec.flatMap((r) => r.via))) stamp(cellOf(placeAt(n)[3], placeAt(n)[2]), 3, 0);
+
+// ---- the network: cell -> (neighbour cell -> { cls, name }); cls 2 a road, 1 a track ----
+const net = new Map();
+const linked = (a, b) => net.get(a)?.has(b);
+const link = (path, cls, name) => {
+  for (let k = 1; k < path.length; k++) for (const [a, b] of [[path[k - 1], path[k]], [path[k], path[k - 1]]]) {
+    const m = net.get(a) ?? net.set(a, new Map()).get(a), e = m.get(b) ?? m.set(b, { cls, name, uses: 0 }).get(b);
+    e.cls = Math.max(e.cls, cls); e.uses++;
   }
-  return [lon, lat];
 };
-const cellOf = ([lon, lat]) => [Math.floor((lon - LON0) / RES), Math.floor((LAT1 - lat) / RES)];
-/** Does the straight line a-b leave our land? (checked every ~1 km) */
-const wet = (a, b) => {
-  const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.01));
-  for (let k = 0; k <= n; k++) if (!isLand(...cellOf([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]))) return true;
-  return false;
+
+// king's and knight's moves, so a road can run at any of 16 headings and not only in 45 degree steps
+const MOVES = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+const crossed = (dx, dy) => (Math.abs(dx) === 2 ? [[dx / 2, 0], [dx / 2, dy]] : Math.abs(dy) === 2 ? [[0, dy / 2], [dx, dy / 2]] : []);
+const ROAD_DISCOUNT = 0.35;
+/** The cost of one step u -> v (Infinity where it cannot go), and its length in miles. */
+const step = (u, x, y, dx, dy) => {
+  const vx = x + dx, vy = y + dy;
+  if (vx < 0 || vy < 0 || vx >= GW || vy >= GH) return Infinity;
+  const v = vy * GW + vx;
+  if (!passable(v)) return Infinity;
+  let wet = river[v] && !river[u] ? river[v] : 0;
+  for (const [cx, cy] of crossed(dx, dy)) {
+    const c = (y + cy) * GW + x + cx;
+    if (!passable(c)) return Infinity;
+    if (river[c] && !river[u]) wet = Math.max(wet, river[c]);
+  }
+  const lat = B.lat1 - (y + 0.5) * DLAT, miles = Math.hypot(dx * DLON * Math.cos((lat * Math.PI) / 180), dy * DLAT) * MILES_PER_DEG;
+  const grade = Math.abs(height[v] - height[u]) / (miles * 1.609), slope = Math.min(40, 1 + (grade / GRADE) ** 2);
+  let c = miles * slope * (cellCost[u] * (pull[u] ? PULL : 1) + cellCost[v] * (pull[v] ? PULL : 1)) / 2 * (river[u] && river[v] ? 3 : 1); // along a river's bed is no road
+  if (linked(u, v)) c *= ROAD_DISCOUNT;
+  if (ALONG && ALONG[u] && ALONG[v] && !river[v]) c *= 0.5;
+  if (wet) c += (15 + 40 * (wet / 255)) * Math.min(ford[v], ...crossed(dx, dy).map(([cx, cy]) => ford[(y + cy) * GW + x + cx]));
+  return c;
 };
+const MIN_MULT = ROAD_DISCOUNT * 0.75 * 0.9 * 0.5; // the cheapest a mile can be: the A* bound
+
 /**
- * Where the painted road runs well off our coast, neighbouring samples land far apart on the shore, and a straight line
- * between them would cut across a bay: the way between them over inland cells instead (A*), without its ends. If there is
- * none (a strait between two lands) the straight line stays.
+ * The cheapest path from cell `from` to a cell where goal(cell) holds, within `pad` cells of the box round from and `to`
+ * (A* toward `to` when given). Gives the cells in order, or null (none within `cap` cost).
  */
-const overLand = (a, b) => {
-  const [ax, ay] = cellOf(a), [bx, by] = cellOf(b), PAD = 40;
-  const x0 = Math.min(ax, bx) - PAD, y0 = Math.min(ay, by) - PAD, w = Math.abs(ax - bx) + 2 * PAD + 1, h = Math.abs(ay - by) + 2 * PAD + 1;
-  const cost = new Float64Array(w * h).fill(Infinity), from = new Int32Array(w * h).fill(-1), open = [[0, ax - x0 + (ay - y0) * w]];
-  const heur = (i) => Math.hypot((i % w) + x0 - bx, ((i / w) | 0) + y0 - by);
-  cost[ax - x0 + (ay - y0) * w] = 0;
-  const goal = bx - x0 + (by - y0) * w;
-  while (open.length) { // a binary heap on [priority, cell]
-    let top = open[0]; const last = open.pop();
-    if (open.length) { open[0] = last; for (let i = 0; ;) { let m = i; for (const c of [2 * i + 1, 2 * i + 2]) if (c < open.length && open[c][0] < open[m][0]) m = c; if (m === i) break; [open[i], open[m]] = [open[m], open[i]]; i = m; } }
-    const u = top[1];
-    if (u === goal) break;
-    if (top[0] - heur(u) > cost[u] + 1e-9) continue; // stale entry
-    const ux = u % w, uy = (u / w) | 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const vx = ux + dx, vy = uy + dy;
-      if ((!dx && !dy) || vx < 0 || vy < 0 || vx >= w || vy >= h || !(isCore(vx + x0, vy + y0) || vx + vy * w === goal)) continue;
-      const v = vx + vy * w, c = cost[u] + Math.hypot(dx, dy);
-      if (c >= cost[v]) continue;
-      cost[v] = c; from[v] = u;
-      open.push([c + heur(v), v]);
-      for (let i = open.length - 1; i > 0;) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; [open[p], open[i]] = [open[i], open[p]]; i = p; }
+const route = (from, goal, to, pad, cap = Infinity) => {
+  const fx = from % GW, fy = (from / GW) | 0, tx = to >= 0 ? to % GW : fx, ty = to >= 0 ? (to / GW) | 0 : fy;
+  const x0 = Math.max(0, Math.min(fx, tx) - pad), y0 = Math.max(0, Math.min(fy, ty) - pad), x1 = Math.min(GW - 1, Math.max(fx, tx) + pad), y1 = Math.min(GH - 1, Math.max(fy, ty) + pad);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, local = (i) => ((i / GW) | 0) * w - y0 * w + (i % GW) - x0;
+  const dist = new Float64Array(w * h).fill(Infinity), prev = new Int32Array(w * h).fill(-1);
+  const heur = (x, y) => (to < 0 ? 0 : Math.hypot((x - tx) * DLON * Math.cos(((B.lat1 - y * DLAT) * Math.PI) / 180), (y - ty) * DLAT) * MILES_PER_DEG * MIN_MULT);
+  const heap = []; // [f, cell], a binary heap
+  const push = (f, c) => { heap.push([f, c]); for (let i = heap.length - 1; i > 0;) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; for (let i = 0; ;) { let m = i; for (const c of [2 * i + 1, 2 * i + 2]) if (c < heap.length && heap[c][0] < heap[m][0]) m = c; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
+  dist[local(from)] = 0; push(heur(fx, fy), from);
+  while (heap.length) {
+    const [f, u] = pop(), x = u % GW, y = (u / GW) | 0, du = dist[local(u)];
+    if (f - heur(x, y) > du + 1e-9) continue; // stale
+    if (du > cap) return null;
+    if (goal(u)) { const out = [u]; for (let c = prev[local(u)]; c >= 0; c = prev[local(c)]) out.unshift(c); return out; }
+    for (const [dx, dy] of MOVES) {
+      const vx = x + dx, vy = y + dy;
+      if (vx < x0 || vy < y0 || vx > x1 || vy > y1) continue;
+      const c = step(u, x, y, dx, dy);
+      if (c === Infinity) continue;
+      const v = vy * GW + vx, lv = local(v), d = du + c;
+      if (d < dist[lv]) { dist[lv] = d; prev[lv] = u; push(d + heur(vx, vy), v); }
     }
   }
-  if (from[goal] < 0) return [];
-  const out = [];
-  for (let u = from[goal]; u >= 0 && u !== ax - x0 + (ay - y0) * w; u = from[u]) out.unshift([+(LON0 + (u % w + x0 + 0.5) * RES).toFixed(3), +(LAT1 - (((u / w) | 0) + y0 + 0.5) * RES).toFixed(3)]);
+  return null;
+};
+const pathMiles = (path) => path.slice(1).reduce((n, c, k) => { const a = centre(path[k]), b = centre(c); return n + Math.hypot((a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180), a[1] - b[1]) * MILES_PER_DEG; }, 0);
+
+// pins: a cell where a place is drawn at the place itself, not the cell's centre
+const pins = new Map(), terminals = new Set();
+const pin = (p) => { const i = cellOf(p[3], p[2]); if (!pins.has(i)) pins.set(i, [p[3], p[2]]); terminals.add(i); moor(i); return i; };
+
+/** The cells of the straight line a-b, or null where it leaves the land (or crosses the Wall) between its ends. */
+const ruled = (a, b) => {
+  const [ax, ay, bx, by] = [a % GW, (a / GW) | 0, b % GW, (b / GW) | 0], n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)), out = [];
+  for (let k = 0; k <= n; k++) {
+    const c = Math.round(ay + ((by - ay) * k) / n) * GW + Math.round(ax + ((bx - ax) * k) / n);
+    if (k && k < n && !passable(c)) return null;
+    if (c !== out.at(-1)) out.push(c);
+  }
   return out;
 };
-/** Where segments a-b and c-d cross: the point, or null. */
-const crossing = (a, b, c, d) => {
-  const r = [b[0] - a[0], b[1] - a[1]], s = [d[0] - c[0], d[1] - c[1]], den = r[0] * s[1] - r[1] * s[0];
-  if (!den) return null;
-  const t = ((c[0] - a[0]) * s[1] - (c[1] - a[1]) * s[0]) / den, u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den;
-  return t > 0 && t < 1 && u > 0 && u < 1 ? [a[0] + t * r[0], a[1] + t * r[1]] : null;
+
+// ---- named roads, in the file's order (the Kingsroad first: the others join it) ----
+// A Valyrian road (`straight`) is a ruled line from place to place: "straight as a Dothraki arrow" (AGOT, Daenerys), "straight
+// as a spear to the horizon" (ADWD, Tyrion), and drawn so on The Lands of Ice and Fire. Only a leg whose line would cross water
+// is routed, and then with slope a small matter to it.
+const namedCells = [];
+for (const { name, via, straight, joins, along } of spec) {
+  [GRADE, PULL] = straight ? [0.15, 1] : [0.05, 0.75];
+  ALONG = null;
+  for (const n of along ?? []) { const b = await bandOf(n); ALONG ??= new Uint8Array(GW * GH); for (let i = 0; i < GW * GH; i++) if (b[i] > 127) ALONG[i] = 1; }
+  const cells = via.map((n) => pin(placeAt(n)));
+  for (const [k, c] of cells.entries()) if (!passable(c)) console.warn(`${name}: ${via[k]} is not on land at the grid's scale`);
+  let seq = [cells[0]], ok = true;
+  for (let k = 1; k < cells.length; k++) {
+    const a = cells[k - 1], b = cells[k], span = Math.max(Math.abs((a % GW) - (b % GW)), Math.abs(((a / GW) | 0) - ((b / GW) | 0)));
+    const path = (straight && ruled(a, b)) || route(a, (c) => c === b, b, Math.max(30, Math.round(span * 0.6)));
+    if (!path) { console.warn(`${name}: no way over land from ${via[k - 1]} to ${via[k]}, left out`); ok = false; break; }
+    if (straight && path.length && !ruled(a, b)) console.log(`  ${name}: ${via[k - 1]} to ${via[k]} would cross water, routed`);
+    link(path, 2, name);
+    seq.push(...path.slice(1));
+  }
+  // a branch (`joins`) runs from its last place to the road it leaves, where no text names the junction: a straight road by the
+  // nearest ruled line that stays on land, any other the cheapest way
+  if (ok && joins) {
+    const road = namedCells.find((n) => n.name === joins)?.cells ?? [], from = seq.at(-1), [fx, fy] = [from % GW, (from / GW) | 0];
+    const near = straight && road.map((c) => [c, Math.hypot((c % GW) - fx, ((c / GW) | 0) - fy)]).sort((p, q) => p[1] - q[1]).map(([c]) => ruled(from, c)).find(Boolean);
+    const path = near || route(from, (c) => road.includes(c), -1, 80);
+    if (path) { link(path, 2, name); seq.push(...path.slice(1)); } else { console.warn(`${name}: does not reach ${joins}, left out`); ok = false; }
+  }
+  if (!ok) continue;
+  // a road that runs out to a place and back the same way passes it by: the out-and-back is not part of the named line
+  const out = [];
+  for (const c of seq) { if (out.length > 1 && out.at(-2) === c) out.pop(); else out.push(c); }
+  namedCells.push({ name, cells: out });
+}
+[GRADE, PULL, ALONG] = [0.05, 0.75, null];
+const STRAIGHT = new Set(spec.filter((r) => r.straight).map((r) => r.name));
+
+// ---- tracks: each castle, town and city to the nearest road or track, biggest first, so the tracks branch like a tree ----
+// Canon names few roads; every seat still has a way to the realm's roads. A track that several places share is a road.
+const REACH_MI = { capital: 900, city: 700, town: 350, castle: 350, ruin: 60, minor: 60 };
+const RANK = ['capital', 'city', 'town', 'castle', 'ruin', 'minor'];
+const SHARED = 3; // places whose track runs over a stretch before it is drawn as a road
+let tracks = 0;
+const why = { on: 0, wet: 0, none: 0, far: 0 };
+for (const p of PLACES.filter((q) => REACH_MI[q[1]] && !WALL_CASTLES[q[0]]).sort((a, b) => RANK.indexOf(a[1]) - RANK.indexOf(b[1]))) {
+  const at = cellOf(p[3], p[2]);
+  if (at >= 0 && net.has(at)) { why.on++; continue; }
+  if (at >= 0) moor(at);
+  const say = (why) => process.env.DBG && console.log(`  ${p[0]} (${p[1]}): ${why}`); // DBG=1 lists the places left without a track
+  if (at < 0 || !passable(at)) { why.wet++; say('in the sea'); continue; } // in the sea at this scale: an island the land lacks
+  const reach = REACH_MI[p[1]], path = route(at, (c) => net.has(c), -1, Math.ceil(reach / 1.6), reach * 6);
+  // no road in reach (an island, Yi Ti): the place seeds a network of its own, and the places round it join it
+  if (!path || pathMiles(path) > reach) { why[path ? 'far' : 'none']++; say(path ? `${Math.round(pathMiles(path))} mi to a road` : 'no road in reach'); pin(p); net.set(at, new Map()); continue; }
+  pin(p);
+  link(path, p[1] === 'capital' ? 2 : 1, p[0]); // a city's own track is a track: the maps draw no Pentos-Myr road
+  tracks++;
+}
+console.log(`tracks: ${tracks} places joined; not joined: ${why.on} already on a road, ${why.wet} in the sea at the grid's scale, ${why.none} with no road in reach and ${why.far} too far (these seed local networks)`);
+
+// ---- the network as stretches between junctions, each smoothed once ----
+const degree = (c) => net.get(c).size;
+const isNode = (c) => degree(c) !== 2 || terminals.has(c);
+const chains = new Map(); // `${a}>${second cell}` -> stretch index (and the reverse key from its other end)
+const stretches = [];
+const walk = (a, b) => {
+  const cells = [a, b];
+  for (let prev = a, cur = b; !isNode(cur);) { const next = [...net.get(cur).keys()].find((n) => n !== prev); cells.push(next); prev = cur; cur = next; if (cur === a) break; }
+  return cells;
 };
-/** A road does not cross itself: where it does, the loop between the crossings is cut out (no circles, no knots). */
-const unknot = (pts) => {
-  for (let again = true; again;) {
-    again = false;
-    for (let i = 0; i < pts.length - 1 && !again; i++) for (let j = i + 2; j < pts.length - 1; j++) {
-      const x = crossing(pts[i], pts[i + 1], pts[j], pts[j + 1]);
-      if (x) { pts = [...pts.slice(0, i + 1), x, ...pts.slice(j + 1)]; again = true; break; }
-    }
+for (const a of net.keys()) {
+  if (!isNode(a)) continue;
+  for (const b of net.get(a).keys()) {
+    if (chains.has(`${a}>${b}`)) continue;
+    const cells = walk(a, b), k = stretches.length;
+    chains.set(`${a}>${b}`, k); chains.set(`${cells.at(-1)}>${cells.at(-2)}`, k);
+    let cls = 0, name = null;
+    for (let i = 1; i < cells.length; i++) { const e = net.get(cells[i - 1]).get(cells[i]), c = e.uses >= SHARED ? 2 : e.cls; if (c > cls) { cls = c; name = e.name; } }
+    stretches.push({ cells, cls, name });
+  }
+}
+
+const coverAt = ([lon, lat]) => { const i = cellOf(lon, lat); return i < 0 ? 0 : land[i]; };
+const dp = (pts, tol) => { // Douglas-Peucker on [lon * cos(lat), lat]
+  if (pts.length < 3) return pts;
+  const k = Math.cos((pts[0][1] * Math.PI) / 180), [a, b] = [pts[0], pts.at(-1)], L = Math.hypot((b[0] - a[0]) * k, b[1] - a[1]) || 1e-9;
+  let m = 0, at = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = Math.abs((b[1] - a[1]) * (pts[i][0] - a[0]) * k - (b[0] - a[0]) * k * (pts[i][1] - a[1])) / L;
+    if (d > m) { m = d; at = i; }
+  }
+  return m > tol ? [...dp(pts.slice(0, at + 1), tol).slice(0, -1), ...dp(pts.slice(at), tol)] : [a, b];
+};
+const chaikin = (pts, rounds) => {
+  for (let r = 0; r < rounds; r++) {
+    const out = [pts[0]];
+    for (let i = 0; i < pts.length - 1; i++) { const [a, b] = [pts[i], pts[i + 1]]; out.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]); }
+    out.push(pts.at(-1)); pts = out;
   }
   return pts;
 };
-/** A road does not hook back on itself either: a bulb (the line leaves a point, wanders 0.1+ degrees, and comes back within a fifth of that) is cut off. */
-const cutBulbs = (pts) => {
-  for (let i = 0; i < pts.length - 3; i++) {
-    let run = 0;
-    for (let j = i + 1; j < pts.length && run < 1.5; j++) {
-      run += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
-      if (j > i + 2 && run > 0.1 && Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]) < run / 5) { pts = [...pts.slice(0, i + 1), ...pts.slice(j)]; i--; break; }
-    }
-  }
-  return pts;
-};
-/** A road as a smooth line on the ground: simplified, curved, dense enough to follow the clamp, then kept on land. */
-const line = (px) => {
-  const s = densify(chaikin(dp(px, 1), 3), 0.5), pts = [];
-  for (const p of s.map(toGlobe).map(onGround)) {
-    if (pts.length && p[0] === pts.at(-1)[0] && p[1] === pts.at(-1)[1]) continue;
-    if (pts.length && wet(pts.at(-1), p)) pts.push(...overLand(pts.at(-1), p));
-    pts.push(p);
-  }
-  // sampled every ~2 km so the clamp follows the coast; thinned again to what a 0.7 km tolerance keeps
-  // and rounded once more, since the inland path steps from cell to cell (it was a cell clear of the sea, which the rounding eats into)
-  const out = cutBulbs(unknot(chaikin(cutBulbs(unknot(dp(pts, 0.006))), 2))).map(([x, y]) => [+x.toFixed(3), +y.toFixed(3)]);
-  return { miles: +(lengthPx(s) * pxMiles).toFixed(1), pts: out };
-};
-
-// Named roads (tools/books/lore-roads.json, with the book and wiki passages each is drawn from): the shortest way along the
-// network through each road's places, as one line, so the name can ride on it like a river's. A place on the painted road
-// (within ON_PX) becomes a junction there (the edge is split). A place the painted road passes by, or a city its road stops
-// short of, gets a spur: a short road from the place to the nearest point of the network, drawn with the network, so the road
-// begins and ends at the place and roads that canon meets there meet. Spurs are the "branch roads".
-const ON_PX = 2, SPUR_PX = 45; // ~5 miles; ~110 miles (a place further off is a road the map does not draw: list it in `far`)
-const spec = JSON.parse(readFileSync('tools/books/lore-roads.json', 'utf8'));
-const far = new Set(spec.flatMap((r) => r.far ?? []));
-const cut = new Map(); // place -> the pixel its road ends at (the place itself, at the end of its spur)
-const pass = new Map(); // place -> the pixel of the network its road passes by on the way through
-const snaps = new Set(); // pixels of the network where spurs join, to split the edges at
-const spurs = [];
-// A hub is a place the painted roads pass by but canon runs them through (Casterly Rock: the Gold, Ocean and River roads all meet at it).
-// The painted trunk between `ends` that passes the hub is dropped and redrawn through it; `joins` are places whose road leaves the network at the hub.
-const hubs = JSON.parse(readFileSync('tools/books/hubs.json', 'utf8')), hubPx = new Map();
-const endNear = ([lon, lat]) => { const [x, y] = toPx(lon, lat); let b = [null, Infinity]; for (const e of edges) for (const q of [e[0], e.at(-1)]) { const d = Math.hypot(q[0] - x, q[1] - y); if (d < b[1]) b = [q, d]; } return b[0]; };
-for (const h of hubs) {
-  const p = PLACES.find((q) => q[0] === h.place && q[1] !== 'road'), at = toPx(p[3], p[2]).map(Math.round), id = (q) => q[0] + q[1] * W;
-  const ends = h.ends.map(endNear), set = new Set([...h.drop.map(endNear), ...ends].map(id)), mid = new Set(h.drop.map(endNear).map(id));
-  for (let k = edges.length - 1; k >= 0; k--) { const a = id(edges[k][0]), b = id(edges[k].at(-1)); if (set.has(a) && set.has(b) && (mid.has(a) || mid.has(b))) edges.splice(k, 1); }
-  ends.forEach((q, i) => { const bend = h.endBends?.[i] ?? 0; edges.push([at, [(at[0] + q[0]) / 2 - (q[1] - at[1]) * bend, (at[1] + q[1]) / 2 + (q[0] - at[0]) * bend], q]); }); // bend: inland, off the shore
-  hubPx.set(h.place, { at, aliases: h.aliases ?? [], joins: h.joins ?? [], joinBend: h.joinBend ?? 0 });
-}
-for (const name of new Set(spec.flatMap((r) => r.via))) {
-  const p = PLACES.find((q) => q[0] === name && q[1] !== 'road');
-  if (!p) throw new Error(`no place "${name}"`);
-  const [x, y] = toPx(p[3], p[2]).map(Math.round);
-  let best = [null, Infinity, null];
-  for (const e of edges) for (const [qx, qy] of e) { const d = Math.hypot(qx - x, qy - y); if (d < best[1]) best = [qx + qy * W, d, [qx, qy]]; }
-  pass.set(name, best[0]);
-  if (best[1] <= ON_PX) { cut.set(name, best[0]); snaps.add(best[0]); continue; }
-  if (best[1] > SPUR_PX && !far.has(name)) throw new Error(`"${name}" is ${Math.round(best[1])} px from any road: list it in "far" in lore-roads.json if the books put a road there`);
-  const q = best[2], bend = ([...name].reduce((n, c) => n + c.charCodeAt(0), 0) % 2 ? 1 : -1) * 0.1; // a gentle bend, so a spur is a track and not a ruler line
-  spurs.push([[x, y], [(x + q[0]) / 2 - (q[1] - y) * bend, (y + q[1]) / 2 + (q[0] - x) * bend], q]);
-  cut.set(name, nodeId([x, y])); snaps.add(best[0]);
-}
-for (const [place, h] of hubPx) { // the hub's own node is where its roads end, and the joins run to it from the network
-  for (const n of [place, ...h.aliases]) cut.set(n, nodeId(h.at));
-  for (const j of h.joins) { // a straight track from the network at the place, with the same gentle bend as a spur
-    const [jx, jy] = toPx(...PLACES.find((q) => q[0] === j).slice(2).reverse()).map(Math.round); let b = [null, Infinity]; // nearest pixel of the network to the place
-    for (const e of edges) for (const t of e) { const d = Math.hypot(t[0] - jx, t[1] - jy); if (d < b[1] && !(t[0] === h.at[0] && t[1] === h.at[1])) b = [t, d]; }
-    const q = b[0];
-    edges.push([q, [(q[0] + h.at[0]) / 2 - (h.at[1] - q[1]) * h.joinBend, (q[1] + h.at[1]) / 2 + (h.at[0] - q[0]) * h.joinBend], h.at]); snaps.add(q[0] + q[1] * W);
-  }
-}
-for (let k = 0; k < edges.length; k++) { // split edges where places and spurs meet them
-  const e = edges[k], i = e.findIndex((p, j) => j > 0 && j < e.length - 1 && snaps.has(p[0] + p[1] * W));
-  if (i > 0) edges.splice(k, 1, e.slice(0, i + 1), e.slice(i)), k--;
-}
-edges.push(...spurs);
-// A road the books name between two places that the painted map does not draw (a leg that would wind far round) is drawn straight
-// between them, with the same gentle bend: lore-roads.json `direct`, pairs of neighbouring places.
-const px = (id) => [id % W, (id / W) | 0];
-for (const [a, b] of spec.flatMap((r) => r.direct ?? [])) {
-  const [pa, pb] = [px(cut.get(a)), px(cut.get(b))], bend = ([...a].reduce((n, c) => n + c.charCodeAt(0), 0) % 2 ? 1 : -1) * 0.1;
-  edges.push([pa, [(pa[0] + pb[0]) / 2 - (pb[1] - pa[1]) * bend, (pa[1] + pb[1]) / 2 + (pb[0] - pa[0]) * bend], pb]);
-}
-const roads = edges.map(line); // short edges stay: they join the pixels of one junction
-const adj = new Map();
-edges.forEach((e, k) => {
-  const a = e[0][0] + e[0][1] * W, b = e.at(-1)[0] + e.at(-1)[1] * W, w = lengthPx(e);
-  for (const [u, v] of [[a, b], [b, a]]) (adj.get(u) ?? adj.set(u, []).get(u)).push({ v, w, k, rev: u === b });
+/** Does the line stay on land? (sampled every ~0.5 mile) */
+const dry = (pts) => pts.slice(1).every((b, i) => {
+  const a = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.007));
+  for (let k = 0; k <= n; k++) if (coverAt([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]) <= 127) return false;
+  return true;
 });
-const route = (from, to) => { // Dijkstra over junctions; the edges walked, in order
-  const dist = new Map([[from, 0]]), via = new Map(), todo = new Set([from]);
-  while (todo.size) {
-    let u = null;
-    for (const n of todo) if (u === null || dist.get(n) < dist.get(u)) u = n;
-    todo.delete(u);
-    if (u === to) break;
-    for (const a of adj.get(u)) if (dist.get(u) + a.w < (dist.get(a.v) ?? Infinity)) { dist.set(a.v, dist.get(u) + a.w); via.set(a.v, { u, a }); todo.add(a.v); }
+const lineMiles = (pts) => pts.slice(1).reduce((n, b, i) => n + Math.hypot((b[0] - pts[i][0]) * Math.cos((b[1] * Math.PI) / 180), b[1] - pts[i][1]) * MILES_PER_DEG, 0);
+let fallbacks = 0;
+for (const s of stretches) {
+  const raw = s.cells.map((c) => pins.get(c) ?? centre(c));
+  // straightened to within half a cell (a Valyrian road to a cell and a half), then rounded; where that would touch water, a tighter fit, and at worst the cells
+  const tries = [...(STRAIGHT.has(s.name) ? [[1.5, 2]] : []), [0.5, 3], [0.25, 2], [0, 1]].map(([tol, r]) => chaikin(dp(raw, tol * DLAT), r));
+  const pts = tries.find(dry) ?? raw;
+  if (pts !== tries[0] && pts !== tries[1]) fallbacks++;
+  s.pts = pts.map(([x, y]) => [+x.toFixed(3), +y.toFixed(3)]);
+  s.miles = +lineMiles(s.pts).toFixed(1);
+}
+
+const roads = stretches.filter((s) => s.cls === 2).map(({ miles, pts }) => ({ miles, pts }));
+const minor = stretches.filter((s) => s.cls === 1).map(({ name, miles, pts }) => ({ name, miles, pts }));
+const named = namedCells.map(({ name, cells }) => {
+  const pts = [];
+  for (let i = 0; i < cells.length - 1;) { // the stretches the road walks, end to end
+    const k = chains.get(`${cells[i]}>${cells[i + 1]}`), s = stretches[k], fwd = s.cells[0] === cells[i];
+    pts.push(...(fwd ? s.pts : [...s.pts].reverse()).slice(pts.length ? 1 : 0));
+    i += s.cells.length - 1;
   }
-  if (!via.has(to) && from !== to) throw new Error('not connected');
-  const walk = [];
-  for (let n = to; n !== from; n = via.get(n).u) walk.unshift(via.get(n).a);
-  return walk;
-};
-const named = spec.flatMap(({ name, via, miles: stated }) => {
-  const px = [], nodes = via.map((v, i) => (i === 0 || i === via.length - 1 ? cut : pass).get(v)); // a road ends at its places and passes the ones between (no detour into a spur and back)
-  for (let i = 1; i < nodes.length; i++) {
-    let walk;
-    try { walk = route(nodes[i - 1], nodes[i]); } catch { console.warn(`${name}: no road from ${via[i - 1]} to ${via[i]}, left out`); return []; }
-    for (const a of walk) px.push(a.rev ? { miles: roads[a.k].miles, pts: [...roads[a.k].pts].reverse() } : roads[a.k]); // the drawn edges as they are: smoothing the joined path again rounds every junction into a bend the network does not have
-    if (process.env.DBG === '5') {
-      console.log(`  ${name}: ${via[i - 1]} -> ${via[i]} ${Math.round(walk.reduce((n, a) => n + a.w, 0) * pxMiles)} mi over ${walk.length} stretches`);
-      for (const a of walk) console.log('    ', Math.round(a.w * pxMiles), 'mi', edges[a.k][0].join(','), '->', edges[a.k].at(-1).join(','), a.rev ? 'rev' : '');
-    }
-  }
-  const r = { miles: px.reduce((n, e) => n + e.miles, 0), pts: px.flatMap((e) => e.pts).filter((p, i, a) => !i || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]) };
-  // a road ends at its places, not at the pixel of the network they snapped to (a pixel is ~2.4 mi): run it on to each end place
-  for (const [i, v] of [[0, via[0]], [1, via.at(-1)]]) {
-    const p = PLACES.find((q) => q[0] === v && q[1] !== 'road'), end = r.pts[i ? r.pts.length - 1 : 0], k = Math.cos((p[2] * Math.PI) / 180);
-    const mi = Math.hypot((p[3] - end[0]) * k, p[2] - end[1]) * MILES_PER_DEG;
-    if (mi < 0.3 || mi > 5 || wet(end, [p[3], p[2]])) continue;
-    r.pts[i ? 'push' : 'unshift']([p[3], p[2]]);
-    r.miles = +(r.miles + mi).toFixed(1);
-  }
-  console.log(`${name}: ${Math.round(r.miles)} mi${stated ? ` (stated ${stated})` : ''}, midpoint ${r.pts[r.pts.length >> 1]}`);
-  return [{ name, ...r }];
+  const r = { name, miles: +lineMiles(pts).toFixed(1), pts };
+  const stated = spec.find((q) => q.name === name).miles;
+  console.log(`${name}: ${Math.round(r.miles)} mi${stated ? ` (stated ${stated})` : ''}`);
+  return r;
 });
 
-if (process.env.DBG === '8') { // loose ends and bridges, for roads-overlay.mjs
-  const deg = new Map();
-  for (const e of edges) for (const p of [e[0], e.at(-1)]) deg.set(nodeId(p), (deg.get(nodeId(p)) ?? 0) + 1);
-  writeFileSync(`${process.env.DBGDIR}/ends.json`, JSON.stringify({ ends: [...deg].filter(([, d]) => d === 1).map(([id]) => toGlobe([id % W, (id / W) | 0])), bridges: bridges.map((b) => [toGlobe([b.id % W, (b.id / W) | 0]), toGlobe(b.q)]) }));
-}
-
-// Medieval roads pass near places, they do not run through them. A place gets a minor road to the nearest point of the main
-// roads when that is near enough for its size (and not already on it), over land. A road that ends close to a place ends at
-// it this way too.
-const REACH_MI = { capital: 110, city: 110, town: 70, castle: 55, ruin: 55, minor: 30 };
-const segs = roads.flatMap((r) => r.pts.slice(1).map((p, i) => [r.pts[i], p]));
-const minor = [];
-for (const p of PLACES) {
-  const reach = REACH_MI[p[1]], at = [p[3], p[2]], k = Math.cos((p[2] * Math.PI) / 180);
-  if (!reach || WALL_CASTLES[p[0]]) continue; // the Wall's castles are joined by the Watch's track along the Wall (wiki Wall), not by roads of their own
-  let best = { mi: Infinity, q: null };
-  for (const [a, b] of segs) {
-    const dx = (b[0] - a[0]) * k, dy = b[1] - a[1], len2 = dx * dx + dy * dy;
-    const t = len2 ? Math.max(0, Math.min(1, (((at[0] - a[0]) * k) * dx + (at[1] - a[1]) * dy) / len2)) : 0;
-    const q = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], mi = Math.hypot((q[0] - at[0]) * k, q[1] - at[1]) * MILES_PER_DEG;
-    if (mi < best.mi) best = { mi, q };
-  }
-  if (best.mi > reach || best.mi < 1.5) continue;
-  const q = best.q, near = [at[0] + (q[0] - at[0]) * 0.15, at[1] + (q[1] - at[1]) * 0.15];
-  if (wet(near, q)) continue; // it would cross water
-  // a gentle bend, to one side or the other by the name, so a minor road is a track and not a ruler line
-  const side = [...p[0]].reduce((n, c) => n + c.charCodeAt(0), 0) % 2 ? 1 : -1, mid = [(at[0] + q[0]) / 2 - (q[1] - at[1]) * 0.12 * side / k, (at[1] + q[1]) / 2 + (q[0] - at[0]) * 0.12 * side * k];
-  minor.push({ name: p[0], miles: +best.mi.toFixed(1), pts: chaikin([at, mid, q], 2).map(([x, y]) => [+x.toFixed(3), +y.toFixed(3)]) });
-}
-console.log(`${minor.length} minor roads to places`);
 writeFileSync('src/roads.json', JSON.stringify({ roads, minor, named }));
-// check: samples along the finished lines (every ~1 km) that are not on land
-let offLand = 0, all = 0;
-for (const r of roads) for (const [a, b] of r.pts.slice(1).map((p, i) => [r.pts[i], p])) {
-  const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.01));
-  let here = 0;
-  for (let k = 0; k <= n; k++, all++) here += isLand(Math.floor((a[0] + ((b[0] - a[0]) * k) / n - LON0) / RES), Math.floor((LAT1 - (a[1] + ((b[1] - a[1]) * k) / n)) / RES)) ? 0 : 1;
-  if (here && process.env.DBG) console.log('wet segment', a, b, here, 'of', n + 1);
-  offLand += here;
-}
-console.log(`${offLand} of ${all} samples along the roads are off land`);
-console.log(`${roads.length} road stretches, ${roads.reduce((n, r) => n + r.miles, 0)} miles, ${pxMiles.toFixed(3)} mi/px`);
+console.log(`${roads.length} road stretches (${Math.round(roads.reduce((n, r) => n + r.miles, 0))} mi), ${minor.length} track stretches from ${tracks} places, ${fallbacks} stretches kept tighter to stay off water`);

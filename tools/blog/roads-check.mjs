@@ -1,4 +1,4 @@
-// Checks src/roads.json against the road distances the blog states (docs/atlas-blog/_roads.md): shortest road path between
+// Checks src/roads.json against the road distances the blog states (docs/sources/atlas-blog/_roads.md): shortest road path between
 // two places, snapped to the nearest road junction/end, vs. the quoted miles. Usage: node tools/blog/roads-check.mjs
 import { snap, dijkstra } from './roads-graph.mjs';
 

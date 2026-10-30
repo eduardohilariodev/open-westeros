@@ -1,0 +1,32 @@
+{
+  "note": "id = quartermaester.info key. wiki = awoiaf page title; house = [awoiaf house page, sigil file without extension, label]. Edit here, then node tools/characters/build.mjs.",
+  "characters": {
+    "eddard":       { "name": "Eddard Stark",        "wiki": "Eddard_Stark",        "house": ["House_Stark", "House_Stark", "Stark"] },
+    "catelyn":      { "name": "Catelyn Stark",       "wiki": "Catelyn_Stark",       "house": ["House_Stark", "House_Stark", "Stark"] },
+    "robb":         { "name": "Robb Stark",          "wiki": "Robb_Stark",          "house": ["House_Stark", "House_Stark", "Stark"] },
+    "sansa":        { "name": "Sansa Stark",         "wiki": "Sansa_Stark",         "house": ["House_Stark", "House_Stark", "Stark"] },
+    "bran":         { "name": "Bran Stark",          "wiki": "Bran_Stark",          "house": ["House_Stark", "House_Stark", "Stark"] },
+    "arya":         { "name": "Arya Stark",          "wiki": "Arya_Stark",          "house": ["House_Stark", "House_Stark", "Stark"] },
+    "rickon":       { "name": "Rickon Stark",        "wiki": "Rickon_Stark",        "house": ["House_Stark", "House_Stark", "Stark"] },
+    "jon":          { "name": "Jon Snow",            "wiki": "Jon_Snow",            "house": ["House_Stark", "House_Stark", "Stark"] },
+    "daenerys":     { "name": "Daenerys Targaryen",  "wiki": "Daenerys_Targaryen",  "house": ["House_Targaryen", "House_Targaryen", "Targaryen"] },
+    "aegon":        { "name": "Young Griff",         "wiki": "Aegon_Targaryen_(son_of_Rhaegar)", "house": ["House_Targaryen", "House_Targaryen", "Targaryen"] },
+    "tywin":        { "name": "Tywin Lannister",     "wiki": "Tywin_Lannister",     "house": ["House_Lannister", "House_Lannister", "Lannister"] },
+    "jaime":        { "name": "Jaime Lannister",     "wiki": "Jaime_Lannister",     "house": ["House_Lannister", "House_Lannister", "Lannister"] },
+    "cersei":       { "name": "Cersei Lannister",    "wiki": "Cersei_Lannister",    "house": ["House_Lannister", "House_Lannister", "Lannister"] },
+    "tyrion":       { "name": "Tyrion Lannister",    "wiki": "Tyrion_Lannister",    "house": ["House_Lannister", "House_Lannister", "Lannister"] },
+    "joffrey":      { "name": "Joffrey Baratheon",   "wiki": "Joffrey_Baratheon",   "house": ["House_Baratheon", "House_Baratheon", "Baratheon"] },
+    "myrcella":     { "name": "Myrcella Baratheon",  "wiki": "Myrcella_Baratheon",  "house": ["House_Baratheon", "House_Baratheon", "Baratheon"] },
+    "robert":       { "name": "Robert Baratheon",    "wiki": "Robert_Baratheon",    "house": ["House_Baratheon", "House_Baratheon", "Baratheon"] },
+    "stannis":      { "name": "Stannis Baratheon",   "wiki": "Stannis_Baratheon",   "house": ["House_Baratheon", "House_Baratheon", "Baratheon"] },
+    "renly":        { "name": "Renly Baratheon",     "wiki": "Renly_Baratheon",     "house": ["House_Baratheon", "House_Baratheon", "Baratheon"] },
+    "theon":        { "name": "Theon Greyjoy",       "wiki": "Theon_Greyjoy",       "house": ["House_Greyjoy", "House_Greyjoy", "Greyjoy"] },
+    "asha":         { "name": "Asha Greyjoy",        "wiki": "Asha_Greyjoy",        "house": ["House_Greyjoy", "House_Greyjoy", "Greyjoy"] },
+    "victarion":    { "name": "Victarion Greyjoy",   "wiki": "Victarion_Greyjoy",   "house": ["House_Greyjoy", "House_Greyjoy", "Greyjoy"] },
+    "brienne":      { "name": "Brienne of Tarth",    "wiki": "Brienne_of_Tarth",    "house": ["House_Tarth", "House_Tarth", "Tarth"] },
+    "davos":        { "name": "Davos Seaworth",      "wiki": "Davos_Seaworth",      "house": ["House_Seaworth", "House_Seaworth", "Seaworth"] },
+    "samwell":      { "name": "Samwell Tarly",       "wiki": "Samwell_Tarly",       "house": ["House_Tarly", "House_Tarly", "Tarly"] },
+    "arianne":      { "name": "Arianne Martell",     "wiki": "Arianne_Martell",     "house": ["House_Martell", "House_Martell", "Martell"] },
+    "littlefinger": { "name": "Petyr Baelish",       "wiki": "Petyr_Baelish",       "house": ["House_Baelish", "House_Baelish_of_Harrenhal", "Baelish"] }
+  }
+}

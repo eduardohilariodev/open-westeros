@@ -32,14 +32,17 @@ body[data-mode=site] .globe-only, body[data-mode=site] #globeLabels, .labels[hid
 
 /* ---------- search + drawer ---------- */
 #side { position: fixed; top: 12px; left: 12px; width: 360px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 24px); z-index: 30; } /* above the measure card, nav and status, so the search results cover them */
-.searchbox { flex: none; display: flex; align-items: center; height: 48px; padding: 0 12px 0 4px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow), inset 0 0 0 1px var(--edge); }
+/* its backdrop-filter makes it a stacking context that holds #results, so it sits above the phone sheets (#place, #house: z 25) */
+.searchbox { position: relative; z-index: 30; flex: none; display: flex; align-items: center; height: 48px; padding: 0 12px 0 4px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow), inset 0 0 0 1px var(--edge); }
 .searchbox input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 18px; background: none; min-width: 0; }
 .searchbox .search-icon { width: 22px; height: 22px; fill: var(--muted); }
 #results { z-index: 5; position: absolute; top: 54px; left: 0; right: 0; margin: 0; padding: 6px 0; list-style: none; max-height: 60vh; overflow: auto; }
 #results li { display: flex; align-items: center; gap: 12px; padding: 8px 16px; cursor: pointer; }
 #results li.on { background: var(--hover); }
 #results li svg { width: 18px; height: 18px; flex: none; }
+#results li img { width: 22px; height: 22px; margin: -2px; flex: none; object-fit: contain; }
 #results .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+#results .nm small { opacity: .6; font-size: 13px; }
 #results mark { background: none; color: var(--gold-hi); font-weight: 600; }
 #results .kd { font-size: 12px; color: var(--muted); letter-spacing: .3px; text-transform: uppercase; }
 #results .none { color: var(--muted); cursor: default; font-size: 14px; }
@@ -88,6 +91,7 @@ body:not(.drawer-open) #ui { display: none; }
 #place .close:hover { background: var(--hover); }
 #place .body { padding: 0 20px 8px; }
 #place h1 { margin: 0 40px 4px 0; font-size: 26px; font-weight: 400; line-height: 1.1; }
+#place h1 small { font-size: .6em; opacity: .65; white-space: nowrap; }
 #place .kind { color: var(--muted); font-size: 15px; }
 /* the Wiki button: a pill, between the title and the pictures */
 #place .actions { flex: none; display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
@@ -97,10 +101,9 @@ body:not(.drawer-open) #ui { display: none; }
 #place .act svg { width: 20px; height: 20px; }
 #place .houses { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
 #place .houses:empty { display: none; }
-#place .house { display: flex; align-items: center; gap: 8px; padding: 5px 14px 5px 7px; border: 1px solid var(--edge); border-radius: 999px; font-size: 14px; }
+#place .house { display: flex; align-items: center; gap: 12px; padding: 8px 18px 8px 14px; border: 1px solid var(--edge); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; }
+#place .house:hover { background: var(--hover); border-color: var(--accent); }
 #place .house img { display: block; width: 26px; height: 29px; object-fit: contain; }
-#place .house a { color: inherit; text-decoration: none; }
-#place .house a:hover { text-decoration: underline; }
 #place .summary a, #place .facts a { color: var(--accent); text-decoration: none; }
 #place .summary a:hover, #place .facts a:hover { text-decoration: underline; }
 /* a name that is a place on the map (goes there) is rose and dotted; the wiki's links stay gold */
@@ -154,13 +157,26 @@ label, button, .globe-place, .line-text, input::placeholder { user-select: none;
 .globe-place { --track: .06em; letter-spacing: var(--track); position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #f3ead0; font: 700 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 3px #101c1b; paint-order: stroke fill; }
 /* a point label's box is its symbol, centred on the place; the name sits to its right */
 .globe-place:not(.globe-area) { width: 13px; height: 13px; }
-.globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: 0 -50%; text-align: left; }
+.globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: var(--dx, 0px) calc(var(--dy, 0px) - 50%); text-align: left; transform-origin: 0 50%; }
+/* where the right side is taken the name goes left of, below or above its symbol (GlobeView SPOTS) */
+.globe-place.t-left > span { left: auto; right: calc(100% + 4px); text-align: right; transform-origin: 100% 50%; }
+.globe-place.t-below > span { left: 50%; top: calc(100% + 2px); translate: calc(var(--dx, 0px) - 50%) var(--dy, 0px); text-align: center; transform-origin: 50% 0; }
+.globe-place.t-above > span { left: 50%; top: auto; bottom: calc(100% + 2px); translate: calc(var(--dx, 0px) - 50%) var(--dy, 0px); text-align: center; transform-origin: 50% 100%; }
+/* where no side is free the symbol and name are drawn --dx/--dy off the place (screen only, the place keeps its spot), with a
+   leader line from the spot (--len long, at --ang) */
+.globe-place:not(.globe-area) > svg { translate: var(--dx, 0px) var(--dy, 0px); }
+:is(.globe-place, .house-sigil).moved::after { content: ''; position: absolute; left: 50%; top: 50%; width: var(--len); height: 1px; background: currentColor; box-shadow: 0 0 0 1px #101c1b; transform-origin: 0 0; rotate: var(--ang); pointer-events: none; z-index: -1; } /* under the symbol and name */
+/* the castles of the Wall stand in a row: symbol and name rise off it at 60° (GlobeView WALL_SLANT), the name from the symbol's
+   centre (left 50%, padded past the symbol); --dx/--dy slide them along the Wall to keep them apart */
+.globe-place.on-wall > svg { rotate: -60deg; }
+.globe-place.on-wall.abandoned { color: #9a968c; } /* empty castles of the Wall: grey symbol and name (GlobeView MANNED) */
+.globe-place.on-wall > span { left: 50%; padding-left: calc(50% + 4px); top: calc(50% - .5em); rotate: -60deg; translate: var(--dx, 0px) var(--dy, 0px); }
 .globe-place svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b); }
 .globe-place.k-sea, .globe-place.k-ocean, .globe-place.k-lake, .globe-place.k-river { font-style: italic; }
 .globe-place.k-river, .globe-place.k-road { font-size: 13px; }
 /* river and road names bent along their line (GlobeView.ts): SVG text on a path, one screen-sized layer; the kind sets the colour */
 .line-labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.line-text { letter-spacing: .06em; font: italic 700 13px/1 var(--font-map); fill: #a9d4ff; stroke: #0a1a33; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke fill; pointer-events: auto; cursor: pointer; transition: opacity .25s; }
+.line-text { letter-spacing: .06em; font: italic 700 13px/1 var(--font-map); fill: #8fc6f2; stroke: #0a1a33; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke fill; pointer-events: auto; cursor: pointer; transition: opacity .25s; }
 .line-text.k-road { font-style: normal; fill: #f0d9a0; stroke: #2a1a08; }
 .line-text.off { opacity: 0; pointer-events: none; }
 @starting-style { .line-text { opacity: 0; } }
@@ -172,7 +188,10 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 #debug button { pointer-events: auto; cursor: pointer; flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid #9fe8a855; border-radius: 4px; background: none; color: inherit; font: inherit; line-height: 1; }
 #debug.min span { display: none; }
 .globe-pin { pointer-events: none; color: #e5483d; display: flex; flex-direction: column; align-items: center; }
-.globe-pin span { margin-bottom: 2px; color: #fff; font: 400 20px/1.1 var(--font-map); white-space: nowrap; -webkit-text-stroke: 4px #101c1b; paint-order: stroke fill; }
+.globe-pin .pin-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.globe-pin .pin-sigil { height: 30px; width: auto; max-width: 34px; object-fit: contain; filter: drop-shadow(0 1px 2px #000c); }
+.globe-pin .pin-sigil[hidden] { display: none; }
+.globe-pin span { color: #fff; font: 400 20px/1.1 var(--font-map); white-space: nowrap; -webkit-text-stroke: 4px #101c1b; paint-order: stroke fill; }
 .globe-pin svg { display: block; width: 28px; height: 65px; filter: drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 0 1px #101c1b) drop-shadow(0 1px 2px #0008); }
 .globe-place.k-ocean { font-family: var(--font-map-sc); font-style: normal; font-size: 22px; }
 .globe-place.k-sea { font-family: var(--font-map-sc); font-style: normal; font-size: 17px; }
@@ -180,36 +199,41 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 .globe-place.k-region { font-family: var(--font-map-sc); font-size: 17px; }
 .globe-place:is(.k-mountain, .k-wild) { font-size: 15px; } /* ranges, hills and wastes are lettered across the land, no symbol */
 /* true capitals: regions, mountains and hills, deserts; every name has the same tracking */
-.globe-place:is(.k-region, .k-mountain, .k-wild, .k-population) { text-transform: uppercase; }
+.globe-place:is(.k-region, .k-archipelago, .k-mountain, .k-forest, .k-wild, .k-population) { text-transform: uppercase; }
 .globe-place.k-population { font-size: 15px; }
 .globe-place.k-city { font-size: 16px; }
 .globe-place.k-capital { font-family: var(--font-map-sc); font-size: 15px; }
 .globe-place:is(.k-ocean, .k-sea, .k-continent, .k-capital) { font-variant-caps: small-caps; }
 .globe-place.k-city, .globe-place.k-capital { width: 17px; height: 17px; }
-.globe-place.k-minor, .globe-place.k-ruin, .globe-place.k-battle { font-size: 13px; }
+.globe-place.k-minor, .globe-place.k-ruin, .globe-place.k-battle, .globe-place.k-inn { font-size: 13px; }
 .globe-place.k-minor { width: 10px; height: 10px; }
 .globe-place.k-battle { width: 14px; height: 14px; }
-/* one colour per kind, each at least 4.5:1 against the parchment stroke (WCAG AA) */
-.k-sea, .k-ocean, .k-river { color: #a9d4ff; }
+/* one colour per kind, each at least 4.5:1 against the dark stroke (WCAG AA). Families: white for seats of power, gold to
+   taupe for settlements by size, blues for water, greens and earths for land, reds and purples for history */
+.k-sea, .k-ocean { color: #a9d4ff; }
+.k-river { color: #8fc6f2; }
 .k-road { color: #f0d9a0; }
 .k-lake { color: #b8dcff; }
-.k-region { color: #fff; }
+.k-region { color: #e6d6b4; }
 .k-continent { color: #f6e3b4; }
-.k-city { color: #f3ead0; }
-.k-town { color: #dfe9e6; }
-.k-castle, .k-capital { color: #ff9a8a; }
-.k-minor { color: #f0a878; }
-.k-ruin { color: #e0aad2; }
+.k-castle, .k-capital { color: #fff; }
+.k-city { color: #ffe2a0; }
+.k-town { color: #cfc8ba; }
+.k-minor { color: #b3a794; }
+.k-ruin, .globe-place.ruined { color: #e0aad2; } /* .ruined: a place the moment finds in ruins (state/changes.ts) */
 .k-battle { color: #ff7f6a; }
-.k-monument { color: #f2cf7a; }
+.k-character { color: #e9c46a; }
+.k-monument { color: #d9b8ff; }
 .k-population { color: #a9b9cf; }
-.k-island { color: #a6e0b8; }
+.k-island { color: #3fb5aa; }
+.k-archipelago { color: #6fd8d0; }
+.k-inn { color: #e8c48a; }
 .k-mountain { color: #dcbf9c; }
-.k-forest { color: #9fd6b0; }
-.k-wild { color: #f5cd6a; }
+.k-forest { color: #84c96b; }
+.k-wild { color: #e0a868; }
 .k-landmark { color: #ff9db8; }
-.globe-place:hover { color: #ffe9a6; }
-.line-text:hover { fill: #ffe9a6; }/* names fade in and out (height bands, overlaps) instead of popping */
+.globe-place:hover { color: #ffd24a; }
+.line-text:hover { fill: #ffd24a; }/* names fade in and out (height bands, overlaps) instead of popping */
 .globe-place { transition: opacity .25s; }
 .globe-place.off { opacity: 0; pointer-events: none; }
 @starting-style { .globe-place { opacity: 0; } }
@@ -267,8 +291,19 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 @keyframes load-words { from { opacity: 0; translate: 0 4px; } to { opacity: .85; translate: 0 0; } } /* in quickly and stays until the next line replaces it, so the text is never blank */
 
 
-#loadHint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 20; padding: 6px 14px; border-radius: 16px; background: #07050acc; color: #f0e3c2; font-size: 13px; }
-#loadHint[hidden] { display: none; }
+/* the 3D model view: full screen under the search and place panel (#side z 30, the phone sheet z 25), so a picked building's card shows beside it */
+#model3d { position: fixed; inset: 0; z-index: 20; background: #c9d6df; }
+#model3d[hidden] { display: none; }
+#model3d .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#model3d .bar { position: absolute; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 16px; border-radius: 14px; background: #0b0708d9; color: var(--gold-hi); pointer-events: none; text-align: center; max-width: calc(100% - 140px); }
+#model3d .title { margin: 0; font-size: 18px; font-weight: 400; }
+#model3d .tip { color: var(--muted); font-size: 12px; }
+#model3d .hint { position: absolute; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); margin: 0; padding: 6px 14px; border-radius: 16px; background: #07050acc; color: #f0e3c2; font-size: 13px; }
+#model3d .hint[hidden] { display: none; }
+#model3d .close { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; color: var(--muted); font-size: 24px; line-height: 1; }
+#model3d .close:hover { background: var(--hover); }
+#place .act[hidden] { display: none; }
+#place button.act { border: 0; cursor: pointer; font-family: inherit; }
 #status .credit a { color: inherit; text-decoration: underline; }
 #creditsBtn, #contributeBtn { background: none; border: 0; padding: 0; font: inherit; color: #b89f74; text-decoration: underline; cursor: pointer; }
 #credits, #contribute { max-width: min(420px, 90vw); border: 0; border-radius: 8px; padding: 18px 22px; color: var(--text); }
@@ -390,7 +425,6 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
 #side { top: calc(12px + env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); max-height: calc(100% - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); max-width: calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)); }
 #nav { right: max(16px, env(safe-area-inset-right)); bottom: calc(44px + env(safe-area-inset-bottom)); }
 #status { padding-bottom: calc(4px + env(safe-area-inset-bottom)); padding-right: calc(12px + env(safe-area-inset-right)); }
-#loadHint { bottom: calc(24px + env(safe-area-inset-bottom)); }
 #viewer { padding-top: calc(16px + env(safe-area-inset-top)); }
 #viewer .close { top: calc(16px + env(safe-area-inset-top)); }
 @media (min-width: 701px) { #measure { left: max(12px, env(safe-area-inset-left)); bottom: calc(44px + env(safe-area-inset-bottom)); } }
@@ -475,3 +509,149 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
 #place .more { display: inline-flex; align-items: center; gap: 6px; }
 #place .more[hidden] { display: none; }
 #place .more svg { width: 16px; height: 16px; flex: none; }
+
+/* ---------- a character's journey: player bar and step list in the place card, and the sigil that heads the line on the map ---------- */
+#place .char-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+#place .char-bar[hidden], #place .char-steps[hidden], #place .char-credit[hidden] { display: none; }
+#place .char-bar button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--gold-hi); cursor: pointer; }
+#place .char-bar button:hover { background: var(--hover); }
+#place .char-bar .play { background: var(--burgundy); box-shadow: inset 0 0 0 1px var(--edge); }
+#place .char-bar .play:hover { background: var(--burgundy-hi); }
+#place .char-bar svg { width: 22px; height: 22px; fill: currentColor; }
+#place .char-bar .p-pause, #place .char-bar .playing .p-play { display: none; }
+#place .char-bar .playing .p-pause { display: inline; }
+#place .char-bar .now { flex: 1; min-width: 0; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+#place .char-steps { list-style: none; margin: 14px -20px 0; padding: 0; }
+#place .char-steps li { display: grid; grid-template-columns: 18px 1fr; gap: 4px 10px; padding: 9px 20px; border-top: 1px solid var(--line); cursor: pointer; }
+#place .char-steps li:hover { background: var(--hover); }
+#place .char-steps li.on { background: var(--hover); box-shadow: inset 3px 0 0 var(--accent); }
+#place .char-steps .dot { width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--c, var(--accent)); box-shadow: 0 0 0 2px #0006; }
+#place .char-steps .travel .dot { width: 9px; height: 3px; border-radius: 2px; margin-top: 9px; }
+#place .char-steps .death .dot { background: #e5483d; }
+#place .char-steps .what { min-width: 0; }
+#place .char-steps .ch { grid-column: 2; color: var(--muted); font-size: 12px; }
+#place .char-credit { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+#place .char-credit a { color: inherit; }
+/* the head: the house sigil in a ring of the character's colour, at the character's place on the line */
+.char-head { pointer-events: none; position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #150d0fee; box-shadow: 0 0 0 3px var(--c, #e9c46a), 0 2px 10px #000a; }
+.char-head img { width: 28px; height: 32px; object-fit: contain; }
+.char-head b { display: none; font: 700 18px/1 var(--font-map); color: #fff; }
+.char-head.noimg img { display: none; }
+.char-head.noimg b { display: block; }
+@media (prefers-reduced-motion: no-preference) { .char-head::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; box-shadow: 0 0 0 0 var(--c, #e9c46a); animation: char-ping 2.2s ease-out infinite; } }
+@keyframes char-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c, #e9c46a) 70%, transparent); } 100% { box-shadow: 0 0 0 16px transparent; } }
+
+/* ---------- houses overlay: its own sidebar (a big coat of arms, lords and sworn houses), the period switcher, coats of arms on the map ---------- */
+#side:has(#house:not([hidden])) #ui { display: none; }
+#house { position: relative; display: flex; flex-direction: column; overflow: hidden; flex: 0 1 auto; }
+#house[hidden] { display: none; }
+#house .h-head { position: relative; flex: none; display: grid; justify-items: center; gap: 6px; padding: 24px 56px 16px; text-align: center; border-bottom: 1px solid var(--line); background: radial-gradient(120% 100% at 50% 0%, rgba(var(--tint, 150, 41, 58), .55), var(--surface) 72%); transition: background .3s; }
+#house .crest img { display: block; width: auto; height: 150px; max-width: 150px; object-fit: contain; filter: drop-shadow(0 6px 14px #000b); }
+#house h1 { margin: 6px 0 0; font: 400 24px/1.15 var(--font-map); color: var(--gold-hi); letter-spacing: .02em; }
+#house .kind { color: var(--muted); font: italic 15px/1.3 var(--font-map); }
+#house .kind:empty { display: none; }
+#house .h-lord { display: grid; justify-items: center; gap: 4px; margin-top: 8px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+#house .h-lord[hidden] { display: none; }
+#house .close { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #150d0fdd; box-shadow: var(--shadow); cursor: pointer; font-size: 20px; line-height: 1; color: var(--muted); }
+#house .close:hover { background: var(--hover); }
+#house .h-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 20px 12px; }
+#house .h-facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; margin: 14px 0 4px; font-size: 15px; }
+#house .h-facts dt { color: var(--muted); }
+#house .h-facts dd { margin: 0; }
+#house h2 { margin: 18px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+#house .h-list { display: flex; flex-wrap: wrap; gap: 8px; }
+#house .h-sworn .h-list { flex-direction: column; align-items: flex-start; } /* one house a line */
+#house .h-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 13px 4px 7px; border: 1px solid var(--edge); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+#house .h-chip:hover { background: var(--hover); }
+#house .h-chip img { width: 22px; height: 26px; object-fit: contain; }
+#house .h-link { padding: 0; border: 0; background: none; color: var(--rose); font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; text-align: left; } /* same as a place link on the map card (#place a.to-map) */
+#house .h-link:hover { text-decoration-style: solid; }
+#house .h-note { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+#house .h-wiki { display: inline-block; margin: 16px 0 4px; color: var(--accent); font-size: 14px; text-decoration: none; }
+#house .h-wiki:hover, #house .credit a:hover { text-decoration: underline; }
+#house .credit a { color: var(--accent); text-decoration: none; }
+#house section[hidden], #house .h-note[hidden] { display: none; }
+#house .credit { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+
+/* the timeline: a drum of years along the bottom with the eras as its background; its window (#whenInfo) is separate */
+#when { position: fixed; left: 12px; right: 12px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 20; }
+#when[hidden], #whenInfo[hidden] { display: none; }
+#when .t-wheel { position: relative; overflow: hidden; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); cursor: grab; touch-action: none; user-select: none; outline-offset: 2px; }
+#when .t-wheel.drag { cursor: grabbing; }
+#when .t-wheel::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #000a, transparent 22%, transparent 78%, #000a); }
+#when .t-bg { position: absolute; left: 50%; top: 0; bottom: 0; width: 0; }
+#when .t-era { position: absolute; background: hsl(var(--h) 30% 24% / .75); border-left: 1px solid #0006; }
+#when .t-era.on { background: hsl(var(--h) 45% 34% / .9); }
+#when .t-era.lane-a { top: 0; height: 26px; }
+#when .t-era.lane-b { top: 27px; height: 15px; background: hsl(var(--h) 25% 20% / .6); }
+#when .t-era.lane-b.on { background: hsl(var(--h) 40% 30% / .85); }
+#when .t-era-name { position: absolute; left: 0; top: 0; padding: 0 6px; color: var(--text); font: 600 12px/1 inherit; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; opacity: .85; }
+#when .t-era.lane-a .t-era-name { top: 7px; font-size: 12px; }
+#when .t-era.lane-b .t-era-name { top: 3px; font-size: 9px; }
+#when .t-era.on .t-era-name { color: var(--gold-hi); opacity: 1; }
+#when .t-book { position: absolute; top: 44px; height: 16px; border-radius: 4px; border: 1px solid #0008; background: hsl(var(--h) 30% 38% / .8); cursor: pointer; }
+#when .t-book:hover { background: hsl(var(--h) 40% 46% / .9); }
+#when .t-book.on { background: var(--burgundy); box-shadow: 0 0 0 1px var(--gold-hi); }
+#when .t-book .t-era-name { top: 0; padding: 0 6px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .04em; text-transform: none; }
+#when .t-book.on .t-era-name { color: var(--gold-hi); opacity: 1; }
+#when .t-mark { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; translate: -50% 0; background: var(--gold-hi); opacity: .85; pointer-events: none; z-index: 1; }
+#when .t-label { position: absolute; left: 50%; bottom: 3px; translate: -50% 0; padding: 2px 10px; border-radius: 999px; background: var(--burgundy); color: var(--gold-hi); font: 600 12px/1.3 inherit; letter-spacing: .04em; z-index: 2; pointer-events: none; }
+#when .t-y { position: absolute; left: 50%; top: 0; bottom: 0; width: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 26px; color: var(--muted); font: 600 10px/1 inherit; letter-spacing: .04em; pointer-events: none; }
+#when .t-y::before { content: ''; position: absolute; bottom: 12px; height: 12px; width: 1px; background: currentColor; }
+#when .t-y.big::before { height: 16px; }
+#when .t-y.on { color: var(--gold-hi); }
+#when .t-y.ev::after { content: ''; position: absolute; bottom: 6px; width: 4px; height: 4px; border-radius: 50%; background: var(--gold-hi); }
+#when .t-y.bc { color: color-mix(in srgb, var(--muted) 70%, #9bb); }
+/* the information window: its own card above the timeline */
+#whenInfo { position: fixed; left: calc(384px + (100vw - 384px) / 2); translate: -50% 0; bottom: calc(28px + var(--wheel-h, 104px) + 12px + env(safe-area-inset-bottom)); z-index: 20; width: min(520px, calc(100vw - 384px - 96px)); max-height: min(38vh, 280px); overflow-y: auto; padding: 12px 16px 14px; scrollbar-width: thin; }
+#whenInfo.empty { display: none; }
+#whenInfo .wi-head { color: var(--gold-hi); font: 600 14px/1.2 inherit; letter-spacing: .04em; }
+#whenInfo .wi-ev { margin: 10px 0 2px; color: var(--gold-hi); font: 600 13px/1.25 inherit; }
+#whenInfo .wi-text { margin: 0; color: var(--text); font-size: 12.5px; line-height: 1.45; }
+#whenInfo .wi-credit { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
+body.timeline-on #nav { bottom: calc(var(--wheel-h, 104px) + 56px); }
+@media (min-width: 701px) { body.timeline-on #side { max-height: calc(100% - 24px - var(--wheel-h, 104px) - 36px); } }
+@media (max-width: 700px) { #whenInfo { left: 50%; width: calc(100vw - 32px); max-height: 26vh; } }
+/* Regions | Houses: what the map shows, top right */
+#modeSwitch { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); z-index: 20; display: flex; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); }
+#modeSwitch button { padding: 8px 18px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: 600 14px/1 inherit; letter-spacing: .03em; cursor: pointer; transition: background .15s, color .15s; }
+#modeSwitch button:hover { color: var(--text); }
+#modeSwitch button[aria-pressed="true"] { background: var(--burgundy); color: var(--gold-hi); }
+.k-house { color: #e9c46a; }
+
+/* a coat of arms at its seat (globe/houses.ts): size by the house's rank, light when its realm is lit */
+/* the padding is part of the button, so the pointer never slips off at its edge */
+.house-sigil > * { translate: var(--dx, 0px) var(--dy, 0px); } /* drawn off its land where crowded, on a leader line (.moved) */
+.house-sigil { color: #f3ead0; pointer-events: auto; cursor: pointer; padding: 10px; display: grid; justify-items: center; gap: 3px; transition: opacity .25s; }
+.house-sigil span { color: #f3ead0; font: 700 12px/1.1 var(--font-map); letter-spacing: .04em; white-space: nowrap; -webkit-text-stroke: 3px #101c1b; paint-order: stroke fill; }
+.house-sigil[data-tier="0"] span { font-size: 14px; }
+.house-sigil:not([data-tier="0"]) span { color: #f3ead0b3; -webkit-text-stroke-color: #101c1b99; } /* vassal houses: fainter names */
+.house-sigil img { display: block; height: 30px; width: auto; max-width: 34px; object-fit: contain; filter: drop-shadow(0 1px 2px #000c); }
+.house-sigil[data-tier="0"] img { height: 42px; max-width: 46px; }
+.house-sigil[data-tier="2"] img { height: 24px; max-width: 26px; }
+.house-sigil span { transition: font-size .35s ease, color .35s ease; }
+.house-sigil img { transition: height .35s ease, max-width .35s ease, filter .35s ease; } /* a focused house grows and whitens smoothly */
+.house-sigil.focus[data-tier] span { color: #fff; font-size: 16px; -webkit-text-stroke: 4px #101c1b; }
+.house-sigil.focus[data-tier] img { height: 50px; max-width: 56px; }
+.house-sigil.lit img { filter: drop-shadow(0 0 5px #f6d98a) drop-shadow(0 1px 2px #000c); }
+.house-sigil.off { opacity: 0; pointer-events: none; }
+@starting-style { .house-sigil { opacity: 0; } }
+
+@media (max-width: 700px) {
+  #house { position: fixed; inset: auto 0 0 0; width: auto; max-width: none; max-height: 52vh; margin: 0; z-index: 25; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  #house::before { content: ''; flex: none; display: block; width: 38px; height: 4px; margin: 9px auto 0; border-radius: 2px; background: #f0d9a04d; }
+  #house .h-head { grid-template-columns: auto 1fr; justify-items: start; text-align: left; align-items: center; gap: 2px 14px; padding: 10px 56px 12px 16px; }
+  #house .crest { grid-row: span 2; }
+  #house .crest img { height: 72px; max-width: 72px; }
+  #house h1 { margin: 0; font-size: 20px; }
+  #house[hidden] { translate: 0 100%; }
+  @starting-style { #house { translate: 0 100%; } }
+  body:has(#house:not([hidden])) #status { display: none; }
+  #when { bottom: calc(var(--sheet-h, 0px) + 12px + env(safe-area-inset-bottom)); transition: bottom .25s ease; }
+}
+#whenInfo .wi-more { display: inline-block; margin-top: 10px; color: var(--accent); font-size: 12.5px; text-decoration: none; }
+#whenInfo .wi-more::after { content: ' ↗'; }
+#whenInfo .wi-more:hover { text-decoration: underline; }
+#when .t-wheel.far .t-y:not(.big) { font-size: 0; }
+/* the other name of a place, in parentheses under its label */
+.globe-place > span > small { display: block; font: italic 400 1em/1.15 var(--font-map); text-transform: none; letter-spacing: 0; }

@@ -1,16 +1,15 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-export const MIN_ALT = 30, // close enough to stand among a 3D place's buildings
- MAX_ALT = 40_000_000;
-export const GLOBE_MIN_ALT = 2_000; // zooming in stops here everywhere else: lower, the relief and the sea are not detailed enough to stand on
+// A bird's-eye world (docs/decisions/0003): the camera stays at least MIN_ALT above the ground under it, peaks included.
+export const MIN_ALT = 600_000, MAX_ALT = 40_000_000; // the floor: a pixel covers about 250-700 m there
 const rad = THREE.MathUtils.degToRad;
 
 /**
  * The camera on the planet (planet-centred frame, metres): altitude zoom, grab-the-surface drag, tilt and heading, flights.
  * `groundAt(p)` is the drawn ground's height (m) under a point, so a tilt never buries the camera. `step` once a frame.
  */
-export function createCameraRig(camera: THREE.PerspectiveCamera, controls: OrbitControls, el: HTMLElement, R: number, home: { dir: THREE.Vector3; alt: number }, groundAt: (p: THREE.Vector3) => number, minAlt: () => number = () => MIN_ALT) {
+export function createCameraRig(camera: THREE.PerspectiveCamera, controls: OrbitControls, el: HTMLElement, R: number, home: { dir: THREE.Vector3; alt: number }, groundAt: (p: THREE.Vector3) => number) {
   const toNdc = (e: { clientX: number; clientY: number }) => {
     const r = el.getBoundingClientRect();
     return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -27,7 +26,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
   let anchor: THREE.Vector3 | null = null, anchorR = R; // anchorR: radius of the ground under it (relief included)
   const anchorNdc = new THREE.Vector2();
-  const zoomTo = (a: number) => { anim = null; altGoal = THREE.MathUtils.clamp(a, minAlt(), MAX_ALT); };
+  const zoomTo = (a: number) => { anim = null; altGoal = THREE.MathUtils.clamp(a, MIN_ALT, MAX_ALT); };
   const onWheel = (e: WheelEvent) => {
     if (!controls.enabled) return;
     e.preventDefault();
@@ -92,10 +91,10 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     t.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch' && controls.enabled) {
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (touches.size === 2) { grab = null; dragging = false; anim = anchor = null; pinchDist = pinchSpan(); pinchAngle = pinchTwist(); pinchMidY = pinchY(); return; }
+        if (touches.size === 2) { grab = null; dragging = false; anim = anchor = follow = null; pinchDist = pinchSpan(); pinchAngle = pinchTwist(); pinchMidY = pinchY(); return; }
       }
       if (!controls.enabled || !e.isPrimary || e.button !== 0) return;
-      anim = anchor = null;
+      anim = anchor = follow = null;
       down = { x: e.clientX, y: e.clientY };
       if (e.shiftKey) { tilting = true; document.body.classList.add('grabbing'); el.setPointerCapture(e.pointerId); return; }
       const g = pickGround(toNdc(e));
@@ -147,18 +146,33 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
 
   // ---------- flights ----------
   let anim: { t0: number; d0: THREE.Vector3; d1: THREE.Vector3; a0: number; a1: number } | null = null;
+  // Follow: the camera eases after a moving spot (a character walking its path) instead of flying to a fixed one. Altitude is
+  // the ordinary zoom (the wheel still works); a drag or an arrow key lets go, like it ends a flight.
+  let follow: { dir: () => THREE.Vector3; inset: () => Inset } | null = null;
   const tmp = new THREE.Vector3();
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   /** Fly to look at the spot `dir` from altitude `a`. With `inset` (px each side is covered), the spot lands in the middle of what is left free, not of the screen. */
-  const flyToDir = (dir: THREE.Vector3, a: number, inset?: { l: number; r: number; t: number; b: number }) => {
+  type Inset = { l: number; r: number; t: number; b: number };
+  /** `d1` moved so that, seen from altitude `a`, it lands in the middle of what `inset` leaves free (in place). */
+  const shiftToFree = (d1: THREE.Vector3, a: number, inset: Inset) => {
+    const east = new THREE.Vector3(0, 1, 0).cross(d1).normalize(), north = d1.clone().cross(east);
+    const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)), right = d1.clone().cross(up).multiplyScalar(-1).normalize();
+    const mpp = (a * 2 * Math.tan(rad(camera.fov / 2))) / el.clientHeight;
+    return d1.addScaledVector(right, (-((inset.l - inset.r) / 2) * mpp) / R).addScaledVector(up, (((inset.t - inset.b) / 2) * mpp) / R).normalize();
+  };
+  const flyToDir = (dir: THREE.Vector3, a: number, inset?: Inset) => {
+    follow = null;
     const d1 = dir.clone().normalize();
-    if (inset) {
-      const east = new THREE.Vector3(0, 1, 0).cross(d1).normalize(), north = d1.clone().cross(east);
-      const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)), right = d1.clone().cross(up).multiplyScalar(-1).normalize();
-      const mpp = (a * 2 * Math.tan(rad(camera.fov / 2))) / el.clientHeight;
-      d1.addScaledVector(right, (-((inset.l - inset.r) / 2) * mpp) / R).addScaledVector(up, (((inset.t - inset.b) / 2) * mpp) / R).normalize();
+    if (inset) shiftToFree(d1, a, inset);
+    // A tilted camera sits off to the side of the ground point it looks at (`step` undoes the tilt each frame), so start from that point, not the eye.
+    let d0 = camera.position.clone().normalize();
+    if (tilt) {
+      camera.updateMatrixWorld();
+      ray.setFromCamera(new THREE.Vector2(), camera);
+      planet.radius = R;
+      if (ray.ray.intersectSphere(planet, hit)) d0 = hit.clone().normalize();
     }
-    anim = { t0: performance.now(), d0: camera.position.clone().normalize(), d1, a0: alt, a1: a };
+    anim = { t0: performance.now(), d0, d1, a0: alt, a1: THREE.MathUtils.clamp(a, MIN_ALT, MAX_ALT) };
   };
   /**
    * Fly so the unit directions `pts` fill the part of the screen that the overlays leave free: `inset` is the px each side
@@ -191,6 +205,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     /** Camera altitude (m), the tilt (radians from straight down) and the heading (radians clockwise from north). */
     get alt() { return alt; },
     get tilt() { return tilt; },
+    set tilt(t: number) { tilt = THREE.MathUtils.clamp(t, 0, MAX_TILT); },
     get heading() { return heading; },
     set heading(h: number) { turn = null; heading = h; },
     /** Turns to north up by the short way round, easing over 0.6 s. */
@@ -203,6 +218,13 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     goHome() { tilt = heading = 0; flyToDir(home.dir, home.alt); },
     zoomBy: (f: number) => zoomTo(altGoal * f),
     flyToDir, flyToFit,
+    /** Follow `dir()` (a direction from the planet centre) at altitude `a`, keeping it in the middle of what `inset()` leaves free; null lets go. */
+    follow(dir: (() => THREE.Vector3) | null, a?: number, inset: () => Inset = () => ({ l: 0, r: 0, t: 0, b: 0 })) {
+      anim = null;
+      follow = dir ? { dir, inset } : null;
+      if (dir && a !== undefined) altGoal = THREE.MathUtils.clamp(a, MIN_ALT, MAX_ALT);
+    },
+    get following() { return !!follow; },
     /** The lat/lon of the ground under a screen point, if it is on the planet. */
     pick(ndc: THREE.Vector2) {
       ray.setFromCamera(ndc, camera);
@@ -226,11 +248,20 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
         alt = altGoal = Math.exp(THREE.MathUtils.lerp(Math.log(anim.a0), Math.log(anim.a1), e));
         if (t === 1) anim = null;
       } else {
+        if (follow) { // ease the point under the camera toward the (free-area-centred) target
+          const target = follow.dir().clone().normalize(), inset = follow.inset();
+          if (inset.l || inset.r || inset.t || inset.b) shiftToFree(target, alt, inset);
+          camera.position.copy(tmp.copy(camera.position).normalize().lerp(target, 1 - Math.exp(-dt * 4)).normalize());
+        }
         alt = Math.exp(THREE.MathUtils.lerp(Math.log(alt), Math.log(altGoal), Math.min(1, dt * 8)));
       }
+      // the floor is above the drawn ground, not the bare sphere: exaggerated peaks reach tens of km. Lifted a few metres past
+      // it, so the ground read (it wobbles by cm through the tilt) doesn't move the camera every frame, which keeps the lean shader on
+      const floor = MIN_ALT + Math.max(0, groundAt(camera.position));
+      if (alt < floor) { alt = floor + 5; altGoal = Math.max(altGoal, alt); }
       const fwd = +held.has('ArrowUp') - +held.has('ArrowDown'), side = +held.has('ArrowRight') - +held.has('ArrowLeft');
       if (controls.enabled && (fwd || side)) {
-        anim = anchor = null;
+        anim = anchor = follow = null;
         const n = camera.position.clone().normalize();
         const east = new THREE.Vector3(0, 1, 0).cross(n).normalize(), north = n.clone().cross(east);
         const up = north.clone().multiplyScalar(Math.cos(heading)).addScaledVector(east, Math.sin(heading)); // screen up on the ground

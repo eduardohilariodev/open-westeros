@@ -31,7 +31,7 @@ Order of work: capitals and hubs, then castles and towns, then roads. `npm run l
 | "The wiki says so" | The wiki summarises the books. Check the book where one exists, and log disagreements. |
 | "The wiki is vague, so I'll nudge it to fit" | Vague means keep it and say canon is silent. Never invent. |
 | "I'll fix the road, the place is close enough" | The hub follows the place. Fix the place first. |
-| "I know where it is" | From memory or the show, not this repo's data. Quote `docs/books` or `docs/wiki`. |
+| "I know where it is" | From memory or the show, not this repo's data. Quote `docs/sources/books` or `docs/sources/wiki`. |
 | "The blog gives 1500 mi, make the road match" | Blog road figures are nearly straight-line. Do not bend roads to them. |
 | "It's in the sea, move it" | Check `island-places.json`: it may be an island the land lacks. |
 | "The book gives no coordinates" | It gives leagues, days and "at the mouth of". Measure those. |

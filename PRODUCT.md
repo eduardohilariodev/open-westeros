@@ -8,11 +8,11 @@ web
 
 ## Users
 
-Fans of A Song of Ice and Fire (readers and viewers) exploring the Known World. They spin the planet, search a place, fly to it and read about it. Contributors who add places, roads, rivers and 3D sites are a secondary audience.
+Fans of A Song of Ice and Fire (readers and viewers) exploring the Known World. They spin the planet, search a place, fly to it and read about it. Contributors who add places, roads, rivers and 3D site models are a secondary audience.
 
 ## Product Purpose
 
-Open Westeros is a community-built, Google Earth-style 3D atlas of the Known World of Ice and Fire. It lets people fly through Westeros and Essos instead of looking at a flat painted map, down to 3D sites such as King's Landing and Winterfell. Success is a fan finding a place and seeing it at honest scale.
+Open Westeros is a community-built, Google Earth-style 3D atlas of the Known World of Ice and Fire. It lets people fly over Westeros and Essos as Martin draws them, from a bird's eye: the camera stays 600 km or more above the ground, the relief is built to look detailed from there, and 3D sites such as King's Landing and Winterfell open in their own viewer. Success is a fan finding a place and seeing it at honest scale.
 
 ## Positioning
 

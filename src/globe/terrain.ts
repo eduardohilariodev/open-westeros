@@ -6,6 +6,7 @@ import { fillGeometry, fillMesh, lineGeometry, lineMesh, papered, polygons, sync
 import type { Ring } from './viewLayer';
 import { chaikin } from './rivers';
 import { wallLine } from './wallLine';
+import type { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 
 // The vector map: sea, land, lakes and rivers from the Known World SVG maps (src/vector-world.json), with terrain (plains,
 // forest, swamp, desert, hills, mountains, snow) from src/terrain.json and the roads from src/roads.json, as GPU geometry draped on the planet. The layers are
@@ -21,6 +22,7 @@ const LAND = '#c7b27c', WATER = '#' + TERRAIN_SEA.toString(16).padStart(6, '0'),
 const INK = '#4a3320', HALO = '#ead7a4';
 const ROAD_LIT = '#e02020';
 const ROAD_LIFT = 350; // m above the baked ground
+const DOT_PX = 3, GAP_PX = 7; // a track's dots and the gaps between them, in screen pixels
 /** The line with a vertex at least every `step` degrees (~3.5 km). */
 const dense = (pts: Ring, step = 0.03): Ring => pts.flatMap((a, i) => {
   if (!i) return [a];
@@ -83,6 +85,15 @@ export function createTerrain(R: number) {
   // the tracks from places to the main roads: thinner, and kept to closer views
   const trackLines = lineGeometry((roadData.minor.map((l) => l.pts) as Ring[]).map(wiggle), r + ROAD_LIFT, false);
   const tracks = add(new THREE.Group().add(lineMesh(trackLines, ROAD_CASING, 2.2, order++), lineMesh(trackLines, ROAD, 1, order++)));
+  // a track is dotted, so it never reads as a road: both the halo and the ink are dashed, the halo's dash a pixel longer each side
+  (tracks.children[0] as LineSegments2).computeLineDistances(); // the geometry is shared: once is enough
+  const trackMats = (tracks.children as LineSegments2[]).map((m) => Object.assign(m.material, { dashed: true }));
+  /** Dots of a fixed size on screen at any height: the dash is in metres, so it is set from the metres a pixel covers. */
+  const setTrackDots = (metresPerPixel: number) => {
+    const [dot, gap, halo] = [DOT_PX, GAP_PX, 1].map((px) => px * metresPerPixel);
+    Object.assign(trackMats[0], { dashSize: dot + 2 * halo, gapSize: gap - 2 * halo, dashOffset: halo });
+    Object.assign(trackMats[1], { dashSize: dot, gapSize: gap, dashOffset: 0 });
+  };
   // the road picked by its name: its whole length, lit over the network
   const lit = add(new THREE.Group());
   lit.visible = false;
@@ -104,13 +115,14 @@ export function createTerrain(R: number) {
   /** Roads and tracks: heavier ink with a pale halo on the flat map, the light road with a dark edge over the relief. */
   const restyle = (flat: boolean) => {
     // [halo width, line width] px: on the flat map a road is as heavy as a river (2)
-    const widths = flat ? { roads: [3.6, 2], tracks: [2.6, 1.4] } : { roads: [3, 1.4], tracks: [2.2, 1] };
+    const widths = flat ? { roads: [3.6, 2], tracks: [4.4, 2.6] } : { roads: [3, 1.4], tracks: [4.8, 3] };
     for (const [name, g] of [['roads', roads], ['tracks', tracks]] as const) {
       const [casing, line] = (g.children as THREE.Mesh[]).map((m) => m.material as THREE.Material & { color: THREE.Color; linewidth: number });
       casing.color.set(flat ? HALO : ROAD_CASING); line.color.set(flat ? INK : ROAD);
       [casing.linewidth, line.linewidth] = widths[name];
     }
   };
+  restyle(false); // the globe opens in relief, and only a switch of look calls restyle
   // roads and tracks fade in and out with the height (fadeRoads), so they are drawn in the transparent pass from the start
   const roadMeshes = [roads, tracks].map((g) => g.children as THREE.Mesh[]);
   for (const m of roadMeshes.flat()) (m.material as THREE.Material).transparent = true;
@@ -125,5 +137,5 @@ export function createTerrain(R: number) {
     const f = THREE.MathUtils.clamp(Math.log(6_000_000 / Math.max(alt, 1)) / Math.log(6_000_000 / 600_000), 0, 1);
     (rivers.material as THREE.Material & { linewidth: number }).linewidth = 0.7 + 1.3 * f;
   };
-  return { object: group, restyle, setRiverWidth, fadeRoads, refresh: syncLines, fills, strokes, rivers, roads, tracks, highlight };
+  return { object: group, restyle, setRiverWidth, setTrackDots, fadeRoads, refresh: syncLines, fills, strokes, rivers, roads, tracks, highlight };
 }

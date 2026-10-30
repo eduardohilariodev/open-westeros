@@ -88,9 +88,9 @@ Cape Kraken|region|910,2150|0_2500 718,853
 Flint Cliffs|landmark|1110,2180|0_2500 940,865
 Cape of Eagles|landmark|-|0_2500 1037,1038
 Ironman's Bay|sea|1310,2520|0_2500 1010,1135
-The Twins|castle|1475,2385|0_2500 1225,1030
+The Twins|castle|1475,2385>ll:43.97,-13.23|0_2500 1225,1030
 The Bite|sea|1880,2070|0_2500 1415,825
-The Three Sisters|island|1860,2190|0_2500 1645,775
+The Three Sisters|archipelago|1860,2190|0_2500 1645,775
 Longsister|island|1760,2150|0_2500 1465,845
 Littlesister|island|1850,2100|0_2500 1580,830
 Sweetsister|island|1950,2140|0_2500 1595,800
@@ -99,7 +99,7 @@ The Paps|landmark|2240,2130|0_2500 1870,812
 The Fingers|landmark|2200,2200|0_2500 1880,850
 Seagard|castle|1425,2435|0_2500 1160,1083
 # --- Iron Islands & Riverlands ---
-Iron Islands|island|990,2330|0_2500 672,1155
+Iron Islands|archipelago|990,2330|0_2500 672,1155
 Great Wyk|island|860,2440|0_2500 675,1105
 Old Wyk|island|980,2420|0_2500 770,1090
 Blacktyde|island|1070,2415|0_2500 913,1073
@@ -128,7 +128,7 @@ Stone Hedge|castle|-|0_2500 1237,1290
 Raventree Hall|castle|-|0_2500 1196,1223
 Whitewalls|castle|-|0_2500 1443,1400
 Darry|castle|-|0_2500 1437,1308
-The Crossroads Inn|landmark|-|0_2500 1423,1290
+The Crossroads Inn|inn|-|0_2500 1423,1290
 Fairmarket|town|-|0_2500 1295,1195
 Antlers|minor|-|0_2500 1527,1467
 # --- the Vale ---
@@ -203,7 +203,7 @@ The Wendwater|river|1930,3290|0_2500 1700,1720
 The Blueburn|river|1560,3330|0_2500 1440,1830
 The Mander|river|1320,3415|0_2500 1325,1760
 The Roseroad|road|1390,3290>ll:32.339,-13.846|0_2500 1105,1850
-Shield Islands|island|860,3400|0_2500 578,1960
+Shield Islands|archipelago|860,3400|0_2500 578,1960
 Bitterbridge|town|-|0_2500 1225,1790
 Longtable|castle|-|0_2500 1175,1860
 Tumbleton|town|-|0_2500 1360,1730
@@ -258,7 +258,7 @@ The Rainwood|forest|2060,3520|0_5000 1750,97
 Cape Wrath|landmark|2020,3590|0_5000 1890,100
 Estermont|island|2250,3600|0_5000 1900,157
 Shipbreaker Bay|sea|2150,3420|0_5000 1800,5
-The Targaryen Islands|island|-|0_5000 150,1168
+The Targaryen Islands|archipelago|-|0_5000 150,1168
 # --- west-only painted names ---
 The Sunset Sea|ocean|800,5100|-
 The Narrow Sea|ocean|2430,2800|-
@@ -311,7 +311,7 @@ The Sea of Myrth|sea|2680,3480|2500_5000 300,50
 Myr|city|2855,3520|2500_5000 463,97
 Tyrosh|city|2493,3585|2500_5000 153,150
 The Disputed Lands|region|2740,3700|2500_5000 340,207
-The Stepstones|island|2400,3720|2500_5000 78,322
+The Stepstones|archipelago|2400,3720|2500_5000 78,322
 Grey Gallows|island|2420,3790|2500_5000 70,300
 Lys|city|2718,3950|2500_5000 344,470
 Selhorys|city|3343,3718|2500_5000 888,263
@@ -362,7 +362,7 @@ Red Flower Vale|region|2820,5490|2500_5000 435,1840
 Lizard Head|landmark|3300,5530|2500_5000 825,1816
 Golden Head|landmark|3085,5638|2500_5000 790,1945
 Naath|island|3760,5515|2500_5000 1230,1810
-Basilisk Isles|island|4330,5200|2500_5000 1760,1577
+Basilisk Isles|archipelago|4330,5200|2500_5000 1760,1577
 Isle of Toads|island|4540,5430|2500_5000 1900,1740
 Isle of Tears|island|4430,5440|2500_5000 1915,1830
 Gogossos|town|4465,5530|2500_5000 1850,1832
@@ -374,7 +374,7 @@ Xon|island|2760,5730|2500_7500 393,50
 Doquu|island|2790,5850|2500_7500 448,200
 The Bones|island|2975,5712|2500_7500 520,102
 Parrot Bay|sea|2740,5620|2500_7500 463,17
-The Summer Isles|island|3000,5230|-
+The Summer Isles|archipelago|3000,5230|-
 The Singing Stones|island|2260,5265|-
 The Three Exiles|island|2180,5440|-
 Moluu|island|2330,5510|-
@@ -466,7 +466,7 @@ The Green Hell|forest|-|5000_7500 695,495
 Lake Zamoyos|lake|-|5000_7500 410,395
 # --- the far east ---
 Leviathan Sound|sea|7080,2630|7500_2500 285,1235
-The Thousand Islands|island|7980,2490|7500_2500 1010,1175
+The Thousand Islands|archipelago|7980,2490|7500_2500 1010,1175
 The Plains of the Jogos Nhai|region|7480,3150|7500_2500 700,1740
 Nefer|city|7870,3030|7500_2500 975,1577
 N'Ghai|region|7970,3070|7500_2500 1070,1625
@@ -499,7 +499,7 @@ Leng Yi|town|7632,4725|7500_5000 755,1140
 Leng Ma|town|7592,4962|7500_5000 716,1368
 Turrani|town|7598,5138|7500_5000 730,1515
 Marahai|island|7130,5380|7500_5000 320,1727
-The Manticore Isles|island|7620,5420|7500_5000 748,1735
+The Manticore Isles|archipelago|7620,5420|7500_5000 748,1735
 The Jade Sea|ocean|7130,5090|-
 Ulos|island|8870,5380|7500_5000 1820,1730
 Asshai-by-the-Shadow|city|8018,5558>ll:3.489,71.486|7500_5000 1085,1855
@@ -551,7 +551,7 @@ Ramsford|minor|-|@1615,3982
 Wendish Town|minor|-|@1572,4025
 Mudgrave|minor|-|@1575,4102
 Pennytree|minor|-|@1548,4118
-Kneeling Man|minor|-|@1615,4122
+Inn of the Kneeling Man|inn|-|@1615,4122
 Sallydance|minor|-|@1684,4133
 Nutten|minor|-|@1780,4128
 Riverbend|minor|-|@1740,4150
@@ -667,3 +667,62 @@ The Rosby Road|road|ll:35.415,-7.213|-
 The Ghiscari Coast Road|road|ll:24.362,32.738|-
 The Stone Road|road|ll:32.814,53.811|-
 The Sand Road|road|ll:21.177,46.332|-
+# --- battles: tools/books/battles.json via tools/world/battles.mjs, do not edit below ---
+Battle of Oxcross|battle|ll:38.120,-17.920|-
+Battle of Ashford|battle|ll:30.440,-12.770|-
+Battle of Bronzegate|battle|ll:32.420,-4.300|-
+Battle at Mummer's Ford|battle|ll:38.620,-14.530|-
+Battle at Acorn Hall|battle|ll:38.770,-12.760|-
+Battle at Duskendale|battle|ll:36.560,-5.760|-
+Battle at Fairmarket|battle|ll:41.580,-11.740|-
+Battle at Rook's Rest|battle|ll:37.860,-4.600|-
+Battle at Pyke|battle|ll:41.660,-20.580|-
+Battle at Lordsport|battle|ll:41.700,-19.930|-
+Battle at Kayce|battle|ll:37.100,-22.040|-
+Battle at Stonebridge|battle|ll:32.830,-12.590|-
+Fighting at Bitterbridge|battle|ll:32.830,-12.507|-
+Fighting at Sow's Horn|battle|ll:37.760,-8.740|-
+Fight at Torrhen's Square|battle|ll:52.910,-17.270|-
+Fight by Deepwood Motte|battle|ll:57.080,-18.220|-
+Fight at the Fist|battle|ll:64.060,-13.580|-
+Fight at the Bridge of Skulls|battle|ll:61.370,-12.840|-
+Fighting in the Hornwood|battle|ll:53.830,-6.760|-
+First Battle of Tumbleton|battle|ll:33.710,-10.340|-
+Attack on Old Wyk|battle|ll:43.130,-21.590|-
+Battles at Summerhall|battle|ll:30.650,-8.390|-
+Combat at the Tower of Joy|battle|ll:27.970,-12.780|-
+Battle in the hills below the Golden Tooth|battle|ll:38.600,-16.830|-
+Battle of the Bells|battle|ll:37.170,-12.950|-
+Battle of the Burning Mill|battle|ll:40.190,-12.720|-
+Battle of the Camps|battle|ll:40.240,-13.570|-
+Battle under the walls of Riverrun|battle|ll:40.240,-13.478|-
+Battle of the Blackwater|battle|ll:34.930,-7.750|-
+Battle of the Trident|battle|ll:39.980,-9.590|-
+Battle of the Fords|battle|ll:39.980,-9.499|-
+Fighting at the fords of the Trident|battle|ll:39.980,-9.681|-
+Attack on Castle Black|battle|ll:62.130,-8.870|-
+Battle beneath the Wall|battle|ll:62.130,-8.720|-
+Battle in the ice|battle|ll:54.750,-13.320|-
+Battle outside the gates of Winterfell|battle|ll:54.750,-13.199|-
+Battle near Yunkai|battle|ll:25.090,33.070|-
+Battle in the waters off Gulltown|battle|ll:41.360,-1.280|-
+Battle of the Gullet|battle|ll:36.580,-2.700|-
+Fight above Shipbreaker Bay|battle|ll:30.650,-3.040|-
+Battle on Whispering Sound|battle|ll:25.800,-20.220|-
+Battle in the Howling Hills|battle|ll:37.170,65.700|-
+Battle of the Seven Stars|battle|ll:42.340,-6.180|-
+Battle on the river Slayne|battle|ll:29.020,-6.780|-
+Battle by the Bloody Pool|battle|ll:29.255,-6.828|-
+Battle at the Mander|battle|ll:29.250,-18.620|-
+Battle of the Honeywine|battle|ll:27.684,-19.004|-
+Battle of the Weeping Water|battle|ll:54.864,-5.535|-
+Battle at the Red Fork|battle|ll:40.790,-12.164|-
+Battle at the Great Fork|battle|ll:36.073,-10.860|-
+Ambush on the Wendwater|battle|ll:33.928,-4.807|-
+Battle at Long Lake|battle|ll:57.230,-9.580|-
+Battle Above the Gods Eye|battle|ll:38.181,-9.730|-
+Battle Beneath the Gods Eye|battle|ll:38.181,-9.641|-
+Battle by the Lakeshore|battle|ll:38.181,-10.303|-
+Battle of the Reeds|battle|ll:37.469,-9.730|-
+Butcher's Ball|battle|ll:37.469,-9.642|-
+Battle on the Green Fork|battle|ll:42.104,-11.244|-

@@ -1,7 +1,0 @@
-[
-{"place":"Casterly Rock","aliases":["Lannisport"],
- "drop":[[-19.993,36.698],[-20.333,36.698]],
- "ends":[[-20.327,36.021],[-19.959,37.052]],
- "joins":["Clegane's Keep"],"joinBend":0.12,"endBends":[-0.14,0],
- "cites":["wiki Goldroad: 'The road ends at Lannisport and Casterly Rock'","wiki Casterly Rock: 'it is on the ocean road'","WOIAF: 'King Mern of the Reach rode the Ocean Road north to Casterly Rock'","AFFC, Brienne: 'West ran the river road, which followed the course of the Red Fork to Riverrun'; wiki River road starts at Casterly Rock"]}
-]

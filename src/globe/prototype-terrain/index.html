@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway: does the Shadertoy "fast and gorgeous erosion filter" look transfer to our baked heights?
+     Three variants on one page, ?variant=A|B|C (arrow keys too):
+       A  the Shadertoy's way: erosion filter on the baked heights, drainage = the filter's ridge map, no river objects
+       B  rivers from the filter's creases, weighted by the baked flow accumulation (relief-b), water by height
+       C  rivers from the canon corridor field (relief-e, what the globe draws now), water by height
+     URL params: lat lon km (window width) vex (vertical exaggeration) S (filter scale km) str (strength) res az el dist
+     Run: npm run dev, open /src/globe/prototype-terrain/index.html?place=... Needs public/world/relief-{h,b,e}.webp (npm run terrain -- --full). -->
+<meta charset="utf-8" />
+<title>PROTOTYPE terrain lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px/1.4 ui-monospace, Consolas, monospace; color: #eee; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  #bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: #fffe; color: #111; border-radius: 999px; box-shadow: 0 4px 18px #0008; user-select: none; }
+  #bar button { border: 0; background: #111; color: #fff; border-radius: 999px; width: 28px; height: 28px; font-size: 15px; cursor: pointer; }
+  #info { position: fixed; left: 12px; top: 10px; background: #0008; padding: 6px 10px; border-radius: 6px; max-width: 70ch; white-space: pre-wrap; }
+</style>
+<canvas id="c"></canvas>
+<div id="info">loading …</div>
+<div id="tiles"></div>
+<style>.tile { position: fixed; padding: 2px 6px; background: #000a; color: #fff; font-size: 11px; pointer-events: none; box-sizing: border-box; }</style>
+<div id="bar"><select id="preset"><option value="">preset…</option></select><button id="prev">←</button><span id="label"></span><button id="next">→</button></div>
+<script type="module" src="./main.js"></script>

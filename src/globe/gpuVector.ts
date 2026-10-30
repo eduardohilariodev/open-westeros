@@ -1,9 +1,10 @@
+import { Q } from '../quality';
 import * as THREE from 'three';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import { PLANET, SITES, type SiteId } from '../config';
-import { siteLatLon, toVector } from '../geo';
+import { PLANET } from '../config';
+import { toVector } from '../geo';
 import { lifted } from './lift';
 import { shape, type Ring } from './viewLayer';
 
@@ -12,13 +13,8 @@ import { shape, type Ring } from './viewLayer';
 // Layers only depth-test against the ocean sphere (which lies below them) and are drawn in renderOrder, so they never z-fight.
 
 // Triangle edges are split so their chords stay on the sphere (a chord of e degrees dips ~R·e²/8): at most 0.6° (~90 m) across
-// the map, finer towards the 3D sites, where the map must meet their flat ground within a metre or so.
-const sites = (Object.keys(SITES) as SiteId[]).map(siteLatLon);
-const edgeLimit = (lon: number, lat: number) => {
-  let d = Infinity;
-  for (const s of sites) d = Math.min(d, Math.hypot((lon - s.lon) * Math.cos(THREE.MathUtils.degToRad(lat)), lat - s.lat));
-  return Math.min(0.6, 0.03 + 0.2 * d); // degrees
-};
+// the map, plenty from the 400 km floor (docs/decisions/0003).
+const EDGE_LIMIT = 0.6; // degrees
 
 export const inRing = (lon: number, lat: number, ring: Ring) => {
   let inside = false;
@@ -55,7 +51,7 @@ export function fillGeometry(polys: Ring[][], r: number) {
   // both triangles sharing it agree and no cracks open.
   const over = (a: THREE.Vector2, b: THREE.Vector2) => {
     const lat = (a.y + b.y) / 2, d = Math.hypot((b.x - a.x) * Math.cos(THREE.MathUtils.degToRad(lat)), b.y - a.y);
-    return d / edgeLimit((a.x + b.x) / 2, lat);
+    return d / EDGE_LIMIT;
   };
   const emit = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2) => {
     const stack = [[a, b, c]];
@@ -114,7 +110,7 @@ export const syncLines = () => lineMats.forEach((m) => m.resolution.set(innerWid
 // of the photo, folded back and forth, so its dark edges and the tile seams never show.
 const PAPER = { uPaper: { value: null as THREE.Texture | null }, uPaperOn: { value: 0 } };
 new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/paper.jpg`, (t) => {
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Q.aniso;
   PAPER.uPaper.value = t; PAPER.uPaperOn.value = 1;
 });
 const PAPER_GLSL = `

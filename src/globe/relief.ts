@@ -1,15 +1,17 @@
+import { Q, loadTexture } from '../quality';
 import * as THREE from 'three';
-import B from './relief-bounds.json';
+import { B, BAKE_DIR } from './bake';
 import { PLANET } from '../config';
 import { toVector } from '../geo';
-import { bindBake, exaggerate, LIFT, LIFT_GLSL, NOISE_GLSL, raisedMetres, setDisplace } from './lift';
-import { GROUND_FRAG_GLSL, loadGround, type Ground } from './ground';
+import { bindBake, DETAIL_FRAG_GLSL, DETAIL_GLSL, exaggerate, LIFT, LIFT_GLSL, NOISE_GLSL, raisedMetres, RIVER_GLSL, setDisplace } from './lift';
+import { createDetail } from './detail';
 import { createReliefMesh, MESH_VERT } from './reliefMesh';
-import { RIVER_VERT, riverGeometry, syncPixel } from './rivers';
-import type { Ring } from './viewLayer';
+import { syncPixel } from './rivers';
 import { WALL_VERT, wallGeometry } from './wall';
 import { townsMesh } from './towns';
-import world from '../vector-world.json';
+import { lineMesh } from './gpuVector';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import type { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 // Canon relief: the globe's land and water shaded from maps baked offline by tools/world/relief-bake.mjs (height guessed
 // from the canon map and its geology, then eroded): slope, cast shadow and ambient occlusion for a fixed sun in the
@@ -49,7 +51,7 @@ const COMMON = `#include <common>
 uniform sampler2D tA, tB, tC, tD, tV; // A: slope east, slope north, sun light, ambient occlusion. B: height, flow, erosion, sea distance.
                                   // C: forest, moisture, snow. D: bare-rock colour (geology), erodibility
 uniform vec4 uBounds;           // lon0, lon1, lat0, lat1 (degrees) of the baked grid
-uniform float uExaggeration, uGradMax, uHeightMax, uSeaMax;
+uniform float uExaggeration, uGradMax, uHeightMax, uSeaMax, uTime; // uTime: seconds, for the surf
 uniform vec3 uSun;              // towards the sun, in east/north/up
 varying vec3 vDir;
 vec2 gridUV(vec3 d) {
@@ -107,8 +109,10 @@ vec3 finish(vec3 c) { // the renderer's tone mapping, then output colour space
 }
 `;
 
-const landFrag = (ground: string) => `${COMMON}
-${ground}
+const landFrag = () => `${COMMON}
+${RIVER_GLSL}
+${DETAIL_GLSL}
+${DETAIL_FRAG_GLSL}
 #ifdef COVER
 varying float vCover; // the 3D mesh's land cover: below half is sea
 #endif
@@ -120,23 +124,33 @@ void main() {
   vec2 uv = gridUV(vDir);
   vec3 p = vDir * 6915.0; // km
   float fw = length(fwidth(p)); // km per pixel; taken here, in uniform control flow, for the noise below
-  #ifdef GROUND
-  vec4 gd = vec4(dFdx(vG), dFdy(vG)); // metres per pixel in the ground texture's frame, taken here like fw
-  vec2 gz = vec2(dFdx(vZ), dFdy(vZ));
-  #endif
   if (!inGrid(uv)) { finish(srgb(vec3(0.5, 0.56, 0.34)) * 0.9); return; }
   vec4 A = texture2D(tA, uv), Bm = texture2D(tB, uv), C = texture2D(tC, uv);
   vec2 e = A.rg * 2.0 - 1.0, g = sign(e) * e * e * uGradMax;   // true slope (km/km), east and north
   float slope = length(g), sun = A.b, ao = A.a;
   float h = Bm.r * uHeightMax, flow = Bm.g, ero = Bm.b * 2.0 - 1.0; // ero < 0 eroded, > 0 deposited
+  float wcov = 0.0, glint = 0.0; // the river's water over this pixel (0 to 1), and the sun's glint on it
   #ifdef COVER
-  { // the mesh's procedural detail (detailH), lit per pixel down to what a pixel can show; kept in the lean program too, or the relief flattens while the camera moves
+  // the detail buffers (detail.ts): the erosion filter's gullies, the rolling ground and the river channel, lit down to what a pixel can show
+  Det dt = detailF(vDir);
+  h += dt.h;
+  { // where no buffer reaches (and in the blend band at its edge) the mesh's procedural detail (detailH), kept in the lean program too, or the relief flattens while the camera moves
     float px = max(fw, 0.03); // km per pixel
-    vec3 east = normalize(vec3(vDir.z, 0.0, -vDir.x)), north = cross(vDir, east);
-    float d0 = detailH(vDir, h, px);
-    g += vec2(detailH(normalize(vDir + east * px / 6915.0), h, px) - d0, detailH(normalize(vDir + north * px / 6915.0), h, px) - d0) / px;
+    if (dt.w < 0.999) {
+      vec3 east = normalize(vec3(vDir.z, 0.0, -vDir.x)), north = cross(vDir, east);
+      vec3 gu = gullies(vDir, g, px); // the Phacelle gullies down the baked slope (still in g here): their own gradient, not finite differences
+      float d0 = detailH(vDir, h, px);
+      g += (1.0 - dt.w) * (vec2(detailH(normalize(vDir + east * px / 6915.0), h, px) - d0, detailH(normalize(vDir + north * px / 6915.0), h, px) - d0) / px + gu.yz * smoothstep(0.0, 0.03, h));
+    }
+    g += dt.g;
     slope = length(g);
   }
+  float rCarve = 0.0, rFlat = 0.0, rDeff = 99.0, rHalf = 0.1, rDepth = 0.0, rCreek = 0.5; vec2 rGrad = vec2(0.0); // the river's channel (relief-e), as the mesh cut it
+  riverAt(uv, vDir, h, vCover, rCarve, rFlat, rDeff, rHalf, rDepth, rGrad, rCreek); // the water is always drawn from relief-e (exaggerated below); its banks shade only where no buffer cut them
+  if (dt.w < 0.5) { g += rGrad; slope = length(g); }
+  float occD = dt.w > 0.0 ? clamp(dt.occ / dt.w * 2.0 - 0.5, 0.0, 1.0) : 1.0, dtw = dt.w; // the filter's erosion as the Shadertoy reads it: 0 deeply eroded, 1 deposited or none; and how far the buffers reach here
+  #else
+  const float occD = 1.0, dtw = 0.0;
   #endif
   float forest = C.r, moist = C.g, snowClass = C.b;
   float lat = degrees(abs(asin(clamp(vDir.y, -1.0, 1.0))));
@@ -165,46 +179,48 @@ void main() {
   c = mix(c, mix(c, rock, 0.5), smoothstep(0.7, 1.8, h + (n1 - 0.5) * 0.4) * 0.5);            // uplands go stony
   float bare = smoothstep(0.05, 0.16, slope + (n1 - 0.5) * 0.05) * (1.0 - smoothstep(0.2, 0.7, flow));
   bare = max(bare, smoothstep(-0.2, -0.6, ero) * smoothstep(0.8, 1.8, h) * 0.6);              // scoured high ground
+  bare = max(bare, smoothstep(0.7, 0.1, occD) * smoothstep(0.06, 0.2, slope) * dtw);                // eroded steep ground is bare rock, as in the Shadertoy
+  float wood = smoothstep(0.35, 0.8, forest) * (1.0 - smoothstep(1.2, 2.2, h)); // under a canopy the gullies are not pale scars: from above they read as a web of paths
+  bare *= 1.0 - 0.9 * wood;
   c = mix(c, rock, clamp(bare + smoothstep(1.8, 2.6, h) * 0.6, 0.0, 1.0));
+  c = mix(c, c * vec3(0.8, 0.7, 0.58), smoothstep(0.6, 0.0, occD + (n3 - 0.5) * 0.6) * 0.45 * dtw * smoothstep(0.02, 0.12, slope) * (1.0 - 0.8 * wood)); // dirt in the creases
   float snowLine = mix(3.2, 0.6, smoothstep(40.0, 68.0, lat));
   float snow = smoothstep(snowLine, snowLine + 0.3, h + (n1 - 0.5) * 0.5) * (1.0 - smoothstep(0.2, 0.45, slope));
   c = mix(c, srgb(vec3(0.86, 0.88, 0.9)) * (0.92 + 0.1 * n2), max(snow, smoothstep(0.3, 0.7, snowClass) * (0.85 + 0.15 * n2)));
 
-  // real-scale ground photos (ground.ts) as a detail layer: the two materials the land's environment calls for, by the
-  // channels above, each laid at its true size; the biome colour is multiplied by photo / its mean, the normal bent by the photo's
+  // what an astronaut sees from 400 km and up (docs/decisions/0003, a pixel is 150-450 m), painted from the masks above:
+  // farmland as a mosaic of districts, forest in clumps, drainage drawn out down the slopes, and a bump in the light. Each fades
+  // as a pixel grows past its size (fw). Tried at a 20 km floor and dropped: 0.6 km fields, 40 m crowns, strata bands (contour lines).
   vec2 gN = vec2(0.0);
-  #ifdef GROUND
-  if (uGOn > 0.5) {
-    float sea = Bm.a * Bm.a * uSeaMax; // km out to sea
-    float lum = dot(v, vec3(0.299, 0.587, 0.114));
-    float wSnow = max(snow, smoothstep(0.3, 0.7, snowClass));
-    float wRock = clamp(bare + smoothstep(1.8, 2.6, h) * 0.6, 0.0, 1.0);
-    float open = (1.0 - wSnow) * (1.0 - wRock);
-    float sc[8]; int ma[8], mb[8]; float wv[8]; // each environment's score, and its two materials: ma at 1 - wv, mb at wv
-    sc[0] = wSnow;                                                    ma[0] = M_snow_02;              mb[0] = M_snow_field_aerial;  wv[0] = smoothstep(0.3, 0.7, n2);
-    sc[1] = wRock * (1.0 - 0.8 * wSnow);                              ma[1] = M_rock_boulder_dry;     mb[1] = M_aerial_rocks_02;    wv[1] = max(smoothstep(0.18, 0.36, slope), smoothstep(1.8, 2.8, h) * 0.7);
-    sc[2] = arid * open;                                              ma[2] = M_red_sand;             mb[2] = M_sandstone_cracks;   wv[2] = max(smoothstep(0.4, 0.8, n1), smoothstep(0.1, 0.25, slope));
-    sc[3] = smoothstep(0.35, 0.8, forest) * open;                     ma[3] = M_forest_leaves_02;     mb[3] = M_forrest_ground_03;  wv[3] = smoothstep(44.0, 52.0, lat);
-    sc[4] = smoothstep(0.55, 0.85, moist) * (1.0 - smoothstep(0.15, 0.45, h)) * (1.0 - arid) * open; ma[4] = M_mud_forest; mb[4] = M_brown_mud_leaves_01; wv[4] = smoothstep(0.3, 0.7, n1);
-    sc[5] = (1.0 - smoothstep(0.3, 2.0, sea)) * (1.0 - wSnow);        ma[5] = M_aerial_beach_01;      mb[5] = M_seaside_rock;       wv[5] = smoothstep(0.08, 0.22, slope);
-    sc[6] = 1.0 - smoothstep(0.06, 0.14, lum);                        ma[6] = M_burned_ground_01;     mb[6] = M_dark_rock_02;       wv[6] = smoothstep(0.3, 0.7, n1); // Valyria's black
-    sc[7] = 0.35 * open;                                              ma[7] = M_leafy_grass;          mb[7] = M_grass_ground;       wv[7] = smoothstep(-0.04, 0.05, v.r - v.g);
-    // the two strongest environments, each weighted by how far it stands above the third, so one coming up from third starts at nothing
-    int ia = 0; for (int j = 1; j < 8; j++) if (sc[j] > sc[ia]) ia = j;
-    int ib = ia == 0 ? 1 : 0; for (int j = 0; j < 8; j++) if (j != ia && sc[j] > sc[ib]) ib = j;
-    int ic = (ia != 0 && ib != 0) ? 0 : ((ia != 1 && ib != 1) ? 1 : 2); for (int j = 0; j < 8; j++) if (j != ia && j != ib && sc[j] > sc[ic]) ic = j;
-    float wa = sc[ia] - 0.9 * sc[ic], wb = sc[ib] - 0.9 * sc[ic], tb = wb / max(wa + wb, 1e-4);
-    float th = G_N * (atan(vDir.x, vDir.z) - G_L0), cs = cos(th), sn = sin(th); // the cone's grid is turned from east/north by this
-    float side = smoothstep(0.8, 1.8, slope * uDisplace * (1.0 + uPeaks * smoothstep(0.3, 3.0, h))); // steepness as drawn, exaggeration and all
-    vec2 gGrid = vec2(g.x * cs - g.y * sn, g.x * sn + g.y * cs), wall = abs(gGrid.yx) / (abs(gGrid.x) + abs(gGrid.y) + 1e-5);
-    vec3 rA, mA, rB = vec3(1.0), mB = vec3(1.0); vec2 nA, nB = vec2(0.0); float vA, vB = 1.0;
-    groundMix(ma[ia], mb[ia], wv[ia], gd, gz, side, wall, rA, nA, mA, vA);
-    if (tb > 0.02) groundMix(ma[ib], mb[ib], wv[ib], gd, gz, side, wall, rB, nB, mB, vB);
-    vec3 meanC = mix(mA, mB, tb);
-    vec3 hue = meanC * (dot(c, vec3(0.299, 0.587, 0.114)) / dot(meanC, vec3(0.299, 0.587, 0.114))); // the photo's average colour at the biome's brightness
-    c = mix(c, hue, 0.55 * mix(vA, vB, tb)) * mix(rA, rB, tb);
-    vec2 ng = mix(nA, nB, tb);                                        // the photo's normal, in the texture grid's x, y
-    gN = 1.1 * vec2(ng.x * cs + ng.y * sn, -ng.x * sn + ng.y * cs);
+  #ifndef LEAN
+  {
+    float phi = asin(clamp(vDir.y, -1.0, 1.0));
+    vec2 q = vec2(atan(vDir.x, vDir.z) * cos(phi), phi) * 6915.0; // km east and north (not dot(p, east): that is 0, east is square to p)
+    // farmland: districts ~4 km across on flat, open, watered land, in farmed country (a ~60 km noise), each its own crop or fallow
+    float slope0 = length(sign(e) * e * e * uGradMax); // the baked slope: the fine detail's bumps are no reason not to plough
+    float farm = (1.0 - smoothstep(0.04, 0.12, slope0)) * (1.0 - smoothstep(0.3, 0.7, forest)) * (1.0 - arid) * (1.0 - smoothstep(0.6, 1.4, h))
+               * smoothstep(0.35, 0.55, detail(p / 60.0, fw / 60.0)) * (1.0 - smoothstep(1.5, 4.0, fw)) * (1.0 - snow);
+    { // not behind an if on farm: kept branch-free, it costs little
+      // each region's districts run one of two ways (a fixed turn: a varying one smears the grid, q being thousands of km from its origin)
+      vec2 fq = (detail(p / 200.0 + 2.2, fw / 200.0) > 0.5 ? mat2(0.83, 0.56, -0.56, 0.83) * q : q) / 4.0;
+      fq += (vec2(n1, detail(p / 6.0 + 5.3, fw / 6.0)) - 0.5) * 2.0 + (vec2(n2, wob) - 0.5) * 0.6; // ragged, not a grid
+      vec2 cell = floor(fq);
+      float k = hash13(vec3(cell, 3.7));
+      vec3 crop = k < 0.3 ? vec3(0.8, 0.95, 0.74) : k < 0.55 ? vec3(1.22, 1.12, 0.8) : k < 0.75 ? vec3(1.0, 0.86, 0.68) : vec3(1.04, 1.1, 0.88); // green, ripe, fallow, pasture
+      c = mix(c, c * mix(crop, vec3(1.0), 0.3 * hash13(vec3(cell, 9.1))), farm * 0.85);
+    }
+    // forest: the canopy in clumps ~1.5 km across, glades and dark stands
+    float clump = detail(p / 1.5, fw / 1.5);
+    c *= mix(1.0, 0.75 + 0.45 * clump, smoothstep(0.3, 0.8, forest) * (1.0 - smoothstep(0.8, 2.0, fw)));
+    // drainage: streaks drawn out down the slope (noise stretched along it), pale on bare ground, dark gullies under grass
+    vec2 dn = slope > 1e-4 ? g / slope : vec2(1.0, 0.0);
+    float across = dot(q, vec2(-dn.y, dn.x)), along = dot(q, dn);
+    float streak = vnoise(vec3(across / 0.9, along / 6.0, 1.3)) * 0.65 + vnoise(vec3(across / 0.4, along / 2.5, 7.9)) * 0.35;
+    float steep = smoothstep(0.06, 0.25, slope) * (1.0 - smoothstep(0.5, 1.5, fw)) * (1.0 - 0.8 * wood);
+    c = mix(c, c * mix(vec3(0.8, 0.78, 0.74), vec3(1.18, 1.15, 1.1), streak), steep * mix(0.35, 0.7, bare));
+    // a bump: the streak and clump noise lean the light a little, so a lit slope is never a flat wash
+    float bump = (1.0 - smoothstep(0.6, 1.8, fw)) * (0.05 + 0.25 * smoothstep(0.05, 0.3, slope));
+    gN = bump * vec2(streak - 0.5, clump - 0.5);
   }
   #endif
 
@@ -213,20 +229,58 @@ void main() {
     float cliff = (1.0 - smoothstep(0.5, 0.66, vCover)) * smoothstep(0.02, 0.1, h);
     c = mix(c, rock * mix(0.45, 0.9, smoothstep(0.5, 0.66, vCover)), cliff);
   }
+  { // rivers as the bake's flow-accumulation preview draws them (pipeline.mjs hillshade): the drainage network itself, a thin line
+    // by flow from pale to deep blue, lit by the hillshade, no channel detail (docs/decisions/0003). Not true width: from 400 km
+    // a pixel is ~460 m, so a river is 1 px (a creek) to 2.5 px (a great one), and the small ones go first as the camera rises
+    float fwr = max(fw, 0.02), qR = pow(clamp((2.0 * rHalf - uRiverP.y) / max(uRiverP.z - uRiverP.y, 1e-3), 0.0, 1.0), 1.0 / 1.8); // the flow (riverAt's width is q^1.8)
+    float halfC = mix(0.5, 1.25, qR) * fwr;
+    float vis = (1.0 - smoothstep(mix(0.8, 4.0, qR), mix(1.6, 8.0, qR), fwr)) * smoothstep(0.62, 0.8, vCover);
+    float crease = smoothstep(0.3, 1.0, -(rCreek - 0.5) * 2.0) * smoothstep(0.04, 0.18, slope); // the erosion filter's creases on steep ground
+    c *= 1.0 - 0.18 * crease;
+    wcov = clamp((halfC - rDeff) / fwr + 0.5, 0.0, 1.0) * vis * (1.0 - uRiverLines); // antialiased across the line; none once the lines draw the water
+    // river water as astronaut photos show it: silty olive-grey in the small ones, dark slate green in the big ones, never saturated blue
+    c = mix(c, srgb(mix(vec3(0.40, 0.42, 0.34), vec3(0.12, 0.19, 0.21), smoothstep(0.0, 1.0, qR))) * 0.7, wcov * mix(0.6, 0.95, qR));
+  }
+  // (the detail buffer's own river water is not drawn: at 208 m-1.6 km texels it was thin and broken; relief-e's, exaggerated, is)
   #endif
 
   // light: hard hillshade from the north-west sun (baked cast shadow, cloud shadows) over a dim cool sky, so ridges catch
   // the light bright and their far sides drop into shadow
   vec3 n = normalize(vec3(-g * uExaggeration * 1.5 + gN, 1.0));
+  n = normalize(mix(n, vec3(0.0, 0.0, 1.0), wcov * 0.85)); // water lies flat
   float ndl = max(dot(n, uSun), 0.0);
-  vec3 light = vec3(1.0, 0.95, 0.85) * 2.0 * ndl * sun * cloudShade(vDir) + vec3(0.6, 0.7, 0.85) * 0.3 * (0.6 + 0.4 * n.z) * ao + vec3(0.04);
-  finish(c * light);
+  vec3 light = vec3(1.0, 0.95, 0.85) * 2.0 * ndl * sun * cloudShade(vDir) + vec3(0.6, 0.7, 0.85) * 0.3 * (0.6 + 0.4 * n.z) * ao * mix(1.0, 0.5 + 0.5 * occD, dtw) + vec3(0.04);
+  finish(c * light + srgb(vec3(0.9, 0.85, 0.7)) * glint * sun * 0.6);
+}`;
+
+// The land's depth alone, drawn half size before the frame so the atmosphere can march each pixel's ray to the ground that is really there
+// (a ridge above the smooth planet's horizon, the near ground in a tilted view) instead of to the smooth sphere.
+const DEPTH_FRAG = `#include <common>
+#include <logdepthbuf_pars_fragment>
+varying float vCover;
+void main() {
+  if (vCover < 0.5) discard;
+  #include <logdepthbuf_fragment>
+  gl_FragColor = vec4(1.0);
 }`;
 
 const WATER_FRAG = `${COMMON}
 #ifdef SEA
 varying vec3 vPos;
 #endif
+float seaKm(vec2 uv) { return inGrid(uv) ? pow(texture2D(tB, uv).a, 2.0) * uSeaMax : uSeaMax; }
+// What the land is where this water meets it, so each coast gets its own sea: relief (km), forest and moisture, read 6 km inland
+// of the nearest shore (d's gradient points away from it; d is the distance out to sea in km).
+vec3 coastLand(vec2 uv, float d, float latR) {
+  vec2 k = vec2(1.0 / ((uBounds.y - uBounds.x) * 120.7 * max(cos(latR), 0.2)), 1.0 / ((uBounds.w - uBounds.z) * 120.7)); // uv per km
+  float s = 6.0;
+  vec2 g = vec2(seaKm(uv + vec2(s * k.x, 0.0)) - seaKm(uv - vec2(s * k.x, 0.0)), seaKm(uv - vec2(0.0, s * k.y)) - seaKm(uv + vec2(0.0, s * k.y)));
+  float gl = length(g);
+  vec2 to = gl > 0.5 ? -g / gl : vec2(0.0);
+  vec2 q = clamp(uv + vec2(to.x * k.x, -to.y * k.y) * (d + 6.0), 0.001, 0.999);
+  vec4 B = texture2D(tB, q), C = texture2D(tC, q);
+  return vec3(B.r * uHeightMax, C.r, C.g);
+}
 void main() {
   #include <logdepthbuf_fragment>
   #ifdef SEA
@@ -250,14 +304,41 @@ void main() {
   #endif
   vec2 uv = gridUV(vd);
   float sd = texture2D(tB, uv).a, d = inGrid(uv) ? sd * sd * uSeaMax : uSeaMax; // km out to sea (stored as its square root)
+  #ifndef SEA
+  d = 12.0; // a lake: open water, no surf or shallows band (the bake's 4.2 km distance drew its shore as steps and foam)
+  #endif
   vec3 p = vd * 6915.0;
   float fw = length(fwidth(p));
-  float dn = d + (detail(p / 40.0, fw / 40.0) - 0.5) * 40.0;
+  // the coast's character: low sandy or muddy shores get a wide, bright shelf; cliffs and fjords drop to deep water at once;
+  // wet, forested shores run green and murky, dry ones clear aqua
+  vec3 cl = coastLand(uv, d, asin(clamp(vd.y, -1.0, 1.0)));
+  float near = 1.0 - smoothstep(30.0, 150.0, d);
+  float high = smoothstep(0.08, 0.6, cl.x), green = smoothstep(0.25, 0.8, max(cl.y, cl.z)), dry = 1.0 - smoothstep(0.15, 0.45, cl.z);
+  float shelf = mix(1.0, mix(1.4, 0.4, high), near);
+  float dn = (d + (detail(p / 40.0, fw / 40.0) - 0.5) * 40.0) / shelf;
   // a teal glow over the shelf, deepening fast to dark navy, mottled like a satellite sea
   vec3 c = mix(srgb(vec3(0.14, 0.42, 0.45)), srgb(vec3(0.06, 0.2, 0.3)), smoothstep(0.0, 25.0, dn));
   c = mix(c, srgb(vec3(0.035, 0.08, 0.15)), smoothstep(35.0, 280.0, dn));
+  c = mix(c, srgb(vec3(0.07, 0.3, 0.24)), green * (1.0 - high) * near * 0.5 * (1.0 - smoothstep(0.0, 120.0, dn))); // murky green off wet lowland
+  c *= 1.0 - 0.3 * high * near;                                                                                    // dark, steep water off cliffs
+  c *= 0.88 + 0.24 * detail(p / 300.0, fw / 300.0);                                                                // slow patches, so no two stretches match
   c *= (0.82 + 0.28 * detail(p / 14.0, fw / 14.0)) * (0.92 + 0.12 * detail(p / 2.0, fw / 2.0));
-  c = mix(c, srgb(vec3(0.5, 0.66, 0.62)), (1.0 - smoothstep(0.1, 1.2, d)) * 0.5);            // surf along the shore
+  // shallows: sand-lit turquoise over the first few km (aqua off dry shores, dull green off wet, slate off rock), clear at the shore
+  vec3 shal = mix(mix(srgb(vec3(0.12, 0.46, 0.46)), srgb(vec3(0.16, 0.6, 0.6)), dry), srgb(vec3(0.09, 0.26, 0.3)), high * 0.7);
+  c = mix(c, shal, (1.0 - smoothstep(0.0, 4.0, dn)) * 0.55);
+  c = mix(c, srgb(vec3(0.45, 0.8, 0.7)), (1.0 - smoothstep(0.0, 0.7, d)) * 0.45);
+  // breaking waves: rows of foam parallel to the coast (d is the distance to it) that roll in and thin out, torn up by noise.
+  // The rows are ~0.4 km apart, so they fade out when a pixel gets near that (from ~100 km up they are a smooth edge).
+  float wn = detail(p / 1.2, fw / 1.2), wl = 0.4;
+  float ph = (d + (wn - 0.5) * 0.25) / wl + uTime * 0.12;
+  float saw = fract(ph);
+  float row = smoothstep(0.0, 0.06, saw) * (1.0 - smoothstep(0.06, 0.55, saw));         // sharp front, trailing wash
+  float reach = 1.0 - smoothstep(0.4, 2.2, d), vis = 1.0 - smoothstep(wl * 0.15, wl * 0.5, fw);
+  float torn = smoothstep(0.35, 0.65, detail(p / 0.5 + 3.7, fw / 0.5) + (wn - 0.5) * 0.4);
+  float swash = (1.0 - smoothstep(0.02, 0.14 + 0.05 * sin(uTime * 0.6), d)) * smoothstep(0.3, 0.55, wn + 0.1); // wet edge at the water line
+  float foam = clamp(row * reach * torn * vis * 0.85 + swash * (0.5 + 0.5 * vis), 0.0, 1.0);
+  c = mix(c, srgb(vec3(0.93, 0.97, 0.96)), foam);
+  c = mix(c, srgb(vec3(0.5, 0.66, 0.62)), (1.0 - smoothstep(0.1, 1.2, d)) * 0.25 * (1.0 - vis)); // far off the rows blur to one pale surf band
   finish(c * 1.15 * cloudShade(vd));
 }`;
 
@@ -276,22 +357,6 @@ void main() {
   float night = 0.97 * smoothstep(0.0, -0.2, dot(vDir, uNoon)); // the atmosphere's night veil does not reach clouds past the limb
   finish(mix(srgb(vec3(0.62, 0.68, 0.78)), srgb(vec3(0.98, 0.94, 0.88)), lit) * (1.0 - night));
   gl_FragColor.a = a * 0.85;
-}`;
-
-// Rivers (rivers.ts): deep blue down the middle, pale shallows at the banks, flow streaks once they are wide enough
-const RIVER_FRAG = `${COMMON}
-varying float vSide, vAlong, vPx;
-void main() {
-  #include <logdepthbuf_fragment>
-  float a = abs(vSide), big = smoothstep(3.0, 12.0, vPx), depth = 1.0 - a * a;
-  vec3 c = mix(srgb(vec3(0.3, 0.5, 0.5)), srgb(vec3(0.08, 0.27, 0.34)), smoothstep(0.0, 0.5, depth));
-  c = mix(c, srgb(vec3(0.03, 0.13, 0.2)), smoothstep(0.5, 1.0, depth));                      // the deep channel
-  c = mix(srgb(vec3(0.05, 0.19, 0.26)), c, big);                                             // thin: one dark teal line
-  c *= mix(1.0, 0.85 + 0.3 * vnoise(vec3(vAlong * 1.2, vSide * 2.5, 0.0)), smoothstep(10.0, 30.0, vPx)); // flow streaks
-  c += srgb(vec3(0.5, 0.55, 0.5)) * smoothstep(0.12, 0.0, abs(vSide + 0.35)) * big * 0.5;     // sun glint off the water
-  c = mix(c, srgb(vec3(0.24, 0.27, 0.16)), smoothstep(0.86, 1.0, a) * big * 0.7);             // muddy banks
-  finish(c * 1.1);
-  gl_FragColor.a = 1.0 - smoothstep(1.0 - 2.0 / max(vPx, 1.0), 1.0, a); // a pixel of soft edge
 }`;
 
 // The Wall (wall.ts): pale blue-white ice, lit by the same sun, the crest dusted with snow
@@ -323,6 +388,42 @@ void main() {
   finish(c * (vec3(1.0, 0.95, 0.85) * 1.6 * max(dot(n, uSun), 0.0) + vec3(0.6, 0.7, 0.85) * 0.45));
 }`;
 
+/**
+ * The bake's rivers (relief-rivers.json: [lon, lat, q, ...] per river, q its size 0-1) as lifted screen-width lines, in five size classes.
+ * One water colour; width 1.5 px (a creek) to 3.5 px (a great river). The small ones go first as the camera rises, by thinning, not
+ * by fading, so every river keeps the same colour (userData.fade, given the km per pixel at the screen's centre).
+ */
+function bakedRivers(lines: number[][]) {
+  const group = new THREE.Group(), CLASSES = 5, r = PLANET.radius - 7 + 450; // over the relief detail like the roads (terrain.ts ROAD_LIFT), drawn before them
+  const segs: number[][] = Array.from({ length: CLASSES }, () => []), a = new THREE.Vector3(), b = new THREE.Vector3();
+  for (const l of lines) for (let i = 0; i + 5 < l.length; i += 3) {
+    const k = Math.min(CLASSES - 1, Math.floor(((l[i + 2] + l[i + 5]) / 2) * CLASSES));
+    segs[k].push(...toVector(l[i + 1], l[i], r, a).toArray(), ...toVector(l[i + 4], l[i + 3], r, b).toArray());
+  }
+  const WATER = new THREE.Color().setRGB(0.12, 0.31, 0.37, THREE.SRGBColorSpace); // deep blue-teal, near the lakes' water
+  const mats = segs.map((s, k) => {
+    const q = (k + 0.5) / CLASSES, width = 2 * THREE.MathUtils.lerp(0.75, 1.75, q), m = lineMesh(new LineSegmentsGeometry().setPositions(s), '#000', width, 1);
+    const mat = m.material as LineMaterial;
+    mat.color = WATER; Object.assign(mat.userData, { q, width });
+    // pulled 0.2% of the way to the camera (same place on screen): the exaggerated hills between two vertices no longer cut the line
+    // into dashes (the log depth buffer ignores polygon offset); a tall range in a tilted view still hides it
+    const lift = mat.onBeforeCompile;
+    mat.onBeforeCompile = (s, r) => {
+      lift.call(mat, s, r);
+      s.vertexShader = s.vertexShader.replace('vec4 end = modelViewMatrix * vec4( lift(instanceEnd), 1.0 );', '$&\nstart.xyz *= 0.998; end.xyz *= 0.998;');
+    };
+    mat.customProgramCacheKey = () => 'river-line';
+    group.add(m);
+    return mat;
+  });
+  group.userData.fade = (fw: number) => mats.forEach((m) => {
+    const q = m.userData.q as number, vis = 1 - THREE.MathUtils.smoothstep(fw, THREE.MathUtils.lerp(0.8, 4, q), THREE.MathUtils.lerp(1.6, 8, q));
+    m.linewidth = (m.userData.width as number) * vis;
+    m.visible = m.linewidth > 0.3;
+  });
+  return group;
+}
+
 /** Swaps the terrain fills, lakes and ocean between the relief shaders and their flat materials, and shows the 3D relief
  * mesh (`object`) in place of the land fills. */
 export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.Object3D[], ocean: THREE.Mesh, riverLines: THREE.Object3D) {
@@ -331,10 +432,12 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   const object = new THREE.Group();
   let updateMesh: ((camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) => void) | null = null;
   let bakedHeight: ((lon: number, lat: number) => number) | null = null;
-  const uCloud = { value: 0 };
-  let leanMat: THREE.ShaderMaterial | null = null, richMat: THREE.ShaderMaterial | null = null, reliefMesh: THREE.Mesh | null = null;
+  const uCloud = { value: 0 }, uTime = { value: 0 };
+  let leanMat: THREE.ShaderMaterial | null = null, richMat: THREE.ShaderMaterial | null = null, depthMat: THREE.ShaderMaterial | null = null, reliefMesh: THREE.Mesh | null = null;
+  const depthRT = new THREE.WebGLRenderTarget(1, 1, { depthTexture: new THREE.DepthTexture(1, 1) }), drawn = new THREE.Vector2();
   let cloudLayer: THREE.Mesh | null = null; // not drawn at all once below the clouds: its shader would only discard
   const uExaggeration = { value: B.exaggeration }; // hillshade slope scale, eased with the camera by update()
+  const water: { group?: THREE.Group } = {};
   const apply = () => {
     const on = enabled && swaps.length > 0;
     for (const s of swaps) s.mesh.material = enabled ? s.relief : s.flat;
@@ -346,35 +449,52 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   };
   // data, not pictures: no premultiplied alpha, no colour management
   const loader = new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-  let done = 0; // loading bar: 5 maps, the height mesh, then the rivers and clouds
+  let done = 0; // loading bar: 5 maps, the height mesh, then clouds
   const STEPS = 7;
-  const load = (name: string) => loader.loadAsync(`${import.meta.env.BASE_URL}world/${name}.webp`).then((bitmap) => {
+  // relief-e (rivers): distance to the nearest river, its discharge, the creek map. Optional: without it (not baked yet, or a failed
+  // fetch) a 1×1 texture stands in that is far from any river, and uRiverD.z = 0 switches the river code off, so the globe looks as before.
+  const fallbackE = new THREE.DataTexture(new Uint8Array([255, 255, 0, 128]), 1, 1);
+  fallbackE.needsUpdate = true;
+  const loadE = () => loader.loadAsync(`${BAKE_DIR}relief-e.webp`).then((bitmap) => {
+    const t = new THREE.Texture(bitmap);
+    t.minFilter = t.magFilter = THREE.LinearFilter; // a distance field: no mipmaps
+    t.generateMipmaps = false;
+    t.needsUpdate = true;
+    return { t, ok: true };
+  }).catch(() => ({ t: fallbackE as THREE.Texture, ok: false }));
+  const RB = B as typeof B & { riverDistMax?: number; riverWidthKm?: number[]; riverDepthKm?: number[]; riverSigned?: boolean };
+  const small = new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none', ...(Q.mapPx ? { resizeWidth: Q.mapPx, resizeQuality: 'medium' as const } : {}) });
+  const load = (name: string) => (name === 'relief-a' || name === 'relief-b' ? small : loader).loadAsync(`${BAKE_DIR}${name}.webp`).then((bitmap) => {
     done++;
     const t = new THREE.Texture(bitmap);
     t.minFilter = THREE.LinearMipmapLinearFilter;
-    t.anisotropy = 8;
+    t.anisotropy = Q.aniso;
     t.needsUpdate = true;
     return t;
   });
-  const cloudTexture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/earth_clouds.jpg`);
+  const cloudTexture = loadTexture(`${import.meta.env.BASE_URL}textures/earth_clouds.jpg`, Q.skyPx);
   cloudTexture.wrapS = THREE.RepeatWrapping;
-  cloudTexture.anisotropy = 8;
-  let ground: Ground | null = null, groundChanged: (() => void) | null = null;
-  const ready = Promise.all([...['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'].map(load), loadGround().catch((e) => { console.warn('ground textures off,', e); return null; })]).then(([tA, tB, tC, tD, tV, g]) => {
-    ground = g as Ground | null;
-    if (ground) ground.onChange = () => groundChanged?.();
-    const landGround = landFrag(ground ? GROUND_FRAG_GLSL(ground) : '');
+  cloudTexture.anisotropy = Q.aniso;
+  let detail: ReturnType<typeof createDetail> | null = null;
+  const ready = Promise.all([...['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'].map(load), loadE()]).then(([tA, tB, tC, tD, tV, e]) => {
+    const rivers = e as { t: THREE.Texture; ok: boolean };
+    const landGround = landFrag();
     const uniforms = {
       ...LIFT, tA: { value: tA as THREE.Texture }, tB: { value: tB as THREE.Texture }, tC: { value: tC as THREE.Texture }, tD: { value: tD as THREE.Texture }, tV: { value: tV as THREE.Texture },
-      uExaggeration, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
+      tE: { value: rivers.t }, // distance bounds, width and depth ranges (km) of a river by its discharge, and whether the distance is signed: relief-bounds.json, with the bake's defaults
+      uRiverP: { value: new THREE.Vector4(RB.riverDistMax ?? 40, RB.riverWidthKm?.[0] ?? 0.12, RB.riverWidthKm?.[1] ?? 1.6, RB.riverSigned ? 1 : 0) },
+      uRiverD: { value: new THREE.Vector3(RB.riverDepthKm?.[0] ?? 0.003, RB.riverDepthKm?.[1] ?? 0.02, rivers.ok ? 1 : 0) },
+      uRiverLines: { value: 0 }, // 1 once relief-rivers.json draws the water as lines
+      uExaggeration, uTime, uGradMax: { value: B.gradMax }, uSeaMax: { value: B.seaMax },
       uSun: { value: new THREE.Vector3(...B.sun) }, uCloud, tCloud: { value: cloudTexture },
       uNoon: { value: toVector((B.lat0 + B.lat1) / 2, (B.lon0 + B.lon1) / 2, 1) }, // where the atmosphere puts noon (GlobeView)
     };
+    detail = createDetail(Q.detail && new URLSearchParams(location.search).get('detail') !== '0', uniforms);
     swaps = [...CLASSES.map((id) => fills[id]), fills.lakes, ocean].map((mesh) => {
       const flat = mesh.material as THREE.Material;
       return {
         mesh, flat, relief: new THREE.ShaderMaterial({
-          uniforms, vertexShader: VERT, fragmentShader: mesh === fills.lakes || mesh === ocean ? WATER_FRAG : landFrag(''),
+          uniforms, vertexShader: VERT, fragmentShader: mesh === fills.lakes || mesh === ocean ? WATER_FRAG : landFrag(),
           defines: mesh === ocean ? { SEA: '' } : { LIFT: '' }, // the map layers ride on the 3D relief, the sea at sea level
           side: mesh === ocean ? THREE.DoubleSide : flat.side, // the sea shell is round the camera when it is low: both faces
           depthWrite: flat.depthWrite, // as the flat one: the ocean sphere writes depth, the map fills don't
@@ -382,22 +502,17 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       };
     });
     apply();
-    const material = new THREE.ShaderMaterial({ uniforms: { ...uniforms, ...ground?.uniforms }, vertexShader: MESH_VERT, fragmentShader: landGround, defines: ground ? { COVER: '', GROUND: '' } : { COVER: '' } });
-    return createReliefMesh(`${import.meta.env.BASE_URL}world/relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
+    const material = new THREE.ShaderMaterial({ uniforms, vertexShader: MESH_VERT, fragmentShader: landGround, defines: { COVER: '' } });
+    return createReliefMesh(`${BAKE_DIR}relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
       done++;
       bindBake(texture, B);
       reliefMesh = mesh; richMat = material; // the lean program shares the rich one's uniforms (the mesh's cell size is among them)
-      leanMat = new THREE.ShaderMaterial({ uniforms: material.uniforms, vertexShader: MESH_VERT, fragmentShader: landGround, defines: ground ? { COVER: '', LEAN: '', GROUND: '' } : { COVER: '', LEAN: '' } });
+      depthMat = new THREE.ShaderMaterial({ uniforms: material.uniforms, vertexShader: MESH_VERT, fragmentShader: DEPTH_FRAG });
+      leanMat = new THREE.ShaderMaterial({ uniforms: material.uniforms, vertexShader: MESH_VERT, fragmentShader: landGround, defines: { COVER: '', LEAN: '' } });
       updateMesh = update;
       bakedHeight = heightAt;
       const uPixel = { value: 0 };
-      const rivers = new THREE.Mesh(riverGeometry(world.rivers as Ring[], PLANET.radius - 7, heightAt, world.lakes.flatMap((l) => l.rings as Ring[])), new THREE.ShaderMaterial({
-        uniforms: { ...uniforms, uPixel }, vertexShader: RIVER_VERT, fragmentShader: RIVER_FRAG,
-        transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      }));
-      rivers.renderOrder = riverLines.renderOrder; rivers.frustumCulled = false;
-      rivers.onBeforeRender = syncPixel(uPixel);
-      const uIce = { value: new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/ice.jpg`, (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.anisotropy = 8; t.needsUpdate = true; }) };
+      const uIce = { value: new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/ice.jpg`, (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.anisotropy = Q.aniso; t.needsUpdate = true; }) };
       const wall = new THREE.Mesh(wallGeometry(PLANET.radius - 7), new THREE.ShaderMaterial({
         uniforms: { ...uniforms, uPixel, uIce }, vertexShader: WALL_VERT, fragmentShader: WALL_FRAG, side: THREE.DoubleSide,
       }));
@@ -408,17 +523,31 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       }));
       clouds.renderOrder = 200; // over the map layers and borders
       cloudLayer = clouds;
-      object.add(mesh, rivers, wall, townsMesh(uniforms), clouds);
+      object.add(mesh, wall, townsMesh(uniforms), clouds); // the rivers are carved by the mesh and its shader (relief-e); their water is drawn as lines (below)
       apply();
+      fetch(`${BAKE_DIR}relief-rivers.json`).then((r) => r.json() as Promise<number[][]>).then((lines) => {
+        object.add(water.group = bakedRivers(lines));
+        uniforms.uRiverLines.value = 1; // the shader stops drawing water: its 4.2 km field broke up at confluences from 600 km
+      }).catch(() => {}); // an older bake: the shader keeps drawing them
     });
   }).catch((e) => console.warn('relief: staying on the flat map,', e));
   return {
     object, ready, progress: () => Math.min(1, done / STEPS), setEnabled(on: boolean) { enabled = on; apply(); },
     /** The land drawn by its lean program (no fine procedural detail, about half the cost per pixel) while true. */
     get lean() { return !!reliefMesh && reliefMesh.material === leanMat; },
-    /** Called when a ground texture has arrived, to ask for a frame. */
-    set onGround(f: (() => void) | null) { groundChanged = f; },
     set lean(on: boolean) { if (reliefMesh && leanMat && richMat) reliefMesh.material = on ? leanMat : richMat; },
+    /** The land's depth (log-depth buffer values, 1 where there is none) seen from `camera`, at half size; null when the mesh is not up. Call after `update`. */
+    depth(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
+      if (!enabled || !reliefMesh || !depthMat || !object.children.length) return null;
+      renderer.getDrawingBufferSize(drawn).multiplyScalar(0.5).ceil();
+      if (depthRT.width !== drawn.x || depthRT.height !== drawn.y) depthRT.setSize(drawn.x, drawn.y);
+      const prev = renderer.getRenderTarget(), mat = reliefMesh.material;
+      reliefMesh.material = depthMat;
+      renderer.setRenderTarget(depthRT); renderer.clear(true, true, false);
+      renderer.render(reliefMesh, camera);
+      renderer.setRenderTarget(prev); reliefMesh.material = mat;
+      return depthRT.depthTexture;
+    },
     /** Compiles the lean program now (behind the loading screen), so the first drag on a slow GPU doesn't stall on it. */
     warm(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
       if (!reliefMesh || !leanMat) return;
@@ -426,11 +555,11 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       s.add(new THREE.Mesh(reliefMesh.geometry, leanMat));
       renderer.compile(s, camera);
     },
-    /** Height of the drawn ground above sea level (m) under a point; the baked height as raise() lifts it (flat at the 3D sites), without the fine detail. */
+    /** Height of the drawn ground above sea level (m) under a point; the baked height as raise() lifts it, without the fine detail. */
     groundAt(p: THREE.Vector3) {
       if (!enabled || !bakedHeight) return 0;
       const n = p.clone().normalize(), km = bakedHeight(THREE.MathUtils.radToDeg(Math.atan2(n.x, n.z)), THREE.MathUtils.radToDeg(Math.asin(n.y)));
-      return raisedMetres(km, n.multiplyScalar(PLANET.radius)); // as drawn now
+      return raisedMetres(km); // as drawn now
     },
     /** Picks the mesh's detail and the height exaggeration for the camera (`tilt`: radians from straight down); call before each render. */
     update(camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, tilt = 0) {
@@ -438,10 +567,12 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       if (object.children.length) { // the 3D relief is up: exaggerate to suit how it is seen
         uExaggeration.value = B.exaggeration * exaggerate(camera.position.length() - PLANET.radius, tilt);
       }
+      if (object.children.length) detail?.update(camera, renderer); // the detail buffers round the camera's focus, before the mesh reads them
       updateMesh?.(camera, renderer);
-      ground?.update(); // loads the ground photos, a layer a frame
+      uTime.value = performance.now() / 1000 % 3600; // the loop sleeps when idle, so the surf moves while the globe is drawn
       uCloud.value = THREE.MathUtils.smoothstep(camera.position.length() - PLANET.radius, 2000e3, 2500e3); // clear below them
-      if (cloudLayer) cloudLayer.visible = uCloud.value >= 0.01;
+      water.group?.userData.fade((camera.position.length() - PLANET.radius) / 1000 * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / innerHeight);
+      if (cloudLayer) cloudLayer.visible = Q.clouds && uCloud.value >= 0.01;
     },
   };
 }

@@ -5,7 +5,7 @@
 //   roads                    regenerate the places and the roads from the lore, then check
 //   report                   how much of the map has a lore claim
 //   sources                  which sources are present and how fresh
-// Sources, highest first: the novels, World of Ice & Fire, Fire & Blood, the wiki (docs/wiki), the blog (docs/atlas-blog), the maps.
+// Sources, highest first: the novels, World of Ice & Fire, Fire & Blood, the wiki (docs/sources/wiki), the blog (docs/sources/atlas-blog), the maps.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 
@@ -25,6 +25,9 @@ const checks = () => {
   const dist = tc.slice(0, tc.findIndex((l) => l.startsWith('## Lore roads'))).filter((l) => l.includes('<-- off by'));
   const wind = tc.filter((l) => l.includes('NOT CONNECTED'));
   fail.push(...dist.map((l) => 'DIST ' + l.trim().slice(0, 150)), ...wind.map((l) => 'ROAD ' + l.trim())); out.push(`stated distances: ${dist.length} off; roads not connected: ${wind.length}`);
+  const tl = clean(run('tools/books/timeline-check.mjs').stdout).split('\n').filter(Boolean);
+  const tlOff = tl.filter((l) => !l.startsWith('OK '));
+  fail.push(...tlOff); out.push(`timeline changes: ${tl.length - tlOff.length} ok, ${tlOff.length} off`);
   return { out, fail };
 };
 
@@ -45,16 +48,17 @@ switch (verb) {
     if (!args.length) throw new Error('usage: npm run lore -- place "Name"');
     process.exitCode = show(run('tools/lore/place.mjs', [args.join(' ')])); break;
   }
+  case 'search': case 'near': process.exitCode = show(run('tools/lore/search.mjs', [verb, ...args])); break;
   case 'report': process.exitCode = show(run('tools/lore/report.mjs')); break;
   case 'sources': {
     const age = (f) => (existsSync(f) ? `${Math.round((Date.now() - statSync(f).mtimeMs) / 864e5)} d old` : 'MISSING');
-    const text = existsSync('docs/books/text') ? readdirSync('docs/books/text').filter((f) => f.endsWith('.txt')) : [];
+    const text = existsSync('docs/sources/books/text') ? readdirSync('docs/sources/books/text').filter((f) => f.endsWith('.txt')) : [];
     console.log(`books: ${text.length} extracted (${text.map((t) => t.replace('.txt', '')).join(', ') || 'none: run node tools/books/extract.mjs'})`);
-    console.log(`place index: ${age('docs/books/places.json')} (node tools/books/place-index.mjs)`);
-    console.log(`wiki mirror: ${existsSync('docs/wiki/_places.json') ? readdirSync('docs/wiki').length + ' files, ' + age('docs/wiki/_places.json') : 'MISSING (npm run wiki)'}`);
-    console.log(`blog: ${existsSync('docs/atlas-blog') ? readdirSync('docs/atlas-blog').filter((f) => f.endsWith('.md')).length + ' posts' : 'MISSING'}`);
+    console.log(`place index: ${age('docs/sources/books/places.json')} (node tools/books/place-index.mjs)`);
+    console.log(`wiki mirror: ${existsSync('docs/sources/wiki/_places.json') ? readdirSync('docs/sources/wiki').length + ' files, ' + age('docs/sources/wiki/_places.json') : 'MISSING (npm run wiki)'}`);
+    console.log(`blog: ${existsSync('docs/sources/atlas-blog') ? readdirSync('docs/sources/atlas-blog').filter((f) => f.endsWith('.md')).length + ' posts' : 'MISSING'}`);
     console.log(`claims: ${JSON.parse(readFileSync('tools/books/place-checks.json', 'utf8')).length} place checks, ${JSON.parse(readFileSync('tools/books/lore-roads.json', 'utf8')).length} lore roads, ${JSON.parse(readFileSync('tools/books/travel.json', 'utf8')).distances.length} stated distances`);
     break;
   }
-  default: console.log('usage: npm run lore -- find|place|check|roads|report|sources   (see tools/lore/lore.mjs)'); process.exitCode = verb ? 1 : 0;
+  default: console.log('usage: npm run lore -- find|place|search|near|check|roads|report|sources   (see tools/lore/lore.mjs)'); process.exitCode = verb ? 1 : 0;
 }

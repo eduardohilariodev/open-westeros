@@ -1,5 +1,20 @@
 import type { Card } from '../globe/GlobeView';
 import { PLACE_INFO } from '../place-info';
+import PLACE_ALT from '../place-alt.json';
+import { endCharacter } from './characterPanel';
+import HOUSES from '../houses.json';
+import { stateAt } from '../state/changes';
+import { onPeriod, START } from '../state/time';
+
+/** "Held by" at the moment, as a wiki link, for a seat or a place some house has held by then (state/changes.ts); null otherwise. */
+const heldBy = (name: string): string | null => {
+  const now = stateAt(name).holder, seat = stateAt(name, START).holder;
+  if (!now && !seat) return null;
+  const h = HOUSES.find((x) => x.id === now);
+  return h ? `[${h.name}](${h.title.replace(/ /g, '_')})` : 'no one';
+};
+let shown: Card = null; // the open card, drawn again when the moment changes
+onPeriod(() => { if (shown && !place.hidden) showCard(shown); });
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -15,6 +30,12 @@ const anchor = (href: string, ...kids: (Node | string)[]) => {
 // A name with a place on the map goes there (the card has its own wiki button); `resolve` returns the way there, or null.
 let resolve: (name: string) => (() => void) | null = () => null;
 export const onNavigate = (fn: typeof resolve) => { resolve = fn; };
+// A house chip opens that house's sidebar; main.ts finds the house by its name or sigil file.
+let openHouse: (label: string, file: string) => void = () => {};
+export const onHouse = (fn: typeof openHouse) => { openHouse = fn; };
+// A place with a 3D model (a site, or a building in one) gets the "3D model" button; `modelFor` returns what it opens, or null.
+let modelFor: (c: NonNullable<Card>) => (() => void) | null = () => null;
+export const onModel = (fn: typeof modelFor) => { modelFor = fn; };
 const nameLink = (page: string, label: string, ...kids: (Node | string)[]) => {
   let title = page.split('#')[0];
   try { title = decodeURIComponent(title); } catch { /* keep it raw */ }
@@ -38,33 +59,55 @@ const fill = (el: HTMLElement, text: string) => {
   }
   el.replaceChildren(...nodes, text.slice(last));
 };
+// The focused place is in the address (?place=Name, shareable, opened again by main.ts) and in the tab title.
+let baseTitle = '';
+const syncAddress = (c: Card) => {
+  baseTitle ||= document.title;
+  document.title = c ? `${c.name} · ${baseTitle}` : baseTitle;
+  const u = new URL(location.href);
+  if (c) u.searchParams.set('place', c.name); else u.searchParams.delete('place');
+  history.replaceState(null, '', u);
+};
 export const showCard = (c: Card) => {
+  endCharacter(); // the card is a place's from here on: the character's journey leaves the map and the card's character parts go
+  place.classList.remove('character');
+  for (const s of ['.char-bar', '.char-steps', '.char-credit']) q(s).hidden = true;
   if (place.hidden) place.classList.remove('full', 'min'); // a place opens at rest (phones, style.css)
   place.hidden = !c;
+  if (c) dispatchEvent(new Event('placeopen')); // the house card (ui/housePanel.ts) gives way
+  syncAddress(c);
+  shown = c;
   if (!c) return;
   const info = PLACE_INFO[`${c.name} (${c.kind.toLowerCase()})`] ?? PLACE_INFO[c.name] ?? {};
   const hero = q<HTMLImageElement>('.hero');
   hero.hidden = !info.image;
   hero.src = info.image ?? '';
   q('h1').textContent = c.name;
+  const alt = (PLACE_ALT as Record<string, string>)[c.name];
+  if (alt) q('h1').append(' ', Object.assign(document.createElement('small'), { textContent: `(${alt})` })); // the Dothraki or original name
   q('.kind').textContent = c.kind;
   fill(q('.summary'), c.text ?? info.summary ?? '');
-  q<HTMLAnchorElement>('.act').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
+  const model = modelFor(c);
+  q('.model').hidden = !model;
+  q('.model').onclick = model;
+  q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   // the lead is all the card shows; a link at the end of it when the article has more to read
   const more = q<HTMLAnchorElement>('.more');
-  more.href = q<HTMLAnchorElement>('.act').href; more.hidden = !('more' in info && info.more) || !!c.text;
+  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !('more' in info && info.more) || !!c.text;
   q('.credit').hidden = !info.wiki || !!c.text;
   // Houses of the place: the sigil opens the wiki's file page (author and licence), the name opens the house's article.
   q('.sigils-credit').hidden = !info.houses;
-  q('.houses').replaceChildren(...(info.houses ?? []).map(([page, file, label]) => {
-    const chip = document.createElement('span'), img = new Image();
-    chip.className = 'house';
+  q('.houses').replaceChildren(...(info.houses ?? []).map(([, file, label]) => {
+    const chip = document.createElement('button'), img = new Image();
+    chip.type = 'button'; chip.className = 'house';
     img.src = `/sigils/${file.replace(/\.[^.]+$/, '.webp')}`; img.alt = `Coat of arms of ${label}`;
     img.onerror = () => chip.remove();
-    chip.append(anchor(`${WIKI}File:${file}`, img), nameLink(encodeURIComponent(page.replace(/ /g, '_')), label));
+    chip.append(img, label);
+    chip.onclick = () => openHouse(label, file);
     return chip;
   }));
-  const facts: [string, string][] = [...(c.region ? [['Region', `[${c.region}](${c.region.replace(/ /g, '_')})`] as [string, string]] : []), ...(info.facts ?? [])];
+  const held = heldBy(c.name);
+  const facts: [string, string][] = [...(held ? [['Held by', held] as [string, string]] : []), ...(c.region ? [['Region', `[${c.region}](${c.region.replace(/ /g, '_')})`] as [string, string]] : []), ...(info.facts ?? [])];
   if (c.lat !== undefined && c.lon !== undefined) facts.push(['Coordinates', `${c.lat.toFixed(2)}°, ${c.lon.toFixed(2)}°`]);
   q('.facts').replaceChildren(...facts.map(([k, v]) => {
     const li = document.createElement('li');

@@ -1,3 +1,4 @@
+import { Q } from '../quality';
 import * as THREE from 'three';
 import { PLANET } from '../config';
 import { enuFrame, toVector } from '../geo';
@@ -61,7 +62,7 @@ export function townsMesh(uniforms: Record<string, THREE.IUniform>) {
       if (i < N && j < N) { const a = j * (N + 1) + i, b = a + N + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
     }
     const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)).setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)).setIndex(idx);
-    const map = (tex[t.picture] ??= loader.load(`${import.meta.env.BASE_URL}towns/${pic.src}`, (x) => { x.colorSpace = THREE.SRGBColorSpace; x.anisotropy = 8; x.needsUpdate = true; }));
+    const map = (tex[t.picture] ??= loader.load(`${import.meta.env.BASE_URL}towns/${pic.src}`, (x) => { x.colorSpace = THREE.SRGBColorSpace; x.anisotropy = Q.aniso; x.needsUpdate = true; }));
     const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: { ...uniforms, tPicture: { value: map } }, vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
     mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.name = t.name;
     group.add(mesh);

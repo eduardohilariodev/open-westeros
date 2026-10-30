@@ -1,5 +1,5 @@
 // For every named place on the map, finds where the books mention it and keeps the sentences that say where it is (direction,
-// distance, water, road), with book and chapter, in docs/books/places.json: { name: { mentions: { book: n }, chapters: { book: { chapter: n } }, notes: [{ book, chapter, s }] } }.
+// distance, water, road), with book and chapter, in docs/sources/books/places.json: { name: { mentions: { book: n }, chapters: { book: { chapter: n } }, notes: [{ book, chapter, s }] } }.
 // Start a place audit from `node tools/books/find.mjs`-style quotes here instead of from memory. Usage: node tools/books/place-index.mjs
 import { writeFileSync } from 'node:fs';
 import { PLACES } from '../../src/world-data.ts';
@@ -28,6 +28,6 @@ for (const book of books()) for (const h of sentences(book)) {
   }
 }
 for (const e of Object.values(index)) e.notes = e.notes.sort((a, b) => b.score - a.score).slice(0, MAX_NOTES).map(({ score, ...n }) => n);
-writeFileSync('docs/books/places.json', JSON.stringify(index, null, 1));
+writeFileSync('docs/sources/books/places.json', JSON.stringify(index, null, 1));
 const hit = Object.values(index).filter((e) => Object.keys(e.mentions).length).length;
-console.log(`${hit} of ${Object.keys(index).length} places are mentioned in the books; written to docs/books/places.json`);
+console.log(`${hit} of ${Object.keys(index).length} places are mentioned in the books; written to docs/sources/books/places.json`);

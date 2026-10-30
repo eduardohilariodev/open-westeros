@@ -25,7 +25,7 @@ export const unflatten = (lon: number, lat: number) => MERIDIAN + (lon - MERIDIA
 export const flatten = (lon: number, lat: number) => MERIDIAN + (lon - MERIDIAN) * k(lat);
 
 // Places with a 3D scene of their own. They are ordinary places on the map (matched by name in src/world-data.ts, with the
-// kind given here) that load their scene when the camera comes close.
+// kind given here) whose card opens their scene in the full-screen model view (ui/modelViewer.ts).
 export const SITES = {
   kingsLanding: {
     name: "King's Landing",
@@ -34,7 +34,7 @@ export const SITES = {
     // "roughly square", several miles across. At medieval densities that is ~10-20 sq mi inside the walls,
     // i.e. ~3-4 mi a side. tools/sites/kingsLanding/plan.mjs scales the consensus city plan to this area.
     walledAreaSqMi: 12.25, // a 3.5 mi square's worth
-    drawDistance: 60_000, // the model is drawn closer than this (about 7x its width), so it never pops in as a speck
+    drawDistance: 60_000, // about 7x its width: the model view's overview distance is scaled from it
   },
   winterfell: {
     name: 'Winterfell',
@@ -43,7 +43,3 @@ export const SITES = {
   },
 };
 export type SiteId = keyof typeof SITES;
-
-// A site's 3D scene is drawn over the globe from the globe camera's own pose, so there is one view and one set of controls.
-// It starts loading this far from the site (m) and is drawn closer than SITES[id].drawDistance.
-export const SITE_LOAD_DISTANCE = 350_000;

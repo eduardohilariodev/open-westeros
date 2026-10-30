@@ -1,0 +1,92 @@
+{
+  "about": "Heights in km above sea level, read by tools/world/terrain/pipeline.mjs (stages base-height and range-heights) and checked by its checks. basis 'lore' = a book states or implies it (cite quotes the sentence); basis 'assumption' = canon is silent, so the value is the best guess from nature, maths and a real-world analogue, with the reason. crest = the 99th percentile of the range's cells (the ridge line); summit = the highest point. Lore claims always win over an assumption.",
+  "ranges": [
+    {
+      "name": "The Bone Mountains",
+      "anchors": ["The Bone Mountains", "Krazaaj Zasqa"],
+      "crest": 6.9, "summit": 8.6, "basis": "lore",
+      "cite": "World of Ice and Fire, The Bones: 'Tallest of all the mountain ranges in the known world from the Sunset Sea to Asshai-by-the-Shadow, the Bones extend from the Shivering Sea to the Jade Sea, a wall of twisted rock and sharp stone stretching more than five hundred leagues from north to south'. Only the order is canon: the numbers below are the Himalaya (crest 6-7 km, Everest 8.85 km), kept just under the highest the encoder holds.",
+      "analogue": "Himalaya"
+    },
+    {
+      "name": "The Dry Bones",
+      "anchors": ["The Dry Bones"],
+      "crest": 3.4, "summit": 4.4, "basis": "assumption",
+      "cite": "World of Ice and Fire: 'the southern Bones (sometimes called the Dry Bones, for water is scarce there)', crossed by the Sand Road. Part of the Bones, so no higher than the northern range; canon gives no height, and a road crosses them, so the south end is lower and drier.",
+      "analogue": "Hindu Kush southern end / Zagros: crest 3-4 km"
+    },
+    {
+      "name": "The Mother of Mountains",
+      "anchors": ["The Mother of Mountains"],
+      "crest": 2.3, "summit": 3.2, "basis": "assumption",
+      "cite": "A Game of Thrones, Daenerys: 'the Mother of Mountains looming overhead', seen from Vaes Dothrak on the grass plain. A sacred massif rising from a plain reads as a single isolated mountain.",
+      "analogue": "Ararat / Elbrus-type isolated massifs, scaled down to look prominent over high plains (2-3 km above sea level)"
+    },
+    {
+      "name": "The Mountains of the Moon",
+      "anchors": ["The Mountains of the Moon", "The Bloody Gate"],
+      "crest": 4.4, "summit": 5.9, "basis": "assumption",
+      "cite": "Geology (docs/geology.md): a thrust-stacked Cretaceous/Silurian range with granite cores, the front of a collision, so young and high; the single hard figure is the Giant's Lance below. The rest of the range stays well under the Lance, 'a mountain that even mountains looked up to' (AGOT, Catelyn VI).",
+      "analogue": "Alps / Caucasus: crest 3.5-4.5 km, highest peak 5-5.6 km"
+    },
+    {
+      "name": "The Frostfangs",
+      "anchors": ["The Frostfangs", "Thenn"],
+      "crest": 4.9, "summit": 6.4, "basis": "assumption",
+      "cite": "A Clash of Kings, Jon: 'a river of ice several thousand feet high' (a glacier face, so relief over about 1 km at least); wiki Frostfangs: George R. R. Martin says they are reminiscent of the Himalayas. Lower than the Bones, which are the tallest range of the known world.",
+      "analogue": "Himalayan outer ranges / Karakoram foothills, crest 4.5-5.5 km"
+    },
+    {
+      "name": "The Northern Mountains",
+      "anchors": ["The Northern Mountains"],
+      "crest": 3.3, "summit": 4.3, "basis": "assumption",
+      "cite": "Canon is silent on height. Geology: Cretaceous folded sediments with granite peaks west of the Wall, like the cordillera of the American west.",
+      "analogue": "Rocky Mountains / Cascades: crest 3-3.5 km, summits 4-4.4 km"
+    },
+    {
+      "name": "The Red Mountains",
+      "anchors": ["The Red Mountains", "Blackhaven"],
+      "crest": 2.6, "summit": 3.5, "basis": "assumption",
+      "cite": "Canon is silent on height; the passes (Prince's Pass, the Boneway) are crossed on foot or by cart, which a crest of 2-3 km allows. Geology: Cambrian granite and sediments in a thrust belt, old rock, but pushed up on a collision margin.",
+      "analogue": "Atlas / Sierra Nevada (Spain): crest 2.5-3 km, summits 3.4-3.5 km"
+    },
+    {
+      "name": "The Painted Mountains",
+      "anchors": ["The Painted Mountains"],
+      "crest": 3.0, "summit": 4.0, "basis": "assumption",
+      "cite": "World of Ice and Fire: the grass plain runs 'from the Shivering Sea in the north to the Painted Mountains and Skahazadhan in the south'. Canon gives only the position, so the height is a fold belt on the edge of a plain.",
+      "analogue": "Taurus / Zagros: crest 2.8-3.5 km"
+    },
+    {
+      "name": "The Mountains of the Morn",
+      "anchors": ["The Mountains of the Morn"],
+      "crest": 4.6, "summit": 5.8, "basis": "assumption",
+      "cite": "World of Ice and Fire: 'the Ash runs howling through a narrow cleft in the mountains, between towering cliffs so steep and close that the river is perpetually in shadow'. Steep, deeply cut, in the far east, but lower than the Bones, the tallest range.",
+      "analogue": "Qinling / Hengduan ranges: crest 3.5-4.5 km, summits to 5-6 km"
+    }
+  ],
+  "peaks": [
+    {
+      "name": "The Giant's Lance",
+      "place": "Giant's Lance",
+      "aboveFloor": "The Vale", "km": 5.63, "basis": "lore",
+      "cite": "A Game of Thrones, Catelyn VI: 'Looming over them all was the jagged peak called the Giant's Lance, a mountain that even mountains looked up to, its head lost in icy mists three and a half miles above the valley floor.' 3.5 mi x 1.609 = 5.63 km.",
+      "radiusKm": 16
+    }
+  ],
+  "floors": [
+    {
+      "name": "The Vale",
+      "region": "The Vale",
+      "elevation": 0.2, "basis": "assumption",
+      "cite": "Canon: the Vale is a fertile valley ringed by mountains (Gates of the Moon 'at the foot of the Giant's Lance'). No elevation is stated, so the floor is a large fertile basin at a low altitude, which is also what makes the Lance's 3.5 mi above it a visible drop.",
+      "analogue": "Po plain / Rhine graben, 0.1-0.3 km"
+    }
+  ],
+  "default": {
+    "summitCap": 5.5, "basis": "assumption",
+    "cite": "Ranges with no row above keep the geology-driven heights of the old bake (young rock 4-5 km crests, old rock 2-3 km) but never rise above this, so only the named ranges (the Bones, the Frostfangs, the Moon) stand higher.",
+    "analogue": "Alps / Caucasus ceiling"
+  },
+  "tolerance": { "crest": 0.15, "summit": 0.08, "peak": 0.3 }
+}

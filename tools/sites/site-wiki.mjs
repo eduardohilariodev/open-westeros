@@ -1,5 +1,5 @@
 // What the place panel shows for the named places of the 3D sites (Winterfell, King's Landing): each one's passage from the
-// scraped wiki article of its site (docs/wiki, npm run wiki), written to src/sites/site-wiki.json, which place-info.ts merges
+// scraped wiki article of its site (docs/sources/wiki, npm run wiki), written to src/sites/site-wiki.json, which place-info.ts merges
 // in. Places the article gives only a name (or nothing) are left out and keep their lore text (src/sites/*/lore.ts).
 // Usage: node tools/sites/site-wiki.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -62,7 +62,7 @@ const SITES = [
 
 const out = {};
 for (const site of SITES) {
-  const md = readFileSync(`docs/wiki/${site.article.replace(/ /g, '_')}.md`, 'utf8').split(/\r?\n/);
+  const md = readFileSync(`docs/sources/wiki/${site.article.replace(/ /g, '_')}.md`, 'utf8').split(/\r?\n/);
   const lines = md.slice(md.findIndex((l) => l === site.from), md.findIndex((l) => l === site.to));
   for (const [name, spec] of Object.entries(site.places)) {
     const line = lines.find((l) => spec.find.test(l));

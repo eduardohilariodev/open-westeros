@@ -12,7 +12,7 @@ from diffusers import ControlNetModel, StableDiffusionControlNetPipeline, UniPCM
 
 DIR = 'assets/satellite/proto'
 TILE, OVERLAP = 512, 64
-# GeoSynth's captions read "Satellite image features ..."; ours keep that form. Sources: docs/wiki/*.md.
+# GeoSynth's captions read "Satellite image features ..."; ours keep that form. Sources: docs/sources/wiki/*.md.
 PROMPTS = {
     'city': "Satellite image features a dense medieval city with red tile roofs, narrow winding streets and a large stone castle",
     'village': "Satellite image features a medieval village of thatched houses beside a huge black stone castle on a lake shore, farmland and meadows",

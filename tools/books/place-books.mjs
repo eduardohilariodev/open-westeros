@@ -1,5 +1,5 @@
 // Where each place appears in the novels, as one fact row for the place panel: references only (book, POV chapters), no text from
-// the books. Reads docs/books/places.json (place-index.mjs), writes src/place-books.json: { place: "AGOT: Tyrion, Jon; ACOK: ..." }.
+// the books. Reads docs/sources/books/places.json (place-index.mjs), writes src/place-books.json: { place: "AGOT: Tyrion, Jon; ACOK: ..." }.
 // Usage: node tools/books/place-books.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -8,7 +8,7 @@ const OTHER = { 'a-knight-of-the-seven-kingdoms': 'Dunk & Egg', 'fire-and-blood'
 const MIN = 2, POVS = 4; // a place mentioned once or twice is not "in" a book; the most frequent chapters only
 const title = (c) => c.toLowerCase().replace(/(^| )(\w)/g, (_, sp, ch) => sp + ch.toUpperCase());
 const NOT_A_CHAPTER = /^(CONTENTS|PROLOGUE|EPILOGUE|APPENDIX|THE KINGS AND THEIR COURTS|HOUSE )/; // the appendices are headed by house names
-const index = JSON.parse(readFileSync('docs/books/places.json', 'utf8'));
+const index = JSON.parse(readFileSync('docs/sources/books/places.json', 'utf8'));
 const out = {};
 for (const [name, e] of Object.entries(index)) {
   const parts = [];
