@@ -20,3 +20,4 @@ public/world-test/
 docs/sources/*
 !docs/sources/README.md
 !docs/sources/atlas-blog/
+.env
