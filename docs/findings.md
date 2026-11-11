@@ -11,6 +11,11 @@
 `- So: what to do or avoid next time
 ````
 `
+## 2026-11-11 analytics: PostHog replaces Vercel Analytics
+- What: `main.ts` lazy-imports `posthog-js` in builds when `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` are set (`.env.local`, git-ignored; the build runs locally before `wasmer deploy`, so it reads them). Session replay off on phones (`LOW`).
+- Evidence: `posthog-cli api call project-get` gives a project's `api_token` and `api_host`; the CLI's key here is scoped to the "Portfolio" project (127544) only, so `projects-get` is denied and a new project's token must come from its settings.
+- So: no key, no analytics, silently; check the env before deploying.
+
 ## 2026-11-11 perf: first visit 45 MB -> 17 MB desktop, 12 MB phone; phone loads one map at a time
 - What: half-size relief maps (`tools/world/relief-half.mjs`: a/b box mean, h mean of the decoded 16-bit height, e top-left pixel only, because blending a signed distance across a sign flip draws rivers that aren't there); desktop swaps in full a/b below 3,000 km. Clouds are `earth_clouds-4k.webp` (greyscale, only R is read), desktop only, after the land; sky `milky_way.webp` / `milky_way-2k.webp`; the JPGs are gone. Phones decode maps sequentially. sw.js keeps media in `media-<hash of public/>` across deploys. `compileAsync` behind the loading screen; globe shadow map off; `loadTexture` and the half maps fall back instead of hanging. Build drops `world-test/` (dist 218 -> 134 MB with Winterfell's compression). `@vercel/analytics` removed (404s off Vercel).
 - Evidence: CDP byte count on dist/ (scratchpad bw/measure3.mjs): desktop 17.3 MB, `?quality=low` 11.6 MB; loading overlay gone in ~12 s both, SwiftShader. LOW home and Winterfell shots look right; tsc, 75 tests, lore check pass.
@@ -20,6 +25,11 @@
 - What: `GlobeView.update` projects each place once per pass (`toScreen` cache), `createDeclutter` uses a 64 px spatial hash (was O(n²) over placed boxes), `lineStretches` is reused while the camera moved under 1.5 px (`stretchesMemo`) and its `at()` is a binary search; `labelRenderer.ts` wraps CSS2DRenderer to skip when camera, window and label objects' visibility/position are unchanged, and runs the z-order sort every 8th render and once on settle.
 - Evidence: headless Chrome flight Winterfell to King's Landing (5 s, SwiftShader), ms per frame, update / labels.render: 1x CPU 10.7 / 2.1 before, 7.4 / 1.5 after; 4x CPU 49.8 / 12.1 before, 26.1 / 7.2 after. Winterfell and King's Landing shots look the same; `src/declutter.test.ts` adds a brute-force equivalence case; tsc and 75 tests pass.
 - So: `lineStretches` is still the biggest self-time in a moving pass (fast flights miss the memo); next is skipping the full pass every 2nd frame while moving (not done). Noise between runs is about 10 percent.
+
+## 2026-11-11 wiki: no text is fetched from the wiki at run time; only pictures
+- What: every wiki text the app shows is bundled (`src/place-wiki.json`, `house-wiki.json`, `character-wiki.json`, `sites/site-wiki.json`, `sites/kingsLanding/lore.ts`). The only awoiaf requests are pictures (`thumb.php`, hero and gallery); `WIKI`/`WIKI_YEAR` URLs are outbound links only.
+- Evidence: `grep fetch( src` hits only local files; `npm run shot -- Winterfell "King's Landing" Harrenhal --eval <resource entries by host>` -> only `awoiaf.westeros.org img /thumb.php`, 15 / 17 / 19 cumulative (about 15 for the first card, 2 for each next one). One picture fails with `ERR_BLOCKED_BY_RESPONSE.NotSameOrigin` (the wiki's cross-origin policy).
+- So: nothing to localise for text. If wiki load matters later, the gallery thumbnails are the lever (load them when the gallery opens, or mirror them); the owner keeps hot-linked pictures for now.
 
 ## 2026-11-11 deploy: Wasmer deploys from GitHub on push to main; live site is still the Oct 30 commit
 - What: app `openwesteros` (`da_KE4I8tXUNPAP`) has `githubRepoConnection` deployBranch `main` (connected 2026-11-11 22:12, PR comments on), autobuild running `npm run build` with `static_dir: dist`. One version only (22:12, the push of `ec3daa5`, Oct 30); nothing pushed since, so none of the 11-11 work (SEO, place pages, domain) is live. No GitHub Actions in the repo. The `wasmer` CLI says "not logged in" for `whoami`, but the token in `~/.wasmer/wasmer.toml` works on the GraphQL API.
