@@ -1,3 +1,4 @@
+import { capture } from '../posthog';
 import type { Card } from '../globe/GlobeView';
 import { PLACE_INFO } from '../place-info';
 import PLACE_ALT from '../place-alt.json';
@@ -96,7 +97,10 @@ export const showCard = (c: Card) => {
   fill(q('.summary'), c.text ?? info.summary ?? '');
   const model = modelFor(c);
   q('.model').hidden = !model;
-  q('.model').onclick = model;
+  q('.model').onclick = model ? () => {
+    capture('model_view_opened');
+    model();
+  } : null;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   // the lead is all the card shows; a link at the end of it when the article has more to read
   const more = q<HTMLAnchorElement>('.more');

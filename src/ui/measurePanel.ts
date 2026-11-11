@@ -1,5 +1,6 @@
 import type { MeasureState } from '../globe/measure';
 import { imperial, landLeagues, metric, nautical, PACES, seaLeagues, travelTime } from '../measureUnits';
+import { capture } from '../posthog';
 
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -30,8 +31,17 @@ export function initMeasurePanel(wool: { setActive(on: boolean): void; undo(): v
     ].join('');
     paces.innerHTML = PACES.map((p) => row(p.name, travelTime(m, p.kmh), `${p.kmh} km/h: ${p.note}`)).join('');
   };
-  btn.onclick = () => { if (!wool.active) onStart(); wool.setActive(!wool.active); }; // measuring and focusing a place exclude each other
+  btn.onclick = () => {
+    if (!wool.active) {
+      capture('measurement_started');
+      onStart();
+    }
+    wool.setActive(!wool.active);
+  }; // measuring and focusing a place exclude each other
   $('measureUndo').onclick = () => wool.undo();
-  $('measureClear').onclick = () => wool.clear();
+  $('measureClear').onclick = () => {
+    capture('measurement_cleared');
+    wool.clear();
+  };
   $('measureClose').onclick = () => { wool.setActive(false); wool.clear(); };
 }

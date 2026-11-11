@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { atlasLog, capture } from './posthog';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, onHouse, onModel, onNavigate, placeSlug, showCard } from './ui/placePanel';
@@ -79,7 +80,13 @@ const crossfade = (on: boolean) => {
   fader.style.transition = 'opacity .7s ease-in-out';
   fader.style.opacity = '0';
 };
-reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== 'true');
+reliefBtn.onclick = () => {
+  const reliefEnabled = reliefBtn.getAttribute('aria-pressed') !== 'true';
+  const style = reliefEnabled ? 'relief' : 'flat';
+  capture('map_style_changed', { style });
+  atlasLog.info('map style changed', { operation: 'map_style_change', style });
+  showStyle(reliefEnabled);
+};
 reliefBtn.querySelector('.name')!.textContent = 'Map';
 
 // Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
@@ -139,7 +146,12 @@ const setHouses = (on: boolean) => {
   modeBtns.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'houses') === on)));
   wake();
 };
-modeBtns.forEach((b) => { b.onclick = () => setHouses(b.dataset.mode === 'houses'); });
+modeBtns.forEach((b) => { b.onclick = () => {
+  const mode = b.dataset.mode === 'houses' ? 'houses' : 'regions';
+  capture('atlas_mode_changed', { mode });
+  atlasLog.info('atlas mode changed', { operation: 'atlas_mode_change', mode });
+  setHouses(mode === 'houses');
+}; });
 const timelineBtn = $('yearBtn');
 const setTimeline = (on: boolean) => {
   showTimeline(on);
@@ -157,7 +169,12 @@ const showMoment = () => {
 };
 onPeriod(showMoment); showMoment();
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('timeline-on') && !(e.target instanceof HTMLInputElement)) setTimeline(false); });
-timelineBtn.onclick = () => setTimeline(!document.body.classList.contains("timeline-on"));
+timelineBtn.onclick = () => {
+  const open = !document.body.classList.contains('timeline-on');
+  capture('timeline_toggled', { open });
+  atlasLog.info('timeline visibility changed', { operation: 'timeline_toggle', open });
+  setTimeline(open);
+};
 if (linkedMoment) setTimeline(true); // a ?when= link opens the timeline
 globe.onHouseFocus((id) => { if (id) globe.clearPlace(); housePanel.show(id); wake(1500); }); // a house card and a place card are never open together
 addEventListener('placeopen', () => globe.houses.focus(null));
@@ -221,7 +238,10 @@ const setActive = (n: number) => {
   results.children[n]?.scrollIntoView({ block: 'nearest' });
 };
 const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); };
-const go = (m: Item) => { m.go(); search.value = ''; search.blur(); closeResults(); };
+const go = (m: Item) => {
+  capture('search_result_selected', { result_kind: m.kind });
+  m.go(); search.value = ''; search.blur(); closeResults();
+};
 const renderResults = () => {
   const raw = search.value.trim(), q = fold(raw);
   if (!q) return closeResults();
