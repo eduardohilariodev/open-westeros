@@ -13,10 +13,8 @@ assets/
 /*.jpg
 /*.png
 
-# Built from the sources by tools/; rebuild locally
-public/world/
+# Built from the sources by tools/. world/ and sites/ are committed: Wasmer builds the site from GitHub, so they must be in the repo (decision 2026-11-11, findings)
 public/world-test/
-public/sites/
 
 # Reference sources, local only; catalogue and rebuild steps in docs/sources/README.md
 docs/sources/*
