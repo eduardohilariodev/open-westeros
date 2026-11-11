@@ -3,28 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Open Westeros: The Known World of Ice and Fire</title>
-  <meta name="description" content="Open Westeros is a free interactive 3D atlas of the Known World of A Song of Ice and Fire. Explore Westeros and Essos on a globe or flat map, from the Wall to King's Landing, with lore from the Wiki of Ice and Fire." />
-  <meta name="keywords" content="Westeros map, interactive map of Westeros, Game of Thrones map, A Song of Ice and Fire map, Known World, Essos, King's Landing, Winterfell, the Wall, 3D globe" />
+  <!-- SEO: title, description and canonical are rewritten per place by tools/seo/prerender.mjs (dist/place/<slug>/); keep these tags one per line -->
+  <title>Westeros Map: Interactive Game of Thrones Map | Open Westeros</title>
+  <meta name="description" content="Free interactive Westeros map: explore the Game of Thrones and House of the Dragon world on a 3D globe. 700+ places in Westeros and Essos, the great houses, battles, character journeys and distances." />
+  <meta name="keywords" content="Westeros map, map of Westeros, Game of Thrones map, House of the Dragon map, Essos map, map of Westeros and Essos, interactive Game of Thrones map, A Song of Ice and Fire map, ASOIAF map, Known World map, Seven Kingdoms map, King's Landing map, Winterfell map, the Wall, Dragonstone" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#150d0f" />
-  <link rel="canonical" href="https://open-westeros.vercel.app/" />
+  <link rel="canonical" href="https://www.openwesteros.com/" />
   <link rel="icon" type="image/webp" href="/coin/valar.webp" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Open Westeros" />
-  <meta property="og:title" content="Open Westeros: The Known World of Ice and Fire" />
-  <meta property="og:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
-  <meta property="og:url" content="https://open-westeros.vercel.app/" />
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Open Westeros: The Known World of Ice and Fire" />
-  <meta name="twitter:description" content="Explore Westeros and Essos on a free interactive 3D globe and flat map, with lore for every location." />
-  <button id="yearBtn" type="button" aria-pressed="false" title="Show the timeline" aria-label="Show the timeline of years and chapters"><b></b><span></span></button>
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Open Westeros: The Known World of Ice and Fire","alternateName":"Open Westeros","url":"https://open-westeros.vercel.app/","description":"A free interactive 3D atlas of the Known World of A Song of Ice and Fire.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","isAccessibleForFree":true,"inLanguage":"en","codeRepository":"https://github.com/eduardohilariodev/open-westeros"}</script>
+  <meta property="og:title" content="Westeros Map: Interactive Game of Thrones Map | Open Westeros" />
+  <meta property="og:description" content="Explore Westeros and Essos on a free interactive 3D globe: 700+ places, the great houses, battles and character journeys from Game of Thrones, House of the Dragon and the books." />
+  <meta property="og:url" content="https://www.openwesteros.com/" />
+  <meta property="og:image" content="https://www.openwesteros.com/og-westeros-map.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Interactive 3D map of Westeros and Essos across the Narrow Sea" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Westeros Map: Interactive Game of Thrones Map | Open Westeros" />
+  <meta name="twitter:description" content="Explore Westeros and Essos on a free interactive 3D globe: 700+ places, the great houses, battles and character journeys from Game of Thrones, House of the Dragon and the books." />
+  <meta name="twitter:image" content="https://www.openwesteros.com/og-westeros-map.jpg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Open Westeros","alternateName":["Westeros Map","Game of Thrones Map"],"url":"https://www.openwesteros.com/","inLanguage":"en"},{"@type":"WebApplication","name":"Open Westeros: Interactive Westeros Map","alternateName":["Westeros Map","Game of Thrones Map","Map of Westeros and Essos","House of the Dragon Map"],"url":"https://www.openwesteros.com/","image":"https://www.openwesteros.com/og-westeros-map.jpg","description":"A free interactive 3D map of Westeros and Essos, the Known World of Game of Thrones, House of the Dragon and A Song of Ice and Fire: 700+ places, the great houses, battles, character journeys and distances.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true,"inLanguage":"en","about":[{"@type":"CreativeWork","name":"A Song of Ice and Fire"},{"@type":"TVSeries","name":"Game of Thrones"},{"@type":"TVSeries","name":"House of the Dragon"}],"codeRepository":"https://github.com/eduardohilariodev/open-westeros"}]}</script>
   <link rel="preload" href="/fonts/SignikaNegative-300-700-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/fonts/fonts.css" />
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body data-mode="globe">
-  <noscript><h1>Open Westeros: The Known World of Ice and Fire</h1><p>An interactive 3D atlas of Westeros and Essos. Enable JavaScript to explore the map.</p></noscript>
+  <!-- was inside <head>, which ended the head early for every parser; the browser put it here anyway -->
+  <button id="yearBtn" type="button" aria-pressed="false" title="Show the timeline" aria-label="Show the timeline of years and chapters"><b></b><span></span></button>
+  <noscript><h1>Westeros Map: Interactive Game of Thrones Map</h1><p>A free interactive 3D map of Westeros and Essos. Enable JavaScript to explore the map.</p></noscript>
   <div id="loading"><div id="coinStage"><div class="toss"><div class="flip"><div class="coin"><img src="/coin/valar.webp" alt=""><img class="back" src="/coin/hood.webp" alt=""><i style="--z:-3.5px"></i><i style="--z:-2.5px"></i><i style="--z:-1.5px"></i><i style="--z:-0.5px"></i><i style="--z:0.5px"></i><i style="--z:1.5px"></i><i style="--z:2.5px"></i><i style="--z:3.5px"></i></div></div></div></div><h1>Open Westeros</h1><p class="sub">The Known World of Ice and Fire</p><p id="loadMsg"></p></div>
   <div id="globeLabels" class="labels"></div>
   <div id="viewer" hidden>

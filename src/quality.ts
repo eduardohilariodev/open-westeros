@@ -7,14 +7,14 @@ const weak = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, s
 
 export const LOW = forced ? forced === 'low' : weak;
 export const Q = LOW
-  ? { ratio: 1.5, aa: false, aniso: 2, skyPx: 2048, mapPx: 2400, shadow: 2048, targetPx: 10, detail: false, clouds: false }
-  : { ratio: 2, aa: true, aniso: 8, skyPx: 0, mapPx: 0, shadow: 4096, targetPx: 6, detail: true, clouds: true };
+  ? { ratio: 1.5, aa: false, aniso: 2, shadow: 2048, targetPx: 10, detail: false, clouds: false }
+  : { ratio: 2, aa: true, aniso: 8, shadow: 4096, targetPx: 6, detail: true, clouds: true };
 
-/** A texture decoded at most `maxPx` wide (0 = as is): a big picture is shrunk while decoding, so the full size never reaches the GPU. */
-export function loadTexture(url: string, maxPx: number, onLoad?: (t: THREE.Texture) => void) {
+/** A texture filled once `url` is decoded (phones get their own smaller files: relief-*-half, milky_way-2k). Stays empty if it fails. */
+export function loadTexture(url: string, onLoad?: (t: THREE.Texture) => void) {
   const t = new THREE.Texture();
-  fetch(url).then((r) => r.blob()).then((b) => createImageBitmap(b, maxPx ? { resizeWidth: maxPx, resizeQuality: 'medium', imageOrientation: 'flipY' } : { imageOrientation: 'flipY' })).then((bmp) => {
+  fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.blob(); }).then((b) => createImageBitmap(b, { imageOrientation: 'flipY' })).then((bmp) => {
     t.image = bmp; t.needsUpdate = true; onLoad?.(t);
-  });
+  }).catch((e) => console.warn(`texture ${url}:`, e));
   return t;
 }

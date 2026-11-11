@@ -6,13 +6,18 @@ import type { Object3D } from 'three';
 
 /** One frame's placed boxes. `claim` takes a spot for a box (or a chain of boxes, all or none) unless it overlaps one already placed (within the padding); `force` takes it anyway. */
 export function createDeclutter(padX = 4, padY = 4) {
-  const taken: number[][] = [];
+  const CELL = 64, grid = new Map<number, number[][]>(); // placed boxes by 64 px cell, so a claim only meets its neighbours
+  const cell = (v: number) => Math.min(127, Math.max(-32, Math.floor(v / CELL))); // clamped: far off-screen boxes share the edge cells, which only adds candidates
+  const cells = (b: number[], px: number, py: number, fn: (list: number[][] | undefined, key: number) => boolean | void) => {
+    for (let cx = cell(b[0] - px), x1 = cell(b[2] + px); cx <= x1; cx++) for (let cy = cell(b[1] - py), y1 = cell(b[3] + py); cy <= y1; cy++) if (fn(grid.get((cx + 32) * 256 + cy + 32), (cx + 32) * 256 + cy + 32)) return true;
+    return false;
+  };
   const overlaps = (a: number[], b: number[]) => a[0] < b[2] + padX && b[0] < a[2] + padX && a[1] < b[3] + padY && b[1] < a[3] + padY;
   return {
     claim(box: number[] | number[][], force = false) {
       const boxes = typeof box[0] === 'number' ? [box as number[]] : (box as number[][]);
-      if (!force && boxes.some((b) => taken.some((t) => overlaps(t, b)))) return false;
-      taken.push(...boxes);
+      if (!force && boxes.some((b) => cells(b, padX, padY, (list) => !!list?.some((t) => overlaps(t, b))))) return false;
+      for (const b of boxes) cells(b, 0, 0, (list, key) => { (list ?? (grid.set(key, (list = [])), list)).push(b); });
       return true;
     },
   };

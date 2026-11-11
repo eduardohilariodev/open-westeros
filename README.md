@@ -2,7 +2,7 @@
 
 **A community-built, Google Earth–style 3D atlas of the Known World.** Spin the planet, dive into King's Landing, walk the walls of Winterfell — and help build the rest.
 
-**Live preview:** [open-westeros.vercel.app](https://open-westeros.vercel.app) — public.
+**Live preview:** [www.openwesteros.com](https://www.openwesteros.com) — public.
 
 ## Manifesto
 

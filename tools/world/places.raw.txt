@@ -113,6 +113,7 @@ Lordsport|town|-|0_2500 848,1187
 Hammerhorn|castle|-|0_2500 740,1150
 Riverrun|capital|ll:40.239,-13.567|0_2500 1175,1285
 Harrenhal|ruin|ll:38.789,-9.646|0_2500 1407,1377
+Harrenton|town|ll:38.789,-9.676|-
 God's Eye|lake|1640,2900|0_2500 1350,1385
 The Isle of Faces|island|1710,2830|0_2500 1397,1432
 The Trident|river|ll:40.023,-8.944|0_2500 1424,1245

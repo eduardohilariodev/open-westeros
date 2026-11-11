@@ -45,7 +45,7 @@ export async function createKingsLandingView(renderer: THREE.WebGLRenderer, labe
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
     return t;
   };
-  const terrainMat = edgeFade(mat(0xffffff, { map: loadTex(`${DIR}/ground.png`), roughness: 1 }));
+  const terrainMat = edgeFade(mat(0xffffff, { map: loadTex(`${DIR}/ground.webp`), roughness: 1 }));
   const terrain = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, T.cols - 1, T.rows - 1), terrainMat);
   {
     const g = terrain.geometry;

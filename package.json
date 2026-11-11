@@ -8,7 +8,8 @@
     "coast": "node tools/world/coast-refine.mjs",
     "coast:run": "node tools/world/coast-run.mjs",
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node tools/seo/prerender.mjs",
+    "deploy:wasmer": "npm run build && wasmer deploy",
     "plan": "node tools/sites/kingsLanding/plan.mjs",
     "analyze": "node tools/sites/kingsLanding/analyze.mjs",
     "gis": "node tools/sites/kingsLanding/export-gis.mjs",
@@ -49,7 +50,6 @@
     "vite": "^8.3.4"
   },
   "dependencies": {
-    "@vercel/analytics": "^2.0.1",
     "three": "^0.186.1"
   }
 }

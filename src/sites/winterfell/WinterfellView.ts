@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { createSiteScene, edgeFade, type Place, type SiteView } from '../SiteScene';
 import { LORE } from './lore';
 import { createProceduralWinterfellView } from './procedural';
@@ -56,7 +57,7 @@ export async function createWinterfellView(renderer: THREE.WebGLRenderer, labels
     const mtx = new THREE.Matrix4().compose(m4.set(d[k + 1], d[k + 2], d[k + 3]), q.set(d[k + 4], d[k + 5], d[k + 6], d[k + 7]), new THREE.Vector3(s, s, s));
     byModel.set(d[k], [...(byModel.get(d[k]) ?? []), mtx]);
   }
-  const loader = new GLTFLoader();
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // the GLBs are meshopt-compressed (tools/sites/winterfell/compress.mjs)
   await Promise.all([...byModel].map(async ([mi, mats]) => {
     const model = data.models[mi];
     const gltf = await loader.loadAsync(`${DIR}/${model.file}`);

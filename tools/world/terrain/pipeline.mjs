@@ -10,6 +10,7 @@ import { METRES_PER_DEGREE } from '../../../src/config.ts';
 import { PLACES } from '../../../src/world-data.ts';
 import { BIOMES, loadBiomes } from '../vegetation.mjs';
 import { fileHash, hash } from './cache.mjs';
+import { HALVED, writeHalf } from '../relief-half.mjs';
 import { erosionFilter } from './erosion-filter.mjs';
 import { accumulate, bedProfile, nearestOwner, pathPixels, priorityFlood } from './hydrology.mjs';
 import { makeSinks, orientLine } from '../river-orient.mjs';
@@ -774,6 +775,7 @@ export function buildPipeline(opts = {}) {
       const out = await img.webp({ lossless: true, exact: true }).toBuffer(); // exact: keep the RGB of transparent pixels (alpha is data here)
       writeFileSync(`${dir}/${name}.webp`, out);
       T.note(`${name}.webp ${(out.length / 1e6).toFixed(2)} MB`);
+      if (HALVED.includes(name)) T.note(`${name}-half.webp ${((await writeHalf(dir, name, data, W, H)) / 1e6).toFixed(2)} MB`); // phones and the first load (relief.ts)
     }
     writeFileSync(`${dir}/relief-rivers.json`, JSON.stringify(riverLines)); // [[lon, lat, q, ...] per river]: the globe's vector rivers
     writeFileSync(opts.outDir ? `${dir}/relief-bounds.json` : 'src/globe/relief-bounds.json', JSON.stringify({

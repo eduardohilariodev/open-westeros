@@ -1,0 +1,6 @@
+kind: wasmer.io/App.v0
+name: openwesteros
+package: .
+capabilities:
+  cdn_cache:
+    enabled: true

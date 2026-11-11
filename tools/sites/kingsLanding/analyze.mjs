@@ -1,4 +1,4 @@
-// Analyses the top-down city map (plan.mjs output) and writes public/sites/kingsLanding/{city.json, ground.png}.
+// Analyses the top-down city map (plan.mjs output) and writes public/sites/kingsLanding/{city.json, ground.webp}.
 // Positions of the wall, gates and places come from the consensus plan; houses, trees and streets are read off the
 // unwarped painting; heights from terrain.mjs. Run plan.mjs first.
 // Usage: node tools/sites/kingsLanding/analyze.mjs [debugDir]   -> debugDir gets an alignment overlay PNG.
@@ -206,7 +206,7 @@ console.log(`buildings ${buildings.length / 10}, trees ${trees.length / 4}, terr
   const pal = { [WATER]: [70, 95, 105], [COUNTRY]: [176, 178, 112], [BUILT]: [150, 132, 104], [STREET]: [196, 182, 150], [TREE]: [92, 120, 62] };
   const img = Buffer.alloc(N * 3);
   for (let i = 0; i < N; i++) img.set(pal[cls[i]], i * 3);
-  await sharp(img, { raw: { width: W, height: H, channels: 3 } }).blur(1.2).resize(2048).png().toFile(`${OUT}/ground.png`);
+  await sharp(img, { raw: { width: W, height: H, channels: 3 } }).blur(1.2).resize(2048).webp({ quality: 88 }).toFile(`${OUT}/ground.webp`);
 }
 
 if (debugDir) {

@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import { inject } from '@vercel/analytics';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
-import { isOpen, onClose, onHouse, onModel, onNavigate, showCard } from './ui/placePanel';
+import { isOpen, onClose, onHouse, onModel, onNavigate, placeSlug, showCard } from './ui/placePanel';
 import { showCharacter } from './ui/characterPanel';
 import { initHousePanel, initWhen, sigilUrl } from './ui/housePanel';
 import { BOOKS, CHAPTERS, EPISODES, chapterTitle, getBook, getMoment, momentFromSearch, onPeriod, setMoment, START, yearOf } from './state/time';
@@ -19,11 +18,8 @@ import { initNav } from './ui/nav';
 import { Q } from './quality';
 
 // Built only: the service worker keeps fetched files for the next visit (public/sw.js); the dev server always serves fresh ones.
-declare const __BUILD__: string;
-if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=${__BUILD__}`);
-
-// Initialize Vercel Web Analytics
-inject();
+declare const __BUILD__: string, __MEDIA__: string;
+if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=${__BUILD__}&m=${__MEDIA__}`);
 
 // The globe's renderer. The 3D places have their own, in the full-screen model view (ui/modelViewer.ts).
 const renderer = new THREE.WebGLRenderer({ antialias: Q.aa, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
@@ -32,8 +28,6 @@ const MAX_RATIO = Math.min(devicePixelRatio, Q.ratio);
 renderer.setPixelRatio(MAX_RATIO);
 renderer.setSize(innerWidth, innerHeight);
 renderer.autoClear = false; // the globe's pass clears (its background colour)
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.prepend(renderer.domElement);
 
@@ -138,6 +132,8 @@ const housePanel = initHousePanel({
 });
 let awakeUntil = performance.now() + 5000;
 const wake = (ms = 1000) => { awakeUntil = Math.max(awakeUntil, performance.now() + ms); };
+// three.js rebuilds its GL state and re-uploads the textures (their bitmaps stay in memory); the loop sleeps when idle, so draw again
+renderer.domElement.addEventListener('webglcontextrestored', () => wake(2000));
 const setHouses = (on: boolean) => {
   globe.houses.setVisible(on);
   modeBtns.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'houses') === on)));
@@ -266,10 +262,14 @@ results.addEventListener('mousedown', (e) => {
 
 // Start in 3D: keep the loading screen up until the relief maps and mesh are in (on failure it resolves and stays flat).
 await globe.relief.ready;
-globe.relief.warm(renderer, globe.camera);
+// Every program the first frames draw, compiled behind the loading screen; compileAsync polls KHR_parallel_shader_compile where the GPU
+// has it, so the page stays responsive instead of freezing for seconds on the first draw (findings 2026-11-11).
+await Promise.all([renderer.compileAsync(globe.scene, globe.camera), globe.relief.warm(renderer, globe.camera)]).catch(() => {});
 // A link with ?place=Name opens on that place.
 // With &view=3d it opens that place's 3D model too: a site, or a building in one (each site is tried until one has it).
-const params = new URLSearchParams(location.search), linked = params.get('place');
+// A place's own page, /place/<slug>/ (tools/seo/prerender.mjs), opens on that place the same way.
+const params = new URLSearchParams(location.search), pathSlug = location.pathname.match(/^\/place\/([^/]+)/)?.[1];
+const linked = params.get('place') ?? (pathSlug ? mapItems.find((m) => placeSlug(m.label) === pathSlug)?.label ?? null : null);
 const linkedHouse = params.get('house');
 if (linkedHouse) houseItems[(houseData as unknown as House[]).findIndex((h) => h.id === linkedHouse)]?.go(); // ?house=tully opens the overlay on that house
 const linkedItem = linked ? mapItems.find((m) => fold(m.label) === fold(linked)) : undefined;

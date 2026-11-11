@@ -1,6 +1,7 @@
 import type { Card } from '../globe/GlobeView';
 import { PLACE_INFO } from '../place-info';
 import PLACE_ALT from '../place-alt.json';
+import { PLACES } from '../world-data';
 import { endCharacter } from './characterPanel';
 import HOUSES from '../houses.json';
 import { stateAt } from '../state/changes';
@@ -59,13 +60,19 @@ const fill = (el: HTMLElement, text: string) => {
   }
   el.replaceChildren(...nodes, text.slice(last));
 };
-// The focused place is in the address (?place=Name, shareable, opened again by main.ts) and in the tab title.
-let baseTitle = '';
+/** A place's page path, /place/<slug>/: tools/seo/prerender.mjs writes one per map place with the same rule (keep them in step). */
+export const placeSlug = (name: string) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const PAGES = new Set(PLACES.map((p) => p[0]));
+// The focused place is in the address and in the tab title. A map place gets its own page, /place/<slug>/ (shareable, so shared
+// links point at the page search engines index; opened again by main.ts); a place without one (a building of a 3D site) keeps ?place=Name.
+// The titles match index.html's and the prerendered pages', so a crawler that runs the script reads the same title.
+const HOME_TITLE = 'Westeros Map: Interactive Game of Thrones Map | Open Westeros';
 const syncAddress = (c: Card) => {
-  baseTitle ||= document.title;
-  document.title = c ? `${stateAt(c.name).name ?? c.name} · ${baseTitle}` : baseTitle;
+  document.title = c ? `${stateAt(c.name).name ?? c.name} Map · Open Westeros` : HOME_TITLE;
   const u = new URL(location.href);
-  if (c) u.searchParams.set('place', c.name); else u.searchParams.delete('place');
+  u.searchParams.delete('place');
+  u.pathname = c && PAGES.has(c.name) ? `/place/${placeSlug(c.name)}/` : '/';
+  if (c && !PAGES.has(c.name)) u.searchParams.set('place', c.name);
   history.replaceState(null, '', u);
 };
 export const showCard = (c: Card) => {

@@ -1,5 +1,6 @@
 // Tiny glTF 2.0 binary (.glb) writer: one node, one mesh, one primitive per material; textures by external URI.
 import { writeFileSync } from 'node:fs';
+import { compressGLB } from './compress.mjs'; // geometry goes out meshopt-compressed (the view registers MeshoptDecoder)
 
 /**
  * prims: [{ positions: Float32Array, normals?: Float32Array, uvs?: Float32Array, colors?: Uint8Array (RGBA),
@@ -67,5 +68,5 @@ export function writeGLB(file, prims) {
   const header = Buffer.alloc(12);
   header.write('glTF', 0); header.writeUInt32LE(2, 4); header.writeUInt32LE(12 + 8 + jsonBuf.length + 8 + bin.length, 8);
   const ch = (len, type) => { const b = Buffer.alloc(8); b.writeUInt32LE(len, 0); b.write(type, 4); return b; };
-  writeFileSync(file, Buffer.concat([header, ch(jsonBuf.length, 'JSON'), jsonBuf, ch(bin.length, 'BIN\0'), bin]));
+  writeFileSync(file, compressGLB(Buffer.concat([header, ch(jsonBuf.length, 'JSON'), jsonBuf, ch(bin.length, 'BIN\0'), bin])));
 }

@@ -11,7 +11,7 @@ assets/ (git-ignored source maps)
   -> tools/books    book index, claims, distances            -> src/place-books.json, docs/sources/books/
   -> tools/world/battles.mjs  battles.json -> battle rows of places.raw.txt
   -> tools/wiki     wiki mirror, place info, sigils          -> docs/sources/wiki/, place info
-  -> tools/sites    per-site plans (kingsLanding, winterfell) -> public/sites/
+  -> tools/sites    per-site plans (kingsLanding, winterfell) -> public/sites/ (Winterfell GLBs meshopt-compressed and alpha textures WebP by winterfell/compress.mjs; King's Landing ground.webp)
   -> tools/satellite local GeoSynth prototype (not wired in)
   -> tools/lore     verb dispatcher over the checks (npm run lore -- <verb>)
 src/ (app) reads the generated files; never edit them by hand.
@@ -40,7 +40,13 @@ src/ (app) reads the generated files; never edit them by hand.
 | `docs/sources/*/` (all but `atlas-blog/`), `public/world/`, `public/sites/` | extract/scrape/bake scripts, git-ignored. The sources are shelved by what they are and in trust order; the catalogue is `docs/sources/README.md` |
 | `public/sigils/` | `node tools/wiki/scrape.mjs --sigils` (place houses from `_sigils.json` plus `src/houses.json`, 120 px webp) |
 
-Runtime caching: `public/sw.js` (registered by `main.ts` in builds) keeps every same-origin fetch cache-first in `static-<build id>`, replaced each deploy, and the wiki's hot-linked pictures in a lasting `wiki` cache. Fonts are self-hosted in `public/fonts/`.
+Runtime caching: `public/sw.js` (registered by `main.ts` in builds as `sw.js?v=<build>&m=<media>`) keeps every same-origin fetch cache-first: the hashed scripts (`/assets/`) in `static-<build id>`, replaced each deploy; everything else of ours (maps, textures, sites) in `media-<hash of public/>` (`mediaHash()` in `vite.config.ts`), which survives deploys that change no file in `public/`; and the wiki's hot-linked pictures in a lasting `wiki` cache. Fonts are self-hosted in `public/fonts/`. The build drops `dist/world-test` (dev-only test bakes).
+
+Load budget (findings 2026-11-11): a first visit is ~17 MB on a desktop, ~12 MB on a phone. `relief.ts` loads `relief-{a,b,e}-half.webp` (and `relief-h-half` on a phone, `LOW` in `quality.ts`), made by `tools/world/relief-half.mjs` (also called by the bake's encode; each map halved by what its channels hold); a desktop swaps in full `relief-a`/`relief-b` below 3,000 km. Phones decode the maps one after another and never load the clouds; the sky is `milky_way-2k.webp` there. Shaders compile with `compileAsync` behind the loading screen (`main.ts`).
+
+SEO: `npm run build` ends with `tools/seo/prerender.mjs`, which copies `dist/index.html` into `dist/place/<slug>/index.html` per map place (own title, description, canonical, wiki summary already in the place card) and writes `dist/sitemap.xml` (overrides `public/sitemap.xml`). The site URL comes from the canonical in `index.html`. `main.ts` opens a place from `/place/<slug>/` (`placeSlug` in `ui/placePanel.ts`, same rule as the script); `syncAddress` writes that address (a 3D-site building without a page keeps `?place=Name`) and the tab title. No visible text or layout is part of the SEO work (findings 2026-11-11).
+
+Hosting: Wasmer Edge app `openwesteros`, live at https://www.openwesteros.com (apex `openwesteros.com` 301s to www; `openwesteros.wasmer.app` also serves it, the canonical names www). Deploys are Wasmer autobuild from the GitHub repo: every push to `main` runs `npm run build` (provider `node-static`, `static_dir: dist`), so a push is a production deploy and the pre-push hook's build is its gate. The autobuild config ignores the local files below; they only apply to a manual `npm run deploy:wasmer` (build + `wasmer deploy`), which would replace the autobuild config. `wasmer.toml` mounts `dist/` into `wasmer/static-web-server`; `settings/config.toml` sets the cache headers (hashed `/assets` 1 year immutable, map folders 30 days, `index.html`/`sw.js` 60 s) and gzip; `app.yaml` turns on the edge cache. Vercel (`vercel.json`, `.vercelignore`) is the old host, disabled after the 100 GB quota (findings 2026-11-11).
 
 ## Character paths
 

@@ -111,6 +111,7 @@ export const PLACES: [string, string, number, number][] = [["The Lands of Always
   ["Hammerhorn","castle",42.25,-22],
   ["Riverrun","capital",40.24,-13.57],
   ["Harrenhal","ruin",38.79,-9.65],
+  ["Harrenton","town",38.79,-9.68],
   ["God's Eye","lake",38.79,-10.65],
   ["The Isle of Faces","island",38.1,-9.8],
   ["The Trident","river",40.02,-8.94],

@@ -1,7 +1,8 @@
-import { Q, loadTexture } from '../quality';
+import { LOW, Q, loadTexture } from '../quality';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { createLabelRenderer } from './labelRenderer';
 import { PLANET } from '../config';
 import { createDeclutter, offset, RINGS, setShown } from '../declutter';
 import { eastNorth, toVector } from '../geo';
@@ -50,7 +51,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   controls.enablePan = false;
   controls.enableZoom = false; // altitude-based zoom in the camera rig; OrbitControls zooms by distance to the centre
   controls.enableDamping = true;
-  const labels = new CSS2DRenderer({ element: labelsEl });
+  const labels = createLabelRenderer(labelsEl);
 
   // ---------- planet ----------
   const ocean = papered(new THREE.Mesh(new THREE.SphereGeometry(R * 0.9996, 128, 64), new THREE.MeshBasicMaterial({ color: TERRAIN_SEA, toneMapped: false })));
@@ -161,7 +162,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   atmosphere.renderOrder = 300; // after the relief, its lines and its clouds (200), which it veils
   atmosphere.frustumCulled = false;
   const stars = (() => { // Milky Way panorama on a sphere round the scene
-    const map = loadTexture(`${import.meta.env.BASE_URL}textures/milky_way.jpg`, Q.skyPx);
+    const map = loadTexture(`${import.meta.env.BASE_URL}textures/${LOW ? 'milky_way-2k' : 'milky_way'}.webp`); // a phone gets the 2048 px file, not the 8192 one shrunk
     map.colorSpace = THREE.SRGBColorSpace;
     const m = new THREE.Mesh(new THREE.SphereGeometry(2e8, 64, 32), new THREE.MeshBasicMaterial({ map, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }));
     m.renderOrder = -1;
@@ -309,13 +310,13 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     scene.add(obj);
     labelsEl.append(el); // in the page from the start, so it can be measured before it is first shown
     el.style.display = 'none';
-    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, onWall, oneLine: area || onWall, gone: false, shownName: name, dx: 0, dy: 0, side: 0, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], line: null as LineLabel | null };
+    return { name, kind, gen, ...lay, obj: obj as THREE.Object3D, lod, flat: false, onWall, oneLine: area || onWall, gone: false, shownName: name, dx: 0, dy: 0, side: 0, outline, fit: 1, zs: 1, size: [0, 0, 0, 0], line: null as LineLabel | null, scr: [0, 0], scrPass: -1 };
   });
   type Place = (typeof places)[number];
   /** A river's or road's name bent along its polyline: unit directions of the smoothed line, and the SVG texts (repeats) that ride on it. */
   type LineCopy = { path: SVGPathElement; text: SVGTextElement; tp: SVGTextPathElement };
   /** `ctr`, `cap` (rad) and `ball` bound the line, so a whole line off the screen or past the horizon is skipped; `step` is its mean vertex spacing, m. */
-  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[]; pts: Ring; mid: THREE.Vector3; ctr: THREE.Vector3; cap: number; ball: THREE.Sphere; step: number };
+  type LineLabel = { dirs: THREE.Vector3[]; pos: THREE.Vector3[]; copies: LineCopy[]; pts: Ring; mid: THREE.Vector3; ctr: THREE.Vector3; cap: number; ball: THREE.Sphere; step: number; memo?: { key: number[]; pos: THREE.Vector3; quat: THREE.Quaternion; res: ReturnType<typeof lineStretches> } };
   /**
    * Type size by altitude, in px per kind: an exponential ease (base FONT_B) from the small end at the top of a kind's
    * height band to the large end at its bottom, so names grow gently as you come down, like zoom-interpolated text-size in
@@ -355,7 +356,11 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     p.dx = dx; p.dy = dy;
     offset((p.obj as CSS2DObject).element, dx, dy);
   };
-  const toScreen = (p: Place) => { pt.copy(p.obj.position).project(camera); return [((pt.x + 1) / 2) * innerWidth, ((1 - pt.y) / 2) * innerHeight]; };
+  let pass = 0; // one name pass: the camera is fixed within it, so a place is projected once and reused for every spot and box
+  const toScreen = (p: Place) => {
+    if (p.scrPass !== pass) { pt.copy(p.obj.position).project(camera); p.scr[0] = ((pt.x + 1) / 2) * innerWidth; p.scr[1] = ((1 - pt.y) / 2) * innerHeight; p.scrPass = pass; }
+    return p.scr;
+  };
   /** A name's box on screen: [left, top, right, bottom], px, with the name at SPOTS[spot]; a chain of boxes for a slanted name. */
   const screenBox = (p: Place, spot = 0): number[] | number[][] => {
     const [side, sx, sy] = SPOTS[spot], [x0, y0] = toScreen(p), x = x0 + (p.onWall ? p.dx : sx), y = y0 + (p.onWall ? p.dy : sy), s = p.scale * p.fit * p.zs, [w, h, tw, th] = p.size;
@@ -505,8 +510,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     const L = s[s.length - 1];
     if (L < tw * 1.1) return { picked: [], spares: [] };
     const at = (d: number): [number, number] => {
-      let k = 1;
-      while (k < line.length - 1 && s[k] < d) k++;
+      let k = 1, hi = line.length - 1; // the first k >= 1 with s[k] >= d (s only grows), or the last
+      while (k < hi) { const mid = (k + hi) >> 1; if (s[mid] < d) k = mid + 1; else hi = mid; }
       const f = (d - s[k - 1]) / ((s[k] - s[k - 1]) || 1);
       return [line[k - 1][0] + (line[k][0] - line[k - 1][0]) * f, line[k - 1][1] + (line[k][1] - line[k - 1][1]) * f];
     };
@@ -563,6 +568,17 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       return { s0, pts, q: Q_W.curve * C + Q_W.offset * O + Q_W.orient * I + Q_W.spacing * S };
     }
     return { picked, spares };
+  };
+  /** `lineStretches`, reused while the camera has moved under 1.5 px (rotation, travel and zoom summed) since it was computed and the name's size, spacing and the window are the same: it is the costliest part of a name pass and a still-slow camera gives the same answer. */
+  const MEMO_PX = 1.5;
+  const stretchesMemo = (r: LineLabel, tw: number, th: number, off: number, cosLimit: number, cam: THREE.Vector3, stride: number, anywhere: boolean) => {
+    const mpp = (2 * rig.alt * Math.tan(rad(camera.fov / 2))) / innerHeight, pxRad = innerHeight / (2 * Math.tan(rad(camera.fov / 2)));
+    const key = [tw, th, off, stride, +anywhere, innerWidth, innerHeight, rig.alt], m = r.memo;
+    if (m && m.key.every((v, i) => (i === 2 ? Math.abs(v - key[i]) < 0.1 : i === 7 ? Math.abs(Math.log(v / key[i])) < 0.002 : v === key[i]))
+      && m.quat.angleTo(camera.quaternion) * pxRad + m.pos.distanceTo(camera.position) / mpp < MEMO_PX) return m.res;
+    const res = lineStretches(r, tw, th, off, cosLimit, cam, stride, anywhere);
+    r.memo = { key, pos: camera.position.clone(), quat: camera.quaternion.clone(), res };
+    return res;
   };
   // map pin on the place a search or a click flew to
   const pinEl = document.createElement('div');
@@ -731,7 +747,8 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       const horizon = Math.acos(Math.min(1, cosLimit)), mpp = view.nav.metresPerPixel();
       frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
       const lineSeen = (l: LineLabel) => Math.acos(Math.min(1, cam.dot(l.ctr))) - l.cap <= horizon && frustum.intersectsSphere(l.ball);
-      const taken = createDeclutter(); // ponytail: each name is tested against every placed box, O(n²); a screen grid if names reach the thousands
+      pass++;
+      const taken = createDeclutter();
       spreadWall();
       seatBox = [];
       const floor = alt < MIN_ALT * 1.1; // at the camera floor every place is named, even over a neighbour, and goes first: lettering on areas and lines makes way
@@ -752,7 +769,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
             const tw = p.size[2] * p.scale * p.zs, th = p.size[3] * p.scale * p.zs;
             // the line is a few px wide this far out (metres of a typical river over metres per pixel); the name sits just above it
             const off = Math.max(1.3, LINE_WIDTH_M[p.kind] / view.nav.metresPerPixel()) / 2 + 2;
-            const { picked, spares } = lineStretches(p.line, tw, th, off, cosLimit, cam, Math.max(1, Math.floor((0.75 * mpp) / p.line.step)), floor);
+            const { picked, spares } = stretchesMemo(p.line, tw, th, off, cosLimit, cam, Math.max(1, Math.floor((0.75 * mpp) / p.line.step)), floor);
             const place = (pts: Ring, force = false) => {
               // a chain of small boxes along the bent name, not one rectangle round it: a slanted name would block a whole corner
               const h = off + th, b = pts.slice(1).map((q, k) => {

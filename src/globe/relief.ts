@@ -1,4 +1,4 @@
-import { Q, loadTexture } from '../quality';
+import { LOW, Q, loadTexture } from '../quality';
 import * as THREE from 'three';
 import { B, BAKE_DIR } from './bake';
 import { PLANET } from '../config';
@@ -455,7 +455,11 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
   // fetch) a 1×1 texture stands in that is far from any river, and uRiverD.z = 0 switches the river code off, so the globe looks as before.
   const fallbackE = new THREE.DataTexture(new Uint8Array([255, 255, 0, 128]), 1, 1);
   fallbackE.needsUpdate = true;
-  const loadE = () => loader.loadAsync(`${BAKE_DIR}relief-e.webp`).then((bitmap) => {
+  // relief-<x>-half.webp (tools/world/relief-half.mjs): a quarter of the bytes and GPU memory. Phones keep it; a desktop swaps relief-a
+  // and relief-b for the full maps once the camera comes close (upgrade(), from update). A bake without halves loads the full map.
+  const half = (name: string) => loader.loadAsync(`${BAKE_DIR}${name}-half.webp`).catch(() => loader.loadAsync(`${BAKE_DIR}${name}.webp`));
+  const fetchMap = (name: string) => (['relief-a', 'relief-b', 'relief-e'].includes(name) || LOW && name === 'relief-h' ? half(name) : loader.loadAsync(`${BAKE_DIR}${name}.webp`));
+  const loadE = () => fetchMap('relief-e').then((bitmap) => {
     const t = new THREE.Texture(bitmap);
     t.minFilter = t.magFilter = THREE.LinearFilter; // a distance field: no mipmaps
     t.generateMipmaps = false;
@@ -463,20 +467,26 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     return { t, ok: true };
   }).catch(() => ({ t: fallbackE as THREE.Texture, ok: false }));
   const RB = B as typeof B & { riverDistMax?: number; riverWidthKm?: number[]; riverDepthKm?: number[]; riverSigned?: boolean };
-  const small = new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none', ...(Q.mapPx ? { resizeWidth: Q.mapPx, resizeQuality: 'medium' as const } : {}) });
-  const load = (name: string) => (name === 'relief-a' || name === 'relief-b' ? small : loader).loadAsync(`${BAKE_DIR}${name}.webp`).then((bitmap) => {
-    done++;
+  const mapTexture = (bitmap: ImageBitmap) => {
     const t = new THREE.Texture(bitmap);
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.anisotropy = Q.aniso;
     t.needsUpdate = true;
     return t;
-  });
-  const cloudTexture = loadTexture(`${import.meta.env.BASE_URL}textures/earth_clouds.jpg`, Q.skyPx);
+  };
+  const load = (name: string) => fetchMap(name).then((bitmap) => { done++; return mapTexture(bitmap); });
+  // the clouds (only R is read) come after the land is up, and never on a phone (Q.clouds): an empty texture reads as no cloud
+  const cloudTexture = new THREE.Texture();
   cloudTexture.wrapS = THREE.RepeatWrapping;
   cloudTexture.anisotropy = Q.aniso;
   let detail: ReturnType<typeof createDetail> | null = null;
-  const ready = Promise.all([...['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'].map(load), loadE()]).then(([tA, tB, tC, tD, tV, e]) => {
+  let upgrade: (() => void) | null = null;
+  // One map after another on a phone: five decoded at once is several hundred MB of bitmaps, enough for iOS to kill the tab.
+  const MAPS = ['relief-a', 'relief-b', 'relief-c', 'relief-d', 'relief-v'];
+  const maps = LOW
+    ? MAPS.reduce<Promise<THREE.Texture[]>>((p, n) => p.then(async (ts) => [...ts, await load(n)]), Promise.resolve([])).then(async (ts) => [...ts, await loadE()] as const)
+    : Promise.all([...MAPS.map(load), loadE()]);
+  const ready = maps.then(([tA, tB, tC, tD, tV, e]) => {
     const rivers = e as { t: THREE.Texture; ok: boolean };
     const landGround = landFrag();
     const uniforms = {
@@ -503,7 +513,17 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     });
     apply();
     const material = new THREE.ShaderMaterial({ uniforms, vertexShader: MESH_VERT, fragmentShader: landGround, defines: { COVER: '' } });
-    return createReliefMesh(`${BAKE_DIR}relief-h.webp`, PLANET.radius - 7, B, material).then(({ mesh, texture, heightAt, update }) => {
+    // the full maps for a close camera on a desktop: fetched only when someone zooms in, the halves dropped once they are up
+    if (!LOW) upgrade = () => {
+      upgrade = null;
+      for (const [name, u] of [['relief-a', uniforms.tA], ['relief-b', uniforms.tB]] as const) {
+        loader.loadAsync(`${BAKE_DIR}${name}.webp`).then((bitmap) => { const old = u.value; u.value = mapTexture(bitmap); old.dispose(); }).catch(() => {}); // keeps the half
+      }
+    };
+    if (Q.clouds) loadTexture(`${import.meta.env.BASE_URL}textures/earth_clouds-4k.webp`, (t) => { cloudTexture.image = t.image; cloudTexture.needsUpdate = true; });
+    const heights = LOW ? createReliefMesh(`${BAKE_DIR}relief-h-half.webp`, PLANET.radius - 7, B, material).catch(() => createReliefMesh(`${BAKE_DIR}relief-h.webp`, PLANET.radius - 7, B, material))
+      : createReliefMesh(`${BAKE_DIR}relief-h.webp`, PLANET.radius - 7, B, material);
+    return heights.then(({ mesh, texture, heightAt, update }) => {
       done++;
       bindBake(texture, B);
       reliefMesh = mesh; richMat = material; // the lean program shares the rich one's uniforms (the mesh's cell size is among them)
@@ -550,10 +570,10 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
     },
     /** Compiles the lean program now (behind the loading screen), so the first drag on a slow GPU doesn't stall on it. */
     warm(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
-      if (!reliefMesh || !leanMat) return;
+      if (!reliefMesh || !leanMat) return Promise.resolve();
       const s = new THREE.Scene();
       s.add(new THREE.Mesh(reliefMesh.geometry, leanMat));
-      renderer.compile(s, camera);
+      return renderer.compileAsync(s, camera).then(() => {});
     },
     /** Height of the drawn ground above sea level (m) under a point; the baked height as raise() lifts it, without the fine detail. */
     groundAt(p: THREE.Vector3) {
@@ -567,6 +587,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       if (object.children.length) { // the 3D relief is up: exaggerate to suit how it is seen
         uExaggeration.value = B.exaggeration * exaggerate(camera.position.length() - PLANET.radius, tilt);
       }
+      if (upgrade && camera.position.length() - PLANET.radius < 3000e3) upgrade(); // below this the half maps' 8.4 km texels (full: 4.2 km) start to show
       if (object.children.length) detail?.update(camera, renderer); // the detail buffers round the camera's focus, before the mesh reads them
       updateMesh?.(camera, renderer);
       uTime.value = performance.now() / 1000 % 3600; // the loop sleeps when idle, so the surf moves while the globe is drawn

@@ -96,9 +96,9 @@ async function texture(path) {
       const { width, height, data } = decodeDDS(buf);
       let alpha = false;
       for (let i = 3; i < data.length && !alpha; i += 4) alpha = data[i] < 250;
-      const name = key.replace(/^textures[\\/]/, '').replace(/[\\/ ]+/g, '_').replace(/\.dds$/, alpha ? '.png' : '.jpg');
+      const name = key.replace(/^textures[\\/]/, '').replace(/[\\/ ]+/g, '_').replace(/\.dds$/, alpha ? '.webp' : '.jpg');
       let img = sharp(Buffer.from(data.buffer), { raw: { width, height, channels: 4 } }).resize(MAX_TEXTURE, MAX_TEXTURE, { fit: 'inside', withoutEnlargement: true });
-      img = alpha ? img.png({ compressionLevel: 9 }) : img.removeAlpha().jpeg({ quality: 82 });
+      img = alpha ? img.webp({ quality: 88, alphaQuality: 100 }) : img.removeAlpha().jpeg({ quality: 82 });
       await img.toFile(`${OUT}/textures/${name}`);
       result = `../textures/${name}`;
       stats.textures++;
