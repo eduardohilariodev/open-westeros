@@ -1,0 +1,17 @@
+# Cache rules for the live server. Wasmer's autobuild serves dist/ with static-web-server from /opt/static_app, and the app's
+# SERVER_CONFIG_FILE env var points here (/opt/static_app/sws.toml). Without it, HTML is cached for a day: a stale index.html then
+# asks for /assets/ files a newer deploy removed and the page loads blank (findings 2026-11-11). Only headers here: the server's
+# root, port and the rest stay as the autobuild sets them.
+[advanced]
+
+# Pages and the service worker: always revalidated, so a deploy is seen at once.
+[[advanced.headers]]
+source = "{/,/index.html,/sw.js,/place/**,/sitemap.xml,/robots.txt}"
+[advanced.headers.headers]
+Cache-Control = "no-cache"
+
+# Hashed Vite output: never changes under the same name.
+[[advanced.headers]]
+source = "/assets/**"
+[advanced.headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
