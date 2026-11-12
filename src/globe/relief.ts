@@ -532,7 +532,7 @@ export function createRelief(fills: Record<string, THREE.Mesh>, strokes: THREE.O
       updateMesh = update;
       bakedHeight = heightAt;
       const uPixel = { value: 0 };
-      const uIce = { value: new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/ice.jpg`, (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.anisotropy = Q.aniso; t.needsUpdate = true; }) };
+      const uIce = { value: new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/ice.webp`, (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.anisotropy = Q.aniso; t.needsUpdate = true; }) };
       const wall = new THREE.Mesh(wallGeometry(PLANET.radius - 7), new THREE.ShaderMaterial({
         uniforms: { ...uniforms, uPixel, uIce }, vertexShader: WALL_VERT, fragmentShader: WALL_FRAG, side: THREE.DoubleSide,
       }));

@@ -15,6 +15,6 @@ The weighted Voronoi of 0004 drew borders the reference maps do not have: Umber 
 
 ## Consequences
 
-Amended 2026-11-11: a poster territory whose house we lack no longer goes to a neighbour (it made Clegane, a landed knight's house, larger than Lannister). Its label is listed under `unheld` in `house-poster.json`; it floods like a seat and its land is left unheld, like the Gift. A territory that is still oversized usually means a poster house missing from that list.
+Amended 2026-11-11: a poster territory whose house has no seat on our map no longer goes to a neighbour (it made Clegane, a landed knight's house, larger than Lannister). Its label is listed under `seatless` in `house-poster.json`; `houses.mjs` keeps that house with no `seat` (`seatless: true`, card "Seat: Not on the map"), it floods from the label and its sigil sits there. No sede is invented. Leaving the land blank instead was tried and rejected by the owner: the Westerlands looked shredded. A house in the list with no wiki article or sigil (Harnell, Allgood, Perryn, Wells, Drinkwater, Ladybright, Whitehead) leaves its land unheld. A territory that is still oversized usually means a poster house missing from that list.
 
 Borders are the poster's, bent around our seats; where a seat sits far from its poster position the territory is stretched. Rebuilding needs the poster locally. A new house needs an anchor in `house-poster.json`, or it floods from its seat. The weights file of 0004 is gone.

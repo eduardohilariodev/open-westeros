@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import './posthog';
+import { capture } from './posthog';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, onHouse, onModel, onNavigate, placeSlug, showCard } from './ui/placePanel';
@@ -152,7 +152,6 @@ const setTimeline = (on: boolean) => {
   document.body.classList.toggle('timeline-on', on);
   timelineBtn.setAttribute('aria-pressed', String(on));
   timelineBtn.title = on ? 'Hide the timeline' : 'Show the timeline';
-  timelineBtn.setAttribute('aria-label', timelineBtn.title);
   wake();
 };
 // the year at the bottom of the screen, always shown: the year (or the episode) and under it the chapter; a click opens or closes the timeline
@@ -163,7 +162,11 @@ const showMoment = () => {
 };
 onPeriod(showMoment); showMoment();
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('timeline-on') && !(e.target instanceof HTMLInputElement)) setTimeline(false); });
-timelineBtn.onclick = () => setTimeline(!document.body.classList.contains('timeline-on'));
+timelineBtn.onclick = () => {
+  const open = !document.body.classList.contains('timeline-on');
+  if (open) capture('timeline_opened');
+  setTimeline(open);
+};
 if (linkedMoment) setTimeline(true); // a ?when= link opens the timeline
 globe.onHouseFocus((id) => { if (id) globe.clearPlace(); housePanel.show(id); wake(1500); }); // a house card and a place card are never open together
 addEventListener('placeopen', () => globe.houses.focus(null));
@@ -228,7 +231,7 @@ const setActive = (n: number) => {
   results.children[n]?.scrollIntoView({ block: 'nearest' });
 };
 const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); search.removeAttribute('aria-activedescendant'); };
-const go = (m: Item) => { m.go(); search.value = ''; search.blur(); closeResults(); };
+const go = (m: Item) => { capture('search_used', { result: m.label, kind: m.kind }); m.go(); search.value = ''; search.blur(); closeResults(); };
 const renderResults = () => {
   const raw = search.value.trim(), q = fold(raw);
   if (!q) return closeResults();

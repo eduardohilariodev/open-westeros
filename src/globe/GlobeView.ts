@@ -226,7 +226,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     const moon = at(home(-0.452, -0.221), 3.82, moonMap); // the jpg is cropped to the disc (673 of the photo's 704 px)
     moon.material.color.setScalar(0.85);
     // the red comet (photo by sreekuttan09, see Credits): 820 x 570 crop with its sky subtracted, so additive blending leaves only the comet
-    const cometMap = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/red_comet.png`);
+    const cometMap = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/red_comet.webp`);
     cometMap.colorSpace = THREE.SRGBColorSpace;
     const comet = at(home(0.652, 0.178), 15, cometMap);
     comet.scale.y *= 570 / 820;

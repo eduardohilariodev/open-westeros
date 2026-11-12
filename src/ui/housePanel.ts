@@ -291,7 +291,7 @@ export function initHousePanel(o: HousePanelOptions) {
     crest.src = sigilUrl(h);
     q('h1').textContent = h.name;
     q('.kind').textContent = h.words ? `“${h.words}”` : ''; // the house's words
-    const seat = link(h.seat, () => o.goToSeat(h.seat));
+    const seat = h.seat ? link(h.seat, () => o.goToSeat(h.seat!)) : 'Not on the map'; // a seatless house: the land the reference map gives it, no castle
     q('.h-facts').replaceChildren(...row('Seat', seat), ...(h.head && atEnd() ? row('Head', h.head) : []), ...(h.region ? row('Region', h.region.replace(/^the /i, '')) : []), ...row('Sworn houses', realm ? String(realm) : 'None'));
     const lordBox = q('.h-lord'), swornBox = q('.h-sworn');
     lordBox.hidden = !lord; swornBox.hidden = !sworn.length;

@@ -47,7 +47,7 @@ src/ (app) reads the generated files; never edit them by hand.
 | `src/place-books.json` | `tools/books/place-index.mjs` |
 | `src/chapters.json` | `npm run chapters` (`tools/books/chapters.mjs`): the 345 chapters in publication order from `docs/sources/quartermaester/qm-paths.json`, each with its book and year AC (rules and quotes in the script), and the 73 show episodes from the wiki season pages (no year: canon gives none). The time axis of `src/state/time.ts`; character steps count by its indexes |
 | `src/house-wiki.json` | `node tools/wiki/house-info.mjs`: each house's wiki lead and a few infobox rows for the house card (behind the spoiler button until the end of the story) |
-| `src/houses.json` | `node tools/wiki/houses.mjs` (wiki house infoboxes: seat, region, head, overlords per book period) |
+| `src/houses.json` | `node tools/wiki/houses.mjs` (wiki house infoboxes: seat, region, head, overlords per book period; houses listed under `seatless` in `tools/world/house-poster.json` are kept with no seat, decision 0006) |
 | `src/house-territories.json` | `node tools/world/house-territories.mjs` (the local reference house map `assets/world/houses/poster.png` warped onto our seats by `tools/world/house-poster.json`, then a colour-edge flood from the seats; the Gift held by no house; decision 0006). The coast fit in that file: `node tools/world/house-poster-fit.mjs` |
 | `docs/sources/*/` (all but `atlas-blog/`), `public/world/`, `public/sites/` | extract/scrape/bake scripts, git-ignored. The sources are shelved by what they are and in trust order; the catalogue is `docs/sources/README.md` |
 | `public/sigils/` | `node tools/wiki/scrape.mjs --sigils` (place houses from `_sigils.json` plus `src/houses.json`, 120 px webp) |

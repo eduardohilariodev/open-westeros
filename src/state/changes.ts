@@ -19,7 +19,7 @@ interface Claim { subject: string; set: State; books?: string; show?: string; ye
 /** A change placed on the tracks: the chapter and episode it counts from (-1 before the books), or its year for history. */
 interface Change { books: number | null; show: number | null; year: number | null; set: State }
 
-interface HouseRow { id: string; seat: string; seatOf?: string; liege: Record<Period, string | null> }
+interface HouseRow { id: string; seat?: string; seatOf?: string; liege: Record<Period, string | null> }
 const HOUSES = houses as HouseRow[];
 const PERIODS: Period[] = ['agot', 'acok', 'asos', 'adwd'];
 

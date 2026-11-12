@@ -2,7 +2,7 @@ import type { Period } from './state/time';
 
 // Who holds of whom at one moment (src/houses.json, tools/wiki/houses.mjs; the liege at a moment from state/changes.ts). Pure data, no rendering.
 export interface House {
-  id: string; name: string; title: string; sigil: string; seat: string;
+  id: string; name: string; title: string; sigil: string; seat?: string; seatless?: boolean; // seatless: land on the reference map, no seat on ours
   region?: string; head?: string; words?: string; seatOf?: string;
   liege: Record<Period, string | null>;
 }

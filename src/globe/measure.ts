@@ -9,7 +9,7 @@ import { arc, imperial, metric, nice } from '../measureUnits';
 // lies on the surface along the shortest way (a great circle). While a leg is open its free end is a hand following the
 // cursor, holding the wool up with slack; a click pins it down and the bar length reels in to the ground distance, so the
 // thread stretches straight (gravity fades as the slack goes). Distances are on the ground of the planet (radius R), not
-// along the thread, so relief does not lengthen a measurement. Each placed point carries a push pin (public/textures/pin.png).
+// along the thread, so relief does not lengthen a measurement. Each placed point carries a push pin (public/textures/pin.webp).
 
 const N = 64, S = 3, SIDES = 6; // joints per leg; drawn samples between joints; sides of the thread
 const M = N * S + 1;
@@ -161,7 +161,7 @@ export function createMeasure(scene: THREE.Scene, el: HTMLElement, labelsEl: HTM
   // where it goes in. Drawn over the relief like a map marker (so no depth test: hidden on the far side by hand, in update).
   // The pin is a group one pin-height tall, so scaling the group sizes the picture.
   const loadPin = () => {
-    const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/pin.png`);
+    const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/pin.webp`);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   };

@@ -184,12 +184,14 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
     for (let ch = 0; ch < 3; ch++) col[c * 3 + ch] = blk[ch].sort((p, q) => p - q)[24];
     seen[c] = 1; pxy[c * 2] = X; pxy[c * 2 + 1] = Y;
   }
-  // Phantoms: the poster's houses we lack (no seat on our map; Plumm, Lorch, Jast round Clegane's Keep), at their label
-  // (`unheld` in house-poster.json, poster pixels). They flood their own territory like a seat, and it is then left unheld:
-  // given to the cheapest neighbour, as before, it made a landed knight's house (Clegane) bigger than Casterly Rock's.
-  // Our coast is not the poster's, so a label can fall off our land: the phantom starts at the nearest cell (within 80 px) that
+  // Seatless houses: the poster's houses with no seat on our map (Plumm, Lorch, Jast round Clegane's Keep), at their label
+  // (`seatless` in house-poster.json, poster pixels). Each floods its own territory from there and its sigil sits there; given to
+  // the cheapest neighbour instead, their land made a landed knight's house (Clegane) bigger than Casterly Rock's. One that is
+  // not in houses.json (no wiki article or sigil) is a phantom: its land is left unheld.
+  // Our coast is not the poster's, so a label can fall off our land: the flood starts at the nearest cell (within 80 px) that
   // has the territory's fill, the median colour of the 21x21 pixels round the label.
-  for (const [id, [X, Y]] of Object.entries(P.unheld ?? {})) {
+  const houseIds = new Set(houses.map((h) => h.id));
+  for (const [id, [X, Y]] of Object.entries(P.seatless ?? {})) {
     const fill = [0, 1, 2].map((ch) => { const v = []; for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 10; dx++) v.push(px[((Y + dy) * info.width + X + dx) * 3 + ch]); return v.sort((p, q) => p - q)[220]; });
     let start = -1, bd = Infinity;
     for (let c = 0; c < W * H; c++) {
@@ -197,9 +199,9 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
       const d = (pxy[c * 2] - X) ** 2 + (pxy[c * 2 + 1] - Y) ** 2;
       if (d < bd) { bd = d; start = c; }
     }
-    if (bd > 6400) { console.warn(`unheld ${id}: its fill is not on our land`); continue; }
+    if (bd > 6400) { console.warn(`seatless ${id}: its fill is not on our land`); continue; }
     const cx = start % W, cy = (start - cx) / W;
-    seeds.push({ id, phantom: true, lat: lat0 + (cy + 0.5) * S, lon: lon0 + (cx + 0.5) * S, cx, cy, start, reg: region[start] });
+    seeds.push({ id, phantom: !houseIds.has(id), seatless: true, lat: lat0 + (cy + 0.5) * S, lon: lon0 + (cx + 0.5) * S, cx, cy, start, reg: region[start] });
   }
   // The Gift belongs to the Night's Watch, no house: "double the size of their lands, to fifty leagues" (ASOS, Bran), 150 miles
   // south of the Wall. Colour cannot tell it apart (its parchment medians match pale territories such as Woolfield).
@@ -253,14 +255,13 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
     await sharp(img, { raw: { width: W, height: H, channels: 3 } }).png().toFile('tmp/house-warp.png');
   }
   if (process.env.DBG) console.log(seeds.filter((s) => s.phantom).map((s) => `${s.id} ${s.lat.toFixed(2)},${s.lon.toFixed(2)} ${unheld[s.id] ?? 0}`).join('; '));
-  seeds.splice(seeds.findIndex((s) => s.phantom) >>> 0);
-  for (const [i, s] of seeds.entries()) label[s.cy * W + s.cx] = i + 1; // a seat is always in its own territory
+  for (const [i, s] of seeds.entries()) if (!s.phantom) label[s.cy * W + s.cx] = i + 1; // a seat is always in its own territory
   // A seat with next to no land of its own (an islet such as Serry or Pryor, or a small house a great lord swallows, Stout) gets a small round holding, up to ISLE
   // degrees around the seat over other houses' cells too (not their seats), so it has a shape to draw and click. ASSUMPTION: about 22 miles across.
   const ISLE = 0.15, counts = new Int32Array(seeds.length + 1), seedCell = new Set(seeds.flatMap((s) => [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => (s.cy + dy) * W + s.cx + dx)))); // each seat and its eight neighbours stay as they are
   for (const l of label) counts[l]++;
   seeds.forEach((s, i) => {
-    if (counts[i + 1] >= 40 && land[s.cy * W + s.cx]) return; // plenty of land, and the seat on it
+    if (s.phantom || (counts[i + 1] >= 40 && land[s.cy * W + s.cx])) return; // plenty of land, and the seat on it
     const r = Math.ceil(ISLE / S), k = Math.cos((s.lat * Math.PI) / 180);
     // never closer than the bisector to the nearest other seat, or a swallowed house would take its lord's own seat
     const near = Math.min(...seeds.filter((o) => o !== s).map((o) => Math.hypot((o.lon - s.lon) * k, o.lat - s.lat)));
@@ -297,7 +298,8 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
   const pt = (v) => [lon0 + (v % W1) * S, lat0 + Math.floor(v / W1) * S];
 
   // [lon, lat] of each seat (a house sharing a seat is shown on the primary's), for the sigils
-  const out = { cell: S, houses: {}, seats: Object.fromEntries(houses.filter((h) => at[h.seat]).map((h) => [h.id, [at[h.seat][1], at[h.seat][0]]])), borders: [] };
+  // a seatless house's sigil sits where its flood began, at its label on the poster
+  const out = { cell: S, houses: {}, seats: Object.fromEntries([...houses.filter((h) => at[h.seat]).map((h) => [h.id, [at[h.seat][1], at[h.seat][0]]]), ...seeds.filter((s) => s.seatless && !s.phantom).map((s) => [s.id, [Math.round(s.lon * 1000) / 1000, Math.round(s.lat * 1000) / 1000]])]), borders: [] };
   for (const [l, m] of directed) {
     const rings = [];
     for (const [start0, ends0] of m) {

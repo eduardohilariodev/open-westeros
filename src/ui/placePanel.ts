@@ -1,4 +1,5 @@
 import type { Card } from '../globe/GlobeView';
+import { capture } from '../posthog';
 import { PLACE_INFO } from '../place-info';
 import PLACE_ALT from '../place-alt.json';
 import { PLACES } from '../world-data';
@@ -76,6 +77,7 @@ const syncAddress = (c: Card) => {
   history.replaceState(null, '', u);
 };
 export const showCard = (c: Card) => {
+  if (c) capture('place_opened', { place: c.name, kind: c.kind }); // a click on the map, a search result or a ?place= link: all open here
   endCharacter(); // the card is a place's from here on: the character's journey leaves the map and the card's character parts go
   place.classList.remove('character');
   for (const s of ['.char-bar', '.char-steps', '.char-credit']) q(s).hidden = true;
@@ -96,7 +98,7 @@ export const showCard = (c: Card) => {
   fill(q('.summary'), c.text ?? info.summary ?? '');
   const model = modelFor(c);
   q('.model').hidden = !model;
-  q('.model').onclick = model ? () => model() : null;
+  q('.model').onclick = model ? () => { capture('model_opened', { place: c.name }); model(); } : null;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   // the lead is all the card shows; a link at the end of it when the article has more to read
   const more = q<HTMLAnchorElement>('.more');

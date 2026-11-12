@@ -105,11 +105,11 @@ export const lineMesh = (geometry: LineSegmentsGeometry, color: string, width: n
 export const syncLines = () => lineMats.forEach((m) => m.resolution.set(innerWidth, innerHeight));
 
 // ---------- paper: the flat map's land is printed on aged paper ----------
-// One photo of paper (public/textures/paper.jpg) read at three scales from the ground's own lon/lat, so it follows the globe at any
+// One photo of paper (public/textures/paper.webp) read at three scales from the ground's own lon/lat, so it follows the globe at any
 // zoom: blotches ~1,800 km across, mottling ~300 km, grain ~35 km, each turned its own way. Only its lightness is used (1 = no change), and only the middle
 // of the photo, folded back and forth, so its dark edges and the tile seams never show.
 const PAPER = { uPaper: { value: null as THREE.Texture | null }, uPaperOn: { value: 0 } };
-new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/paper.jpg`, (t) => {
+new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/paper.webp`, (t) => {
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Q.aniso;
   PAPER.uPaper.value = t; PAPER.uPaperOn.value = 1;
 });

@@ -94,7 +94,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
     return graph.by.has(lord) ? graph.realm(lord) : lord;
   };
   /** Who sits in the seat of house `id` now: another house in the graph, else the house itself. */
-  const seatLord = (id: string) => { const h = graph.by.get(id), occ = h ? stateAt(h.seat).holder : null; return occ && occ !== id && graph.by.has(occ) ? occ : id; };
+  const seatLord = (id: string) => { const h = graph.by.get(id), occ = h?.seat ? stateAt(h.seat).holder : null; return occ && occ !== id && graph.by.has(occ) ? occ : id; };
   const IDS = new Set(HOUSES.map((h) => h.id)), own = (id: string): string | null => (!IDS.has(id) || graph.by.has(id) ? id : standIn(id) ?? [...graph.by.values()].find((h) => h.seatOf === id)?.id ?? null), here = (id: string) => own(id) !== null; // land of a house not yet founded goes to the house that held the seat before (Durrandon for Baratheon), else it has no land, sigil or border
   let col: Map<string, number> | null = null; // after the territories load
   const flat = (m: THREE.Object3D) => { Object.assign((m as THREE.Mesh).material, { depthTest: false, transparent: true }); return m; }; // over the relief, like regions.ts
