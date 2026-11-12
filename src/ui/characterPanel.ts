@@ -1,6 +1,5 @@
 import { CHAPTERS, CHARACTER_INFO, known } from '../character-info';
 import type { Character, CharStep } from '../globe/characterPath';
-import { capture } from '../posthog';
 
 // A character's journey in the place card (index.html #place): the player bar under the title, the wiki lead, and the steps.
 // The card is the place panel's, in character mode (style.css `#place .char-*`); placePanel.showCard puts it back to a place.
@@ -105,7 +104,6 @@ export function showCharacter(whole: Character, layer: Layer) {
 
 q('.char-bar .play').onclick = () => {
   if (!current) return;
-  capture('character_journey_playback_toggled', { action: current.layer.playing ? 'pause' : 'play' });
   current.layer.playing ? current.layer.pause() : current.layer.play();
 };
 q('.char-bar .prev').onclick = () => current?.layer.prev();

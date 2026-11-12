@@ -1,4 +1,3 @@
-import { capture } from '../posthog';
 import type { Card } from '../globe/GlobeView';
 import { PLACE_INFO } from '../place-info';
 import PLACE_ALT from '../place-alt.json';
@@ -97,10 +96,7 @@ export const showCard = (c: Card) => {
   fill(q('.summary'), c.text ?? info.summary ?? '');
   const model = modelFor(c);
   q('.model').hidden = !model;
-  q('.model').onclick = model ? () => {
-    capture('model_view_opened');
-    model();
-  } : null;
+  q('.model').onclick = model ? () => model() : null;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
   // the lead is all the card shows; a link at the end of it when the article has more to read
   const more = q<HTMLAnchorElement>('.more');
@@ -134,7 +130,8 @@ export const showCard = (c: Card) => {
   row.replaceChildren(...pics.map(([src, i]) => {
     const b = document.createElement('button'), img = new Image();
     img.src = src; img.alt = ''; img.loading = 'lazy'; img.onerror = () => b.remove();
-    b.type = 'button'; b.append(img); if (i >= 0) b.onclick = () => openGallery(i);
+    b.type = 'button'; b.append(img); b.setAttribute('aria-label', i >= 0 ? `Open picture ${i + 1} of ${files.length}` : 'Picture');
+    if (i >= 0) b.onclick = () => openGallery(i);
     return b;
   }));
   row.hidden = !pics.length;
@@ -159,6 +156,7 @@ const showImage = (i: number) => {
   widths = [1600, 1200, 800, 400, 200];
   tryWidth();
   caption.textContent = captions[at] ?? ''; caption.hidden = !caption.textContent;
+  big.alt = captions[at] || `Picture ${at + 1} of ${files.length} from the wiki`;
   wikiLink.href = `${WIKI}File:${encodeURIComponent(files[at])}`; // the picture's file page: author and licence
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === at));
   strip.children[at].scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -173,10 +171,22 @@ const openGallery = (i: number) => {
     b.append(img); b.onclick = () => showImage(j);
     return b;
   }));
+  [...strip.children].forEach((b, j) => b.setAttribute('aria-label', `Picture ${j + 1} of ${files.length}`));
+  opener = document.activeElement as HTMLElement | null;
   viewer.hidden = false;
+  setModal(true);
+  viewer.querySelector<HTMLElement>('.close')!.focus();
   showImage(i);
 };
-const closeGallery = () => { viewer.hidden = true; big.removeAttribute('src'); };
+// A modal: everything else on the page is inert while it is open (keyboard and screen reader stay inside), and focus goes back where it was.
+let opener: HTMLElement | null = null;
+const setModal = (on: boolean) => { for (const el of document.body.children) if (el !== viewer) (el as HTMLElement).inert = on; };
+const closeGallery = () => {
+  if (viewer.hidden) return;
+  viewer.hidden = true; big.removeAttribute('src');
+  setModal(false);
+  opener?.focus(); opener = null;
+};
 q<HTMLImageElement>('.hero').onclick = (e) => openGallery(Math.max(0, files.findIndex((f) => (e.currentTarget as HTMLImageElement).src.includes(`f=${f}&`))));
 q('.tile').onclick = () => openGallery(0);
 viewer.onclick = (e) => { if (e.target === viewer || (e.target as Element).classList.contains('stage')) closeGallery(); };

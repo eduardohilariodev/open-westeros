@@ -37,7 +37,7 @@ Name: Open Westeros (SEO title: "Open Westeros: The Known World of Ice and Fire"
 
 ## Evidence on Hand
 
-- Live preview at open-westeros.vercel.app.
+- Live at www.openwesteros.com (Wasmer Edge).
 - README.md (manifesto), CONTRIBUTING.md, docs/ and the globe label rules in .claude/rules/globe-labels.md.
 - Credits already shown in the UI: George R. R. Martin maps, Shadiversity / The True Winterfell SE, game-icons.net (CC BY 3.0), Abjiklam's Known World SVGs (CC BY-NC-SA 4.0).
 - No testimonials, usage numbers or user research exist; do not fabricate any.

@@ -313,6 +313,7 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 #credits a, #contribute a { color: inherit; }
 #credits form button, #contribute form button { padding: 4px 14px; cursor: pointer; }
 #contribute p { margin: 0 0 10px; }
+#credits .privacy { margin: 0 0 14px; font-size: 13px; line-height: 1.4; color: var(--muted); }
 #credits .made { margin: 0 0 14px; padding-top: 10px; border-top: 1px solid #ffffff22; font-size: 13px; text-align: center; color: var(--muted); }
 #contribute .links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 14px; }
 
@@ -665,14 +666,17 @@ body.timeline-on #nav { bottom: calc(var(--wheel-h, 104px) + 56px); }
 #yearBtn span { font: 500 11px/1.2 inherit; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 #yearBtn:hover { background: var(--surface); }
 #yearBtn[aria-pressed="true"] { border-color: var(--gold-hi); }
-body.timeline-on #yearBtn { top: calc(12px + env(safe-area-inset-top)); bottom: auto; flex-direction: row; align-items: baseline; gap: 8px; padding: 3px 12px; } /* open: up top, clear of the wheel and the cards */
-@media (max-width: 700px) { #yearBtn { bottom: calc(var(--sheet-h, 0px) + 12px + env(safe-area-inset-bottom)); } body.timeline-on #yearBtn { top: auto; bottom: calc(var(--sheet-h, 0px) + var(--wheel-h, 104px) + 20px + env(safe-area-inset-bottom)); } }
+body.timeline-on #yearBtn { display: none; } /* open: the wheel's own label shows the moment, and the window's × closes it */
+@media (max-width: 700px) { #yearBtn { bottom: calc(var(--sheet-h, 0px) + 12px + env(safe-area-inset-bottom)); } }
 /* the picker in the timeline window: track, book or season, chapter or episode, step back and forward */
 #whenInfo .wi-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
 #whenInfo .wi-pick button, #whenInfo .wi-sel { height: 28px; border: 1px solid #0008; border-radius: 8px; background: color-mix(in srgb, var(--surface) 80%, #fff 6%); color: var(--text); font: 600 12px/1 inherit; cursor: pointer; padding: 0 10px; }
 #whenInfo .wi-pick button[aria-pressed="true"] { background: var(--burgundy); color: var(--gold-hi); }
 #whenInfo .wi-pick button:disabled, #whenInfo .wi-sel:disabled { opacity: .4; cursor: default; }
 #whenInfo .wi-track { display: flex; gap: 2px; }
+#whenInfo .wi-pick { padding-right: 36px; }
+#whenInfo .wi-pick .wi-close { position: absolute; top: 10px; right: 10px; width: 28px; padding: 0; border: 0; border-radius: 50%; background: #150d0fdd; box-shadow: var(--shadow); font-size: 18px; color: var(--muted); }
+#whenInfo .wi-pick .wi-close:hover { color: var(--text); }
 #whenInfo .wi-sel { max-width: 200px; flex: 1 1 110px; min-width: 0; }
 /* the wiki text waits behind this until the moment has reached the end of the story */
 /* the wiki's lead and facts in the house card */
@@ -681,3 +685,17 @@ body.timeline-on #yearBtn { top: calc(12px + env(safe-area-inset-top)); bottom: 
 #house .h-wfacts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
 #house .h-wfacts dt { color: var(--muted); }
 #house .h-wfacts dd { margin: 0; }
+
+/* Accessibility. Keyboard focus is always visible: a gold ring on whatever has it (the mouse shows none, :focus-visible). */
+:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+.searchbox:focus-within { box-shadow: var(--shadow), 0 0 0 2px var(--gold-hi); } /* the input itself has no outline: its pill does */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Reduced motion: the coin rests instead of tossing (main.ts then lifts the veil without the throw) and the map types swap without a fade. */
+@media (prefers-reduced-motion: reduce) {
+  #coinStage .toss, #coinStage .flip, #loading.done .coin, #coinStage.fall, #coinStage.fall .toss { animation: none; }
+  #styleFade { transition: none !important; }
+}
+/* Touch: the 32 px close buttons get a 44 px target (WCAG 2.5.5) from an invisible ring, so they look the same. */
+@media (pointer: coarse) {
+  #place .close::after, #house .close::after { content: ''; position: absolute; inset: -6px; }
+}

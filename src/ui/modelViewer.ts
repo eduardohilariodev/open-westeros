@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SITES, type SiteId } from '../config';
 import { Q } from '../quality';
-import { SITE_VIEWS } from '../sites';
 import type { Place, SiteView } from '../sites/SiteScene';
 
 // The 3D sites (King's Landing, Winterfell) in a full-screen view of their own, opened from the place card's "3D model"
@@ -27,6 +26,7 @@ const init = () => {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.domElement.setAttribute('role', 'img');
   stage.prepend(renderer.domElement);
   addEventListener('resize', () => {
     renderer!.setSize(innerWidth, innerHeight);
@@ -35,7 +35,7 @@ const init = () => {
   renderer.setAnimationLoop((now) => {
     if (!shown || root.hidden) return;
     if (fly) {
-      const t = Math.min(1, (now - fly.t0) / 1200), e = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+      const t = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (now - fly.t0) / 1200), e = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
       shown.camera.position.lerpVectors(fly.p0, fly.p1, e);
       controls!.target.lerpVectors(fly.c0, fly.c1, e);
       if (t === 1) fly = null;
@@ -48,14 +48,15 @@ const init = () => {
 };
 
 const labelLayers: Partial<Record<SiteId, HTMLElement>> = {}; // one per site, only the shown one visible
-const load = (id: SiteId) => (loading[id] ??= SITE_VIEWS[id](renderer!, (labelLayers[id] = stage.appendChild(Object.assign(document.createElement('div'), { className: 'labels', hidden: true })))).then((v) => {
+// The 3D scenes are their own chunk, fetched the first time a site opens: most visitors never open one.
+const load = (id: SiteId) => (loading[id] ??= import('../sites').then(({ SITE_VIEWS }) => SITE_VIEWS[id](renderer!, (labelLayers[id] = stage.appendChild(Object.assign(document.createElement('div'), { className: 'labels', hidden: true })))).then((v) => {
   v.camera.aspect = innerWidth / innerHeight;
   v.camera.near = 1; v.camera.far = 200_000; v.camera.updateProjectionMatrix();
   v.labels.setSize(innerWidth, innerHeight);
   v.setFade(1);
   v.onPick = (p) => { onPick(id, v, p); focus(p); };
   return (views[id] = v);
-}));
+})));
 
 /** How far the camera starts from a site: about its width (a site's draw distance is ~5-7 widths). */
 const overview = (id: SiteId) => SITES[id].drawDistance * 0.14;
@@ -79,7 +80,8 @@ const setAddress = (on: boolean) => {
 /** Opens site `id`, at its overview or on the place named `place`. */
 export async function openModel(id: SiteId, place?: string) {
   if (!renderer) init();
-  root.hidden = false;
+  if (root.hidden) { opener = document.activeElement as HTMLElement | null; root.hidden = false; root.querySelector<HTMLElement>('.close')!.focus(); }
+  renderer!.domElement.setAttribute('aria-label', `3D model of ${SITES[id].name}. Drag to turn, scroll to zoom; the names on it open their card.`);
   title.textContent = SITES[id].name;
   setAddress(true);
   onShow(true);
@@ -111,7 +113,10 @@ export function closeModel() {
   root.hidden = true;
   setAddress(false);
   onShow(false);
+  if (opener?.isConnected && !opener.closest('[hidden]')) opener.focus(); // back to the "3D model" button, unless the card closed meanwhile
+  opener = null;
 }
+let opener: HTMLElement | null = null;
 
 export const modelOpen = () => !root.hidden;
 /** Every site opened so far: its places join the search. */

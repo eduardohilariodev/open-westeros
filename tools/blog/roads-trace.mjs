@@ -121,6 +121,11 @@ let GRADE = 0.05, PULL = 0.75;
 // AFFC) finds that river's banks half price: ALONG is the band for the road being laid, null for the others. A river is the canon
 // line nearest the spot of its name, as the globe letters it.
 let ALONG = null;
+// Dorne is shut overland but for its passes: the Prince's Pass is "the gateway through the Red Mountains" at their western end
+// (World of Ice & Fire), and the Dornish hosts hold "the two passes" (wiki Red Mountains, AFFC). SHUT marks Dorne (the
+// territories of the houses sworn to Martell, src/house-territories.json); a track may not cross its edge, the named pass roads
+// (laid before the tracks) do. Without it the cheapest track from Starfall ran over the mountains into the Reach.
+let SHUT = null;
 const bands = new Map();
 const bandOf = async (name) => {
   if (bands.has(name)) return bands.get(name);
@@ -177,6 +182,7 @@ const step = (u, x, y, dx, dy) => {
   }
   const lat = B.lat1 - (y + 0.5) * DLAT, miles = Math.hypot(dx * DLON * Math.cos((lat * Math.PI) / 180), dy * DLAT) * MILES_PER_DEG;
   const grade = Math.abs(height[v] - height[u]) / (miles * 1.609), slope = Math.min(40, 1 + (grade / GRADE) ** 2);
+  if (SHUT && (SHUT[u] > 127) !== (SHUT[v] > 127)) return Infinity;
   let c = miles * slope * (cellCost[u] * (pull[u] ? PULL : 1) + cellCost[v] * (pull[v] ? PULL : 1)) / 2 * (river[u] && river[v] ? 3 : 1); // along a river's bed is no road
   if (linked(u, v)) c *= ROAD_DISCOUNT;
   if (ALONG && ALONG[u] && ALONG[v] && !river[v]) c *= 0.5;
@@ -268,6 +274,14 @@ for (const { name, via, straight, joins, along } of spec) {
 }
 [GRADE, PULL, ALONG] = [0.05, 0.75, null];
 const STRAIGHT = new Set(spec.filter((r) => r.straight).map((r) => r.name));
+SHUT = await (async () => {
+  const houses = JSON.parse(readFileSync('src/house-territories.json', 'utf8')).houses, sworn = JSON.parse(readFileSync('src/houses.json', 'utf8'));
+  const dornish = (id, n = 0) => id === 'martell' || (n < 9 && !!id && dornish(sworn.find((h) => h.id === id)?.liege.agot, n + 1));
+  const ringsOf = (g) => (typeof g[0][0] === 'number' ? [g] : g.flatMap(ringsOf));
+  const dorne = sworn.filter((h) => houses[h.id] && dornish(h.id)).flatMap((h) => ringsOf(houses[h.id]));
+  console.log(`Dorne shut to tracks: ${sworn.filter((h) => houses[h.id] && dornish(h.id)).length} houses' lands`);
+  return raster(`<path d="${rings(dorne)}" fill="#fff" fill-rule="nonzero"/>`);
+})();
 
 // ---- tracks: each castle, town and city to the nearest road or track, biggest first, so the tracks branch like a tree ----
 // Canon names few roads; every seat still has a way to the realm's roads. A track that several places share is a road.

@@ -1,5 +1,4 @@
 import { LOW, Q, loadTexture } from '../quality';
-import { capture } from '../posthog';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -305,7 +304,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
     if (alt) { const s = document.createElement("small"); s.textContent = `(${alt})`; el.firstElementChild!.append(s); } // Dothraki or original name, in parentheses under the label
     el.onclick = (e) => {
       if (pickForMeasure(i, e)) return;
-      capture('place_selected', { place_kind: kind });
       view.flyToPlace(i);
     };
     const obj = new CSS2DObject(el); // centred: a point label's box is just its symbol, the text hangs off its right side
@@ -455,7 +453,6 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       text.append(tp);
       text.onclick = (e) => {
         if (pickForMeasure(i, e)) return;
-        capture('place_selected', { place_kind: p.kind });
         view.flyToPlace(i);
       };
       lineDefs.append(path);

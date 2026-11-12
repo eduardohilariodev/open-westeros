@@ -1,9 +1,12 @@
 import type { House } from '../houseGraph';
 import type { HouseLayer } from '../globe/houses';
 import { tintOf } from '../sigilTint';
-import houseWiki from '../house-wiki.json'; // tools/wiki/house-info.mjs
+// The wiki's lead of each house (tools/wiki/house-info.mjs): its own chunk, fetched beside the maps; a card opened before it lands shows it a moment later.
+type HouseWiki = Record<string, { summary?: string; facts?: [string, string][] }>;
+let houseWiki: HouseWiki = {};
+const houseWikiReady = import('../house-wiki.json').then((m) => { houseWiki = m.default as unknown as HouseWiki; });
 import { ERAS, EVENTS, WIKI_YEAR, YEAR_STOPS } from '../timeline';
-import { BOOKS, CHAPTERS, atEnd, EPISODES, chapterTitle, getBook, getMoment, onPeriod, setMoment, setPeriod, withMoment, type Moment } from '../state/time';
+import { BOOKS, CHAPTERS, atEnd, EPISODES, chapterTitle, getBook, getMoment, onPeriod, setMoment, setPeriod, START, withMoment, type Moment } from '../state/time';
 
 // The houses overlay's sidebar (index.html #house): a big coat of arms, the house's facts, who it is sworn to and who is sworn to it.
 // It replaces the place card while a house is open (style.css hides the menu behind either) and follows the book period.
@@ -54,7 +57,7 @@ const layout = (open: number) => {
 const lastCoarse = (i: number) => { for (let j = i - 1; j >= 0; j--) if (!STOPS[j].fine) return STOPS[j].y; return STOPS[i].y; };
 
 /** The picker above the window: Books or Show, a book (or season), a chapter (or episode), and a step back and forward. It reads and writes the moment only. */
-function pickerEl() {
+function pickerEl(onClose: () => void) {
   const box = document.createElement('div'), mkb = (t: string, title: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = title; b.onclick = on; return b; };
   const sel = () => { const e = document.createElement('select'); e.className = 'wi-sel'; return e; };
   box.className = 'wi-pick';
@@ -70,6 +73,7 @@ function pickerEl() {
   track.append(bBooks, bShow);
   const step = (d: number) => { const m = getMoment(), n = at() + d, len = m.track === 'show' ? EPISODES.length : CHAPTERS.length; if (m.track !== 'history' && n >= 0 && n < len) go({ track: m.track, at: n }); };
   const prev = mkb('‹', 'One step back', () => step(-1)), next = mkb('›', 'One step forward', () => step(1));
+  const reset = mkb('⟲', 'Back to the start: A Game of Thrones, Prologue', () => go(START));
   group.onchange = () => go(bookMode() ? { track: 'books', at: CHAPTERS.findIndex((c) => c.book === group.value) } : { track: 'show', at: EPISODES.findIndex((e) => e.s === +group.value) });
   item.onchange = () => go({ track: bookMode() ? 'books' : 'show', at: +item.value });
   const fill = () => {
@@ -82,15 +86,19 @@ function pickerEl() {
     const items: [number, string][] = m.track === 'history' ? [] : books ? CHAPTERS.flatMap((c, i): [number, string][] => (c.book === g ? [[i, chapterTitle(c)]] : [])) : EPISODES.flatMap((e, i): [number, string][] => (String(e.s) === g ? [[i, `E${e.e} ${e.t}`]] : []));
     item.replaceChildren(...items.map(([v, t]) => new Option(t, String(v))));
     item.value = String(at()); item.disabled = !items.length;
+    reset.disabled = m.track === 'books' && m.at === 0; // already at START
     prev.disabled = m.track === 'history' || m.at <= 0; next.disabled = m.track === 'history' || m.at >= (books ? CHAPTERS.length : EPISODES.length) - 1;
   };
   onPeriod(fill); fill();
-  box.append(track, prev, group, item, next);
+  reset.setAttribute('aria-label', reset.title);
+  const close = mkb('×', 'Close the timeline (Esc)', onClose);
+  close.className = 'wi-close'; close.setAttribute('aria-label', close.title);
+  box.append(track, reset, prev, group, item, next, close);
   return box;
 }
 
 /** The timeline (#when): a drum of years you drag to spin, the eras as bands in its background. What happened in the year in the middle, and which books cover it, is a separate window (#whenInfo). One store (state/time.ts) so other layers can follow it. */
-export function initWhen() {
+export function initWhen(onClose: () => void) {
   const el = $('when');
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = '') => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
   const book = () => BOOKS.find((b) => b.id === getBook())!;
@@ -101,7 +109,7 @@ export function initWhen() {
   info.id = 'whenInfo'; info.hidden = true;
   const more = mk('a', 'wi-more');
   more.target = '_blank'; more.rel = 'noopener';
-  info.append(pickerEl(), infoHead, infoBody);
+  info.append(pickerEl(onClose), infoHead, infoBody);
   document.body.append(info);
 
   let open = 0, X = layout(0);
@@ -291,7 +299,8 @@ export function initHousePanel(o: HousePanelOptions) {
     if (lord) lordBox.append(chip(lord, () => o.flyTo(lord.id)));
     swornBox.querySelector('.h-list')!.replaceChildren(...sworn.sort((a, b) => shown(a).localeCompare(shown(b))).map((v) => chip(v, () => o.flyTo(v.id))));
     // the wiki's lead and facts of the house
-    const wiki = (houseWiki as unknown as Record<string, { summary?: string; facts?: [string, string][] }>)[h.id], box = q('.h-wikitext');
+    const wiki = houseWiki[h.id], box = q('.h-wikitext');
+    if (!Object.keys(houseWiki).length) void houseWikiReady.then(() => { if (o.layer.focused === h.id) show(h.id); });
     box.hidden = !wiki;
     if (wiki) {
       const sum = box.querySelector('.h-summary')!, wf = box.querySelector('.h-wfacts')!;

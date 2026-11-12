@@ -26,12 +26,24 @@ src/ (app) reads the generated files; never edit them by hand.
 - The houses overlay (`src/globe/houses.ts`, panel `src/ui/housePanel.ts`, graph `src/houseGraph.ts`, plan `docs/roadmap-houses.md`): territories, borders and coats of arms over either terrain look, toggled by `#housesBtn`. Click a house: it and everyone sworn to it (nested) are lit and the `#house` card opens instead of the place card. The liege graph is per book period, from the shared time store `src/state/time.ts`: a moment is a chapter, a show episode or a history year (decision 0008, plan `docs/roadmap-timeline.md`), `?when=acok`, `asos-sansa-iv` or `s3e9`, read in `main.ts` before `initWhen` writes the address; switcher `#when`. Other layers that depend on "when" subscribe to the same store (`onPeriod` fires on every moment change). What is true at the moment (a house's liege, a place's holder, state, name) comes from `src/state/changes.ts` (`stateAt`): the AGOT state plus the dated, quoted changes of `tools/books/timeline.json` (checked by `tools/books/timeline-check.mjs` in `npm run lore -- check`) and the wiki's per-book lieges counted from the end of each book. Address: `?house=id`.
 - The map through time (plan `docs/roadmap-timeline.md`, decision 0008): `src/state/time.ts` holds the moment (a chapter, an episode or a year of the history; `?when=acok`, `asos-sansa-v`, `s3e9`, `y-100`), `src/state/changes.ts` resolves a place or house at it from `tools/books/timeline.json` (quoted, dated changes; `npm run lore -- check` validates them). The timeline wheel (`initWhen` in `src/ui/housePanel.ts`) has one stop per wiki year before the books, a folded stop for every other year from 3 BC (they unfold as you scroll in) and one per chapter of the books; each rest sets the moment. The year and chapter at the bottom of the screen (`#yearBtn`, `src/main.ts`) opens and closes it.
 
+## Loading and serving
+
+- The main script holds only what the first frame draws (three.js, `vector-world.json`, `terrain.json`, `roads.json`): 3.27 MB, 1.05 MB gzip.
+  Lazy chunks, fetched while the relief maps load: the wiki text (`place-info.ts` `placeInfoReady`, with `sites/site-wiki.json`),
+  the houses' land (`houses.ts` `territoriesReady`; the layer builds once it lands), the house wiki (`housePanel.ts`), posthog-js
+  (`posthog.ts`), and the 3D sites (`modelViewer.ts` imports `sites/index.ts` on first open; `GLOBE_KIND` lives in `sites/kinds.ts`
+  so the globe needn't load `SiteScene`). `main.ts` awaits `placeInfoReady` and `territoriesReady` before opening `?place=`/`?house=` links.
+- Live server: static-web-server on Wasmer, headers in `public/sws.toml`: a CSP listing every outside origin (PostHog,
+  awoiaf.westeros.org), HSTS, nosniff, Referrer-Policy, Permissions-Policy, and the cache rules. No inline `<script>` or `on*=`
+  handler may be added (the CSP blocks them; the loading words are `public/loading.js`). A new outside host goes in the CSP.
+- `public/sw.js` keeps scripts per build and maps per hash of `public/`, revalidating maps (`cache: 'no-cache'`) when it fills a new cache.
+
 ## Generated, never hand-edited
 
 | File | Made by |
 |---|---|
 | `src/world-data.ts` | `npm run places` (from `tools/world/places.raw.txt`) |
-| `src/roads.json` | `node tools/blog/roads-trace.mjs` (or `npm run lore -- roads`) |
+| `src/roads.json` | `node tools/blog/roads-trace.mjs` (or `npm run lore -- roads`); reads `src/house-territories.json` (Dorne is shut to tracks), so build territories first |
 | `src/place-books.json` | `tools/books/place-index.mjs` |
 | `src/chapters.json` | `npm run chapters` (`tools/books/chapters.mjs`): the 345 chapters in publication order from `docs/sources/quartermaester/qm-paths.json`, each with its book and year AC (rules and quotes in the script), and the 73 show episodes from the wiki season pages (no year: canon gives none). The time axis of `src/state/time.ts`; character steps count by its indexes |
 | `src/house-wiki.json` | `node tools/wiki/house-info.mjs`: each house's wiki lead and a few infobox rows for the house card (behind the spoiler button until the end of the story) |

@@ -74,11 +74,12 @@ if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}` || pro
     if (h?.sigil && (HISTORICAL.has(title) || (h.head !== 'Extinct' && (h.head || h.overlords.length)))) all[title] = h;
   }
 
-  const kept = {}, unseated = [];
+  const kept = {}, unseated = [], SEATLESS = new Set(Object.keys(JSON.parse(readFileSync('tools/world/house-poster.json', 'utf8')).seatless));
   for (const [title, h] of Object.entries(all)) {
     const pick = h.seats.find(([s, former]) => !former && placeOfTitle.has(s)) ?? h.seats.find(([s]) => placeOfTitle.has(s));
-    if (!pick) { unseated.push(title); continue; }
-    kept[title] = { id: slug(title), name: h.label ?? title, title, sigil: h.sigil, ...(h.words && { words: h.words }), seat: placeOfTitle.get(pick[0]), ...(h.region && { region: h.region }), ...(h.head && h.head !== 'Extinct' && { head: h.head }), ...(HISTORICAL.has(title) && { extinct: true }) };
+    // a house the reference house map draws but whose seat we lack keeps its land with no seat (decision 0006)
+    if (!pick && !SEATLESS.has(slug(title))) { unseated.push(title); continue; }
+    kept[title] = { id: slug(title), name: h.label ?? title, title, sigil: h.sigil, ...(h.words && { words: h.words }), ...(pick ? { seat: placeOfTitle.get(pick[0]) } : { seatless: true }), ...(h.region && { region: h.region }), ...(h.head && h.head !== 'Extinct' && { head: h.head }), ...(HISTORICAL.has(title) && { extinct: true }) };
   }
   const byTitle = (t) => kept[t]?.id;
   const houses = Object.entries(kept).map(([title, h]) => {
@@ -94,7 +95,7 @@ if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}` || pro
   // Houses on one seat: the one that held it in AGOT (has a liege then), then a current seat, then the main branch (no
   // "of"), then by name, is the primary. The others keep their sidebar card but share its seat and draw no territory of their own.
   const seatGroups = {};
-  for (const h of houses) (seatGroups[h.seat] ??= []).push(h);
+  for (const h of houses) if (h.seat) (seatGroups[h.seat] ??= []).push(h);
   // The wiki's untagged overlord rows make late houses look present in AGOT (Baelish at Harrenhal), so a seat can be pinned here.
   const PRIMARY = { Harrenhal: 'whent' }; // A Game of Thrones, Catelyn: "Lady Whent, last of her line, who dwelt with her ghosts in the cavernous vaults of Harrenhal"
   const rank = (h) => `${PRIMARY[h.seat] === h.id ? 0 : 1}${h.liege.agot ? 0 : 1}${/ of /.test(h.title) ? 1 : 0}${h.title}`;
@@ -107,7 +108,7 @@ if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}` || pro
 
   const lieged = (p) => houses.filter((h) => h.liege[p]).length;
   const seatCount = {};
-  for (const h of houses) (seatCount[h.seat] ??= []).push(h.id);
+  for (const h of houses) if (h.seat) (seatCount[h.seat] ??= []).push(h.id);
   const shared = Object.entries(seatCount).filter(([, v]) => v.length > 1);
   console.log(`${houses.length} houses with a map seat, ${unseated.length} without; with a liege: ${PERIODS.map((p) => `${p} ${lieged(p)}`).join(', ')}`);
   console.log(`seats shared by several houses: ${shared.map(([s, v]) => `${s} (${v.join(', ')})`).join('; ') || 'none'}`);

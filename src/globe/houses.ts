@@ -3,7 +3,6 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { createDeclutter, offset, RINGS, setShown } from '../declutter';
 import { toVector } from '../geo';
 import houseData from '../houses.json';
-import territoryData from '../house-territories.json';
 import { buildGraph, tierOf, type Graph, type House } from '../houseGraph';
 import { onPeriod } from '../state/time';
 import { houseExists, liegeAt, standIn, stateAt } from '../state/changes';
@@ -16,7 +15,11 @@ import type { Ring } from './viewLayer';
 // over whatever terrain look is on (relief or flat). Territories are a weighted Voronoi of the seats (tools/world/house-territories.mjs);
 // who holds of whom is the liege graph at the moment (houseGraph.ts, state/changes.ts), so a change of moment re-lights the realms.
 const HOUSES = houseData as unknown as House[];
-const T = territoryData as unknown as { cell: number; houses: Record<string, Ring[]>; seats: Record<string, [number, number]>; borders: [string, string, Ring][] };
+type Territories = { cell: number; houses: Record<string, Ring[]>; seats: Record<string, [number, number]>; borders: [string, string, Ring][] };
+// 1.3 MB of land, needed only once the overlay is on: its own chunk, fetched beside the relief maps instead of inside the main script.
+// Read only after `loaded` (build, paint, hover and houseAt all follow build; extent and setVisible check it).
+let T!: Territories, loaded = false;
+export const territoriesReady = import('../house-territories.json').then((m) => { T = m.default as unknown as Territories; loaded = true; });
 
 const PALETTE = ['#d9b36a', '#9fb87a', '#c8806c', '#7fa3bd', '#b992b9', '#d6c878', '#7fb59d', '#c99a6d'];
 // Neighbours get different tints: greedy colouring, the busiest houses first.
@@ -93,7 +96,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
   /** Who sits in the seat of house `id` now: another house in the graph, else the house itself. */
   const seatLord = (id: string) => { const h = graph.by.get(id), occ = h ? stateAt(h.seat).holder : null; return occ && occ !== id && graph.by.has(occ) ? occ : id; };
   const IDS = new Set(HOUSES.map((h) => h.id)), own = (id: string): string | null => (!IDS.has(id) || graph.by.has(id) ? id : standIn(id) ?? [...graph.by.values()].find((h) => h.seatOf === id)?.id ?? null), here = (id: string) => own(id) !== null; // land of a house not yet founded goes to the house that held the seat before (Durrandon for Baratheon), else it has no land, sigil or border
-  const col = colours();
+  let col: Map<string, number> | null = null; // after the territories load
   const flat = (m: THREE.Object3D) => { Object.assign((m as THREE.Mesh).material, { depthTest: false, transparent: true }); return m; }; // over the relief, like regions.ts
 
   let hoverCtx: CanvasRenderingContext2D, hoverTex: THREE.CanvasTexture, hoverMesh: THREE.Mesh, ring: Border, paintCtx: CanvasRenderingContext2D, paintTex: THREE.CanvasTexture, paintBox: [number, number, number, number], soft: CanvasRenderingContext2D;
@@ -240,7 +243,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
 
   let queued = false;
   const queuePaint = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; paint(); }); } };
-  const rgbOf = (id: string) => tints.get(id) ?? hexRgb(PALETTE[col.get(id) ?? 0]);
+  const rgbOf = (id: string) => tints.get(id) ?? hexRgb(PALETTE[(col ??= colours()).get(id) ?? 0]);
   const drawLand = (colourOf: (id: string) => [[number, number, number], number]) => {
     const [lon0, , , lat1] = paintBox, { width: w, height: h } = paintCtx.canvas;
     paintCtx.clearRect(0, 0, w, h);
@@ -365,7 +368,10 @@ export function createHouseLayer(o: HouseLayerOptions) {
     get version() { return version; },
     houseAt,
     setVisible(on: boolean) {
-      if (on && !built) build();
+      if (on && !built) {
+        if (loaded) build();
+        else void territoriesReady.then(() => { if (group.visible && !built) { build(); version++; } });
+      }
       group.visible = on;
       if (!on) api.focus(null);
       version++;
@@ -377,7 +383,7 @@ export function createHouseLayer(o: HouseLayerOptions) {
       o.onFocus(id);
     },
     /** The land of a house and everyone sworn to it, as [lon, lat] points to frame. */
-    extent: (id: string) => [...graph.subtree(id).keys()].flatMap((h) => (T.houses[territory(h)] ?? []).flat()),
+    extent: (id: string) => !loaded ? [] : [...graph.subtree(id).keys()].flatMap((h) => (T.houses[territory(h)] ?? []).flat()),
     /** The houses lit now (the focused one and everyone sworn to it), with their steps down. */
     lit: () => (focusId ? graph.subtree(focusId) : null),
     /**

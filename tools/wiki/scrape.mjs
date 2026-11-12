@@ -23,7 +23,7 @@ const SITE = 'https://awoiaf.westeros.org';
 const OUT = 'docs/sources/wiki';
 // Map names the wiki spells differently (checked by hand; the wiki's search guessed wrong about half the time).
 const ALIASES = {
-  'Old Stonebridge': 'Old Stone Bridge', 'Celtigar Keep': 'Claw Isle', 'Green Shield': 'Greenshield', 'Oakenshield (castle)': 'Oakenshield (Wall)', 'Oakenshield (island)': 'Oakenshield', 'Grey Shield': 'Greyshield',
+  'Old Stonebridge': 'Old Stone Bridge', Wyl: 'Wyl (castle)','Celtigar Keep': 'Claw Isle', 'Green Shield': 'Greenshield', 'Oakenshield (castle)': 'Oakenshield (Wall)', 'Oakenshield (island)': 'Oakenshield', 'Grey Shield': 'Greyshield',
   'South Shield': 'Southshield', 'Old Andalos': 'Andalos', 'The Fallen Kingdom of Sarnor': 'Kingdom of Sarnor', 'Sarne Delta': 'Sarne',
   'The Fallen Valyrian Freehold': 'Valyrian Freehold', 'The Mouths of the Rhoyne': 'Rhoyne', 'The Fallen Kingdom of Hyrkoon': 'Patrimony of Hyrkoon',
   'Lake Zamoyos': 'Zamoyos', 'Upper Zamoyos': 'Zamoyos', 'Lower Zamoyos': 'Zamoyos', 'The Jungles of Yi Ti': 'Yi Ti', 'The Straits of Leng': 'Leng',

@@ -13,11 +13,8 @@ import { PLACE_ICONS } from '../globe/placeIcons';
 /** A named, clickable place. pos = [x, z, groundHeight] in the site frame. */
 export type Place = { name: string; kind: string; pos: [number, number, number]; radius?: number };
 
-/** The globe kind a site kind is named and shown as (symbol, colour, type size, and the kind the place panel gives it). */
-export const GLOBE_KIND: Record<string, string> = {
-  castle: 'castle', keep: 'castle', tower: 'ruin', sept: 'monument', pit: 'monument', gate: 'landmark', hall: 'town', square: 'town',
-  place: 'minor', wood: 'forest', hill: 'mountain', district: 'region', water: 'lake', street: 'road', road: 'road',
-};
+import { GLOBE_KIND } from './kinds';
+export { GLOBE_KIND };
 
 /** A site scene plus what its view module adds: the lore shown when a label is clicked, and where the camera goes for a place (x, z in the site frame, camera height in m). */
 export type SiteView = ReturnType<typeof createSiteScene> & { lore: Record<string, string>; focus(p: Place): { x: number; z: number; alt: number } };

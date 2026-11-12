@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { atlasLog, capture } from './posthog';
+import './posthog';
 import { createGlobeView } from './globe/GlobeView';
 import { PLACE_ICONS, PLACE_KINDS } from './globe/placeIcons';
 import { isOpen, onClose, onHouse, onModel, onNavigate, placeSlug, showCard } from './ui/placePanel';
@@ -9,10 +9,12 @@ import { BOOKS, CHAPTERS, EPISODES, chapterTitle, getBook, getMoment, momentFrom
 import type { House } from './houseGraph';
 import houseData from './houses.json';
 import { CHARACTERS } from './character-info';
-import { GLOBE_KIND, type Place, type SiteView } from './sites/SiteScene';
+import type { Place, SiteView } from './sites/SiteScene';
+import { GLOBE_KIND } from './sites/kinds';
 import { closeModel, modelOpen, modelViews, onModelPick, onModelShow, openModel } from './ui/modelViewer';
 import { SITES, type SiteId } from './config';
-import { PLACE_INFO } from './place-info';
+import { PLACE_INFO, placeInfoReady } from './place-info';
+import { territoriesReady } from './globe/houses';
 import PLACE_ALT from './place-alt.json';
 import { initMeasurePanel } from './ui/measurePanel';
 import { initNav } from './ui/nav';
@@ -30,6 +32,9 @@ renderer.setPixelRatio(MAX_RATIO);
 renderer.setSize(innerWidth, innerHeight);
 renderer.autoClear = false; // the globe's pass clears (its background colour)
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+// A screen reader can't read the globe; it is told what it is and that the search box is the way in (arrow keys roll it).
+renderer.domElement.setAttribute('role', 'img');
+renderer.domElement.setAttribute('aria-label', 'A 3D globe of the Known World of Westeros and Essos. Use the search box to find a place, house or character; arrow keys move the globe.');
 document.body.prepend(renderer.domElement);
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -80,13 +85,7 @@ const crossfade = (on: boolean) => {
   fader.style.transition = 'opacity .7s ease-in-out';
   fader.style.opacity = '0';
 };
-reliefBtn.onclick = () => {
-  const reliefEnabled = reliefBtn.getAttribute('aria-pressed') !== 'true';
-  const style = reliefEnabled ? 'relief' : 'flat';
-  capture('map_style_changed', { style });
-  atlasLog.info('map style changed', { operation: 'map_style_change', style });
-  showStyle(reliefEnabled);
-};
+reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== 'true');
 reliefBtn.querySelector('.name')!.textContent = 'Map';
 
 // Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
@@ -130,7 +129,7 @@ const modeBtns = [...document.querySelectorAll<HTMLButtonElement>('#modeSwitch b
 // read before initWhen, which writes the address for the moment it shows
 const linkedMoment = momentFromSearch(location.search);
 setMoment(linkedMoment ?? START); // ?when=asos, asos-sansa-iv, s3e9: the moment every layer follows
-const showTimeline = initWhen();
+const showTimeline = initWhen(() => setTimeline(false));
 const housePanel = initHousePanel({
   layer: globe.houses,
   flyTo: (id) => globe.flyToHouse(id),
@@ -146,12 +145,7 @@ const setHouses = (on: boolean) => {
   modeBtns.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.mode === 'houses') === on)));
   wake();
 };
-modeBtns.forEach((b) => { b.onclick = () => {
-  const mode = b.dataset.mode === 'houses' ? 'houses' : 'regions';
-  capture('atlas_mode_changed', { mode });
-  atlasLog.info('atlas mode changed', { operation: 'atlas_mode_change', mode });
-  setHouses(mode === 'houses');
-}; });
+modeBtns.forEach((b) => { b.onclick = () => setHouses(b.dataset.mode === 'houses'); });
 const timelineBtn = $('yearBtn');
 const setTimeline = (on: boolean) => {
   showTimeline(on);
@@ -169,12 +163,7 @@ const showMoment = () => {
 };
 onPeriod(showMoment); showMoment();
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('timeline-on') && !(e.target instanceof HTMLInputElement)) setTimeline(false); });
-timelineBtn.onclick = () => {
-  const open = !document.body.classList.contains('timeline-on');
-  capture('timeline_toggled', { open });
-  atlasLog.info('timeline visibility changed', { operation: 'timeline_toggle', open });
-  setTimeline(open);
-};
+timelineBtn.onclick = () => setTimeline(!document.body.classList.contains('timeline-on'));
 if (linkedMoment) setTimeline(true); // a ?when= link opens the timeline
 globe.onHouseFocus((id) => { if (id) globe.clearPlace(); housePanel.show(id); wake(1500); }); // a house card and a place card are never open together
 addEventListener('placeopen', () => globe.houses.focus(null));
@@ -234,14 +223,12 @@ let shown: Item[] = [];
 let active = 0;
 const setActive = (n: number) => {
   active = n;
-  [...results.children].forEach((li, k) => li.classList.toggle('on', k === n));
+  [...results.children].forEach((li, k) => { li.classList.toggle('on', k === n); li.setAttribute('aria-selected', String(k === n)); });
+  if (results.children[n]?.id) search.setAttribute('aria-activedescendant', results.children[n].id); else search.removeAttribute('aria-activedescendant'); // a screen reader reads the highlighted row
   results.children[n]?.scrollIntoView({ block: 'nearest' });
 };
-const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); };
-const go = (m: Item) => {
-  capture('search_result_selected', { result_kind: m.kind });
-  m.go(); search.value = ''; search.blur(); closeResults();
-};
+const closeResults = () => { results.hidden = true; search.setAttribute('aria-expanded', 'false'); search.removeAttribute('aria-activedescendant'); };
+const go = (m: Item) => { m.go(); search.value = ''; search.blur(); closeResults(); };
 const renderResults = () => {
   const raw = search.value.trim(), q = fold(raw);
   if (!q) return closeResults();
@@ -254,9 +241,9 @@ const renderResults = () => {
     ? shown.map((m, k) => {
       const via = hits[k], l = m.label, i = fold(l).indexOf(q); // the matched letters are marked when the query is a plain substring
       const name = i >= 0 && fold(l).length === l.length ? `${esc(l.slice(0, i))}<mark>${esc(l.slice(i, i + q.length))}</mark>${esc(l.slice(i + q.length))}` : esc(l);
-      const icon = m.img ? `<img src="${m.img}" alt="" onerror="this.style.visibility='hidden'">` // a house shows its arms
+      const icon = m.img ? `<img src="${m.img}" alt="">` // a house shows its arms
         : `<svg class="k-${m.kind}" viewBox="0 0 512 512">${PLACE_ICONS[m.kind] ?? SHIELD}</svg>`;
-      return `<li role="option" data-k="${k}">${icon}` +
+      return `<li role="option" id="opt-${k}" data-k="${k}">${icon}` +
         `<span class="nm">${name}${via ? ` <small>(${esc(via)})</small>` : ''}</span><span class="kd">${kindLabel[m.kind] ?? ''}</span></li>`;
     }).join('')
     : '<li class="none">No such place in the known world</li>';
@@ -275,6 +262,8 @@ search.addEventListener('keydown', (e) => {
   } else if (e.key === 'Enter' && shown[active] && !results.hidden) go(shown[active]);
   else if (e.key === 'Escape') { closeResults(); search.blur(); }
 });
+// a house whose arms fail to load keeps its row, without a broken picture (a listener, not an inline onerror: the CSP forbids inline script, public/sws.toml)
+results.addEventListener('error', (e) => { if (e.target instanceof HTMLImageElement) e.target.style.visibility = 'hidden'; }, true);
 results.addEventListener('mousedown', (e) => {
   const li = (e.target as HTMLElement).closest<HTMLElement>('li[data-k]');
   if (li) { e.preventDefault(); go(shown[+li.dataset.k!]); }
@@ -285,6 +274,9 @@ await globe.relief.ready;
 // Every program the first frames draw, compiled behind the loading screen; compileAsync polls KHR_parallel_shader_compile where the GPU
 // has it, so the page stays responsive instead of freezing for seconds on the first draw (findings 2026-11-11).
 await Promise.all([renderer.compileAsync(globe.scene, globe.camera), globe.relief.warm(renderer, globe.camera)]).catch(() => {});
+// The wiki text and the houses' land are lazy chunks fetched while the maps loaded; the links below and the search's aliases need them.
+await Promise.all([placeInfoReady, territoriesReady]).catch(() => {});
+mapItems.forEach((m) => { m.alt = aliases(m.label); });
 // A link with ?place=Name opens on that place.
 // With &view=3d it opens that place's 3D model too: a site, or a building in one (each site is tried until one has it).
 // A place's own page, /place/<slug>/ (tools/seo/prerender.mjs), opens on that place the same way.
@@ -337,6 +329,9 @@ for (const t of ['pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'input
   addEventListener(t, () => wake(), { capture: true, passive: true });
 addEventListener('pointermove', (e) => { if (e.buttons) wake(); }, { capture: true, passive: true });
 onModelShow((open) => { if (!open) wake(); }); // the globe sleeps under the 3D model view and is drawn again when it closes
+// The first seconds count from now, when the maps are in, not from when the script started: on a load over 5 s (a slow phone) the loop
+// was already asleep, no first frame was drawn and the loading screen stayed until a touch woke it (findings 2026-11-11).
+wake(5000);
 
 // Slow GPUs, in order: while the camera moves the ground shader goes lean (no fine procedural detail, `relief.lean`) at full
 // resolution; only if frames still run long does the canvas shrink to `moveRatio`. Both undo after two quiet seconds of fast

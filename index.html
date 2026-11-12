@@ -11,6 +11,7 @@
   <meta name="theme-color" content="#150d0f" />
   <link rel="canonical" href="https://www.openwesteros.com/" />
   <link rel="icon" type="image/webp" href="/coin/valar.webp" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Open Westeros" />
   <meta property="og:title" content="Westeros Map: Interactive Game of Thrones Map | Open Westeros" />
@@ -35,7 +36,7 @@
   <noscript><h1>Westeros Map: Interactive Game of Thrones Map</h1><p>A free interactive 3D map of Westeros and Essos. Enable JavaScript to explore the map.</p></noscript>
   <div id="loading"><div id="coinStage"><div class="toss"><div class="flip"><div class="coin"><img src="/coin/valar.webp" alt=""><img class="back" src="/coin/hood.webp" alt=""><i style="--z:-3.5px"></i><i style="--z:-2.5px"></i><i style="--z:-1.5px"></i><i style="--z:-0.5px"></i><i style="--z:0.5px"></i><i style="--z:1.5px"></i><i style="--z:2.5px"></i><i style="--z:3.5px"></i></div></div></div></div><h1>Open Westeros</h1><p class="sub">The Known World of Ice and Fire</p><p id="loadMsg"></p></div>
   <div id="globeLabels" class="labels"></div>
-  <div id="viewer" hidden>
+  <div id="viewer" role="dialog" aria-modal="true" aria-label="Pictures from the wiki" hidden>
     <button class="close" aria-label="Close" title="Close (Esc)">×</button>
     <div class="stage">
       <img class="big" alt="" />
@@ -46,7 +47,7 @@
   </div>
   <div id="debug" hidden></div>
   <!-- a 3D site in its own full-screen view (src/ui/modelViewer.ts); the place panel stays above it -->
-  <div id="model3d" hidden>
+  <div id="model3d" role="dialog" aria-label="3D model" hidden>
     <div class="stage"></div>
     <div class="bar"><h2 class="title"></h2><span class="tip">Drag to turn · right-drag to move · scroll to zoom · click a name</span></div>
     <p class="hint" hidden>Loading the 3D model…</p>
@@ -59,9 +60,9 @@
       <button id="menuBtn" class="icon" aria-label="Menu" title="Menu">
         <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
       </button>
-      <input id="search" type="search" placeholder="Navigate the Known World" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="results" />
-      <ul id="results" class="card" role="listbox" hidden></ul>
-      <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+      <input id="search" type="search" placeholder="Navigate the Known World" aria-label="Search places, houses and characters" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="results" />
+      <ul id="results" class="card" role="listbox" aria-label="Search results" hidden></ul>
+      <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
     </div>
     <!-- place panel, like Google Maps: shown instead of the drawer while a place is open -->
     <div id="place" class="card" hidden>
@@ -200,6 +201,7 @@
       <li>Place text: <a href="https://awoiaf.westeros.org" target="_blank" rel="noopener">A Wiki of Ice and Fire</a>, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA</a>; coats of arms by its contributors</li>
       <li>Red comet: <a href="https://www.deviantart.com/sreekuttan09/art/Red-comet-650108832" target="_blank" rel="noopener">Red comet</a> by sreekuttan09 on DeviantArt</li>
     </ul>
+    <p class="privacy">Privacy: page views (where visitors come from) and error reports go to <a href="https://posthog.com/privacy" target="_blank" rel="noopener">PostHog</a>. No session recording, no clicks or typing tracked, no account needed.</p>
     <p class="made">Made with love and respect by <a href="https://github.com/eduardohilariodev" target="_blank" rel="noopener">Eduardo Hilário</a></p>
     <form method="dialog"><button>Close</button></form>
   </dialog>
@@ -225,17 +227,7 @@
     <form method="dialog"><button>Close</button></form>
   </dialog>
 
-  <script>
-    // The loading screen's words: things done in the world while the map loads, one every second and a half.
-    (() => {
-      const words = ['Sending ravens from the Citadel…', 'Unrolling the maesters’ maps…', 'Raising the Wall, block by block…', 'Lighting the beacon of the Hightower…', 'Riding the Kingsroad…', 'Crossing the Narrow Sea…', 'Following the Trident to the sea…', 'Waking the weirwoods…', 'Charting the Smoking Sea…', 'Forging links for the maesters’ chains…', 'Unfurling the banners of the great houses…', 'Crossing the Dothraki sea…', 'Counting the leagues of the Seven Kingdoms…', 'Gathering tales from the Free Cities…', 'Knocking at the House of Black and White…', 'Sharpening the dragonglass…', 'Feeding the ravens…', 'Opening the gates of Oldtown…'];
-      const el = document.getElementById('loadMsg');
-      let i = Math.floor(Math.random() * words.length);
-      const next = () => { el.textContent = words[i++ % words.length]; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; };
-      next();
-      setInterval(next, 1500);
-    })();
-  </script>
+  <script src="/loading.js"></script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

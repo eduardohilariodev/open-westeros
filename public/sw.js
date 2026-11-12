@@ -18,7 +18,9 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(caches.open(name).then(async (cache) => {
     const hit = await cache.match(req);
     if (hit) return hit;
-    const res = await fetch(req);
+    // Our maps keep their names across deploys and the server lets browsers keep them for a month or more (sws.toml), so a new media
+    // cache revalidates with the server (a 304 when unchanged) instead of copying a stale picture out of the browser's HTTP cache.
+    const res = await fetch(name === MEDIA ? new Request(req, { cache: 'no-cache' }) : req);
     if (res.ok || res.type === 'opaque') cache.put(req, res.clone()); // <img> from the wiki is no-cors: opaque, status unknown
     return res;
   }));

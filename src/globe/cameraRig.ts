@@ -150,6 +150,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   // the ordinary zoom (the wheel still works); a drag or an arrow key lets go, like it ends a flight.
   let follow: { dir: () => THREE.Vector3; inset: () => Inset } | null = null;
   const tmp = new THREE.Vector3();
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   /** Fly to look at the spot `dir` from altitude `a`. With `inset` (px each side is covered), the spot lands in the middle of what is left free, not of the screen. */
   type Inset = { l: number; r: number; t: number; b: number };
@@ -243,7 +244,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
         if (ray.ray.intersectSphere(planet, hit)) camera.position.copy(hit);
       }
       if (anim) {
-        const t = Math.min(1, (now - anim.t0) / 3500), e = ease(t);
+        const t = reduceMotion.matches ? 1 : Math.min(1, (now - anim.t0) / 3500), e = ease(t); // reduced motion: arrive at once, no 3.5 s sweep across the planet
         camera.position.copy(tmp.copy(anim.d0).lerp(anim.d1, e).normalize());
         alt = altGoal = Math.exp(THREE.MathUtils.lerp(Math.log(anim.a0), Math.log(anim.a1), e));
         if (t === 1) anim = null;

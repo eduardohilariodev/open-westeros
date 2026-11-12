@@ -172,7 +172,7 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
   console.log(`${pinned.length} anchored seats, ${ctrl.length - pinned.length} coast pins`);
 
   // Each land cell takes the poster's fill colour under it (per-channel median of a 7x7 pixel block, which drops the line art).
-  const col = new Uint8Array(W * H * 3), seen = new Uint8Array(W * H), blk = [[], [], []];
+  const col = new Uint8Array(W * H * 3), seen = new Uint8Array(W * H), pxy = new Float32Array(W * H * 2), blk = [[], [], []];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const c = y * W + x;
     const lon = lon0 + (x + 0.5) * S, lat = lat0 + (y + 0.5) * S;
@@ -182,7 +182,24 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
     blk.forEach((a) => (a.length = 0));
     for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const i = ((Math.round(Y) + dy) * info.width + Math.round(X) + dx) * 3; for (let ch = 0; ch < 3; ch++) blk[ch].push(px[i + ch]); }
     for (let ch = 0; ch < 3; ch++) col[c * 3 + ch] = blk[ch].sort((p, q) => p - q)[24];
-    seen[c] = 1;
+    seen[c] = 1; pxy[c * 2] = X; pxy[c * 2 + 1] = Y;
+  }
+  // Phantoms: the poster's houses we lack (no seat on our map; Plumm, Lorch, Jast round Clegane's Keep), at their label
+  // (`unheld` in house-poster.json, poster pixels). They flood their own territory like a seat, and it is then left unheld:
+  // given to the cheapest neighbour, as before, it made a landed knight's house (Clegane) bigger than Casterly Rock's.
+  // Our coast is not the poster's, so a label can fall off our land: the phantom starts at the nearest cell (within 80 px) that
+  // has the territory's fill, the median colour of the 21x21 pixels round the label.
+  for (const [id, [X, Y]] of Object.entries(P.unheld ?? {})) {
+    const fill = [0, 1, 2].map((ch) => { const v = []; for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 10; dx++) v.push(px[((Y + dy) * info.width + X + dx) * 3 + ch]); return v.sort((p, q) => p - q)[220]; });
+    let start = -1, bd = Infinity;
+    for (let c = 0; c < W * H; c++) {
+      if (!seen[c] || Math.hypot(col[c * 3] - fill[0], col[c * 3 + 1] - fill[1], col[c * 3 + 2] - fill[2]) > 24) continue;
+      const d = (pxy[c * 2] - X) ** 2 + (pxy[c * 2 + 1] - Y) ** 2;
+      if (d < bd) { bd = d; start = c; }
+    }
+    if (bd > 6400) { console.warn(`unheld ${id}: its fill is not on our land`); continue; }
+    const cx = start % W, cy = (start - cx) / W;
+    seeds.push({ id, phantom: true, lat: lat0 + (cy + 0.5) * S, lon: lon0 + (cx + 0.5) * S, cx, cy, start, reg: region[start] });
   }
   // The Gift belongs to the Night's Watch, no house: "double the size of their lands, to fifty leagues" (ASOS, Bran), 150 miles
   // south of the Wall. Colour cannot tell it apart (its parchment medians match pale territories such as Woolfield).
@@ -227,6 +244,16 @@ if (process.argv[1]?.endsWith('house-territories.mjs')) {
       if (nd < best[n]) { best[n] = nd; label[n] = i + 1; heap.push(nd, n, i); }
     }
   }
+  // the phantoms' land is left unheld, like the Gift
+  const unheld = {};
+  for (let c = 0; c < W * H; c++) if (seeds[label[c] - 1]?.phantom) { unheld[seeds[label[c] - 1].id] = (unheld[seeds[label[c] - 1].id] ?? 0) + 1; label[c] = 0; }
+  if (process.env.DBG) { // the poster as warped onto our grid, north up, with the borders in black: tmp/house-warp.png
+    const img = Buffer.alloc(W * H * 3);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = y * W + x, o = ((H - 1 - y) * W + x) * 3, edge = x + 1 < W && label[c] !== label[c + 1] || y + 1 < H && label[c] !== label[c + W]; for (let k = 0; k < 3; k++) img[o + k] = edge ? 0 : col[c * 3 + k]; }
+    await sharp(img, { raw: { width: W, height: H, channels: 3 } }).png().toFile('tmp/house-warp.png');
+  }
+  if (process.env.DBG) console.log(seeds.filter((s) => s.phantom).map((s) => `${s.id} ${s.lat.toFixed(2)},${s.lon.toFixed(2)} ${unheld[s.id] ?? 0}`).join('; '));
+  seeds.splice(seeds.findIndex((s) => s.phantom) >>> 0);
   for (const [i, s] of seeds.entries()) label[s.cy * W + s.cx] = i + 1; // a seat is always in its own territory
   // A seat with next to no land of its own (an islet such as Serry or Pryor, or a small house a great lord swallows, Stout) gets a small round holding, up to ISLE
   // degrees around the seat over other houses' cells too (not their seats), so it has a shape to draw and click. ASSUMPTION: about 22 miles across.

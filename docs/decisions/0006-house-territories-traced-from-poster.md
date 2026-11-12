@@ -15,4 +15,6 @@ The weighted Voronoi of 0004 drew borders the reference maps do not have: Umber 
 
 ## Consequences
 
+Amended 2026-11-11: a poster territory whose house we lack no longer goes to a neighbour (it made Clegane, a landed knight's house, larger than Lannister). Its label is listed under `unheld` in `house-poster.json`; it floods like a seat and its land is left unheld, like the Gift. A territory that is still oversized usually means a poster house missing from that list.
+
 Borders are the poster's, bent around our seats; where a seat sits far from its poster position the territory is stretched. Rebuilding needs the poster locally. A new house needs an anchor in `house-poster.json`, or it floods from its seat. The weights file of 0004 is gone.
