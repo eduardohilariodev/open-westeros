@@ -7,7 +7,7 @@ const weak = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, s
 
 export const LOW = forced ? forced === 'low' : weak;
 export const Q = LOW
-  ? { ratio: 1.5, aa: false, aniso: 2, shadow: 2048, targetPx: 10, detail: false, clouds: false }
+  ? { ratio: 1.5, aa: false, aniso: 2, shadow: 2048, targetPx: 10, detail: false, clouds: true }
   : { ratio: 2, aa: true, aniso: 8, shadow: 4096, targetPx: 6, detail: true, clouds: true };
 
 /** A texture filled once `url` is decoded (phones get their own smaller files: relief-*-half, milky_way-2k). Stays empty if it fails. */

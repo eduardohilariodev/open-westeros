@@ -894,3 +894,8 @@
 - **Evidence:** `npm run shot -- "Winterfell" --when acok` shows the × beside the ›; `tsc` and `npm test` (75 pass) pass. Note: `shot --eval` runs after the screenshot, so use `--when` to open the timeline for a shot.
 - **So what:** the picker row reserves 36 px on the right for the ×; a new control in that row must fit the remaining width.
 - **Follow-up:** with the timeline open, the year button (`#yearBtn`) no longer moves to the top of the screen; it is hidden (`body.timeline-on #yearBtn { display: none }`), since the wheel's label repeats it. It comes back at the bottom when the timeline closes. Closing is now the window's × or Esc.
+
+## 2026-11-11 clouds: shown on every device, phones included
+- What: `Q.clouds` was false when `LOW` (phones, `deviceMemory` <= 4), so those visitors never saw clouds or fetched `earth_clouds-4k.webp`. The owner wants them for everyone: `quality.ts` now sets `clouds: true` in both tiers.
+- Evidence: production screenshot at 23,359 km showed no clouds; dev showed them. CSP in `public/sws.toml` allows the fetch.
+- So: if a phone struggles, the lever is the 1.8 MB 4k texture, not hiding the layer.
