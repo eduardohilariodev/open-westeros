@@ -10,6 +10,11 @@
 `- Evidence: command, file, number
 `- So: what to do or avoid next time
 ````
+
+## 2026-11-13 analytics: Wasmer's GitHub build had no PostHog key; it now lives in the committed .env.production
+- What: openwesteros.com logged "PostHog: VITE_POSTHOG_KEY or VITE_POSTHOG_HOST missing at build time". The key was only in the git-ignored `.env.local`, and production is Wasmer's autobuild from GitHub (push to main), which never sees that file.
+- Evidence: live HTML loaded `assets/index-By5N2svT.js` (no `phc_`, no `us.i.posthog.com`); the local `dist/` bundle had the key and 404ed live. `npm run deploy:wasmer` is not the deploy path: the CLI is not logged in, and a CLI deploy would replace the autobuild config (see the 2026-11-11 deploy entries).
+- So: build-time public values go in `.env.production` (committed, `!.env.production` in .gitignore); secrets never do. After a push, check the live bundle for `phc_` (fetch `/`, then the `assets/index-*.js` it names).
 `
 ## 2026-11-11 lighthouse: desktop 61/100/100/92, mobile 29/100/100/92 (perf/a11y/best practices/SEO)
 - What: Lighthouse 12.8.2 on the built site served by the wasmer static-web-server with `public/sws.toml` (commit b0d6ca7). Mobile FCP/LCP 7.2/8.2 s and TBT 4.1 s are Lantern's simulation: observed FCP was 405 ms, and 84% of the simulated LCP is "render delay" behind the main script's evaluation (index 4.7 s of scripting at 4x CPU: the JSON it parses and the globe setup). Real findings: script evaluation is the cost, not download; `textures/red_comet.png`, `paper.jpg`, `ice.jpg`, `pin.png` could be WebP (~337 KiB); the coin pictures are bigger than the 120 px they show at (~68 KiB); `#yearBtn`'s aria-label doesn't contain its visible text (label-content-name-mismatch, weight 0); SEO's only fail is `crawlable-anchors`: the wiki `<a>`s in index.html have no href until a card fills them.

@@ -3,7 +3,8 @@ import type { PostHog } from 'posthog-js';
 // Analytics, kept light for phones: where visitors come from (pageviews carry $referrer and utm_*), how long they stay (pageleave),
 // how fast the page really is on their devices (web vitals, a 7 KB script that only observes), uncaught errors, and a few events
 // of our own (`capture`). Off: session replay, click autocapture, heatmaps, dead/rage clicks, surveys, support chat, logs, flags.
-// Key and host from .env.local (VITE_POSTHOG_KEY, VITE_POSTHOG_HOST; the build runs locally before `wasmer deploy`). Built site only:
+// Key and host from the committed .env.production (VITE_POSTHOG_KEY, VITE_POSTHOG_HOST; Wasmer builds from GitHub, where .env.local
+// does not exist; the key is public, it ships in the page anyway). Built site only:
 // the dev server and `npm run shot` would otherwise fill the project with localhost sessions. posthog-js is its own chunk, fetched
 // beside the maps; events sent before it lands wait in `queue`.
 const posthogKey = import.meta.env.VITE_POSTHOG_KEY;

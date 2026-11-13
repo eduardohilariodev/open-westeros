@@ -4,6 +4,7 @@ dist/
 .DS_Store
 .vercel
 .env*
+!.env.production
 .cache/
 tmp/
 
