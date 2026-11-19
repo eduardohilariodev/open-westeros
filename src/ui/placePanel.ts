@@ -67,7 +67,7 @@ const PAGES = new Set(PLACES.map((p) => p[0]));
 // The focused place is in the address and in the tab title. A map place gets its own page, /place/<slug>/ (shareable, so shared
 // links point at the page search engines index; opened again by main.ts); a place without one (a building of a 3D site) keeps ?place=Name.
 // The titles match index.html's and the prerendered pages', so a crawler that runs the script reads the same title.
-const HOME_TITLE = 'Westeros Map: Interactive Game of Thrones Map | Open Westeros';
+const HOME_TITLE = 'Westeros Map: Interactive Game of Thrones Globe';
 const syncAddress = (c: Card) => {
   document.title = c ? `${stateAt(c.name).name ?? c.name} Map · Open Westeros` : HOME_TITLE;
   const u = new URL(location.href);

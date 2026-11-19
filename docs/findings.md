@@ -11,6 +11,11 @@
 `- So: what to do or avoid next time
 ````
 
+## 2026-11-13 seo: Search Console "Redirect error" on https://openwesteros.com/ is the apex, which redirects by design
+- What: Search Console inspected the apex (`https://openwesteros.com/`, crawled 2026-11-12 16:16) and reported "Page is not indexed: Redirect error", "No referring sitemaps". The apex only redirects (Wasmer can't serve an apex), so it is never indexed itself; the indexable URL is `https://www.openwesteros.com/`.
+- Evidence: curl as Googlebot smartphone on 11-13: `https://openwesteros.com/` 301 → www 200; `http://openwesteros.com/` 308 → https apex 301 → www 200; www 200; `/place/x` 308 → `/place/x/` 200. No loop, at most 2 hops. robots.txt and sitemap.xml (710 URLs) both name www. The 11-12 crawl came hours after the domain was attached, so a cert or DNS step then is the likely cause; not reproducible now.
+- So: in Search Console inspect and request indexing for `https://www.openwesteros.com/` (a Domain property covers both hosts), and submit `https://www.openwesteros.com/sitemap.xml`. Don't chase the apex result.
+
 ## 2026-11-13 analytics: Wasmer's GitHub build had no PostHog key; it now lives in the committed .env.production
 - What: openwesteros.com logged "PostHog: VITE_POSTHOG_KEY or VITE_POSTHOG_HOST missing at build time". The key was only in the git-ignored `.env.local`, and production is Wasmer's autobuild from GitHub (push to main), which never sees that file.
 - Evidence: live HTML loaded `assets/index-By5N2svT.js` (no `phc_`, no `us.i.posthog.com`); the local `dist/` bundle had the key and 404ed live. `npm run deploy:wasmer` is not the deploy path: the CLI is not logged in, and a CLI deploy would replace the autobuild config (see the 2026-11-11 deploy entries).
@@ -904,3 +909,12 @@
 - What: `Q.clouds` was false when `LOW` (phones, `deviceMemory` <= 4), so those visitors never saw clouds or fetched `earth_clouds-4k.webp`. The owner wants them for everyone: `quality.ts` now sets `clouds: true` in both tiers.
 - Evidence: production screenshot at 23,359 km showed no clouds; dev showed them. CSP in `public/sws.toml` allows the fetch.
 - So: if a phone struggles, the lever is the 1.8 MB 4k texture, not hiding the layer.
+
+## 2026-11-19 Search Console: "Page with redirect" on the apex is correct
+- What: URL Inspection of `https://openwesteros.com/` says "not indexed: Page with redirect". That is the intended state, not a bug: the apex answers 301 to `https://www.openwesteros.com/`, and the canonical tag, `og:url`, `robots.txt` and `sitemap.xml` all name www.
+- Evidence: `curl -I` apex → 301 to www; www → 200; Google-selected canonical = user-declared (www).
+- So: inspect and request indexing for the www URL, and submit `https://www.openwesteros.com/sitemap.xml`. Only the www URL can be indexed.
+
+## 2026-11-19 Home title: "Westeros Map: Interactive Game of Thrones Globe"
+- What: home `<title>`, og/twitter titles, noscript h1 and `HOME_TITLE` in `src/ui/placePanel.ts` changed from "Westeros Map: Interactive Game of Thrones Map | Open Westeros" to the owner's wording, with no brand suffix. Place pages (`tools/seo/prerender.mjs`) keep "<Name> Map · Open Westeros".
+- So: the brand stays in `og:site_name` and JSON-LD; keep the four home title spots in sync.
