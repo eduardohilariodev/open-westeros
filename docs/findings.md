@@ -918,3 +918,8 @@
 ## 2026-11-19 Home title: "Westeros Map: Interactive Game of Thrones Globe"
 - What: home `<title>`, og/twitter titles, noscript h1 and `HOME_TITLE` in `src/ui/placePanel.ts` changed from "Westeros Map: Interactive Game of Thrones Map | Open Westeros" to the owner's wording, with no brand suffix. Place pages (`tools/seo/prerender.mjs`) keep "<Name> Map · Open Westeros".
 - So: the brand stays in `og:site_name` and JSON-LD; keep the four home title spots in sync.
+
+## 2026-11-19 Social and search image: the whole globe
+- What: `public/og-westeros-globe.jpg` (1200x630, 73 KB) shows the whole globe, Westeros and Essos centred, no UI. It is now `og:image`, `twitter:image` and the first of the JSON-LD `image` list; the close-up `og-westeros-map.jpg` stays second. Place pages inherit it (prerender does not touch images).
+- How: `tmp/og-shot.mjs` (playwright, dev server on 5199): `?place=The Narrow Sea`, `nav.zoom(2.1)` → 16,800 km, hide every body child without the canvas, JPEG q85. `shot.mjs --zoom` cannot do it: its `--eval` runs after the screenshot, so the UI stays in.
+- So: Google crops the result thumbnail square from the centre; a centred globe survives the crop, the old wide close-up did not.
