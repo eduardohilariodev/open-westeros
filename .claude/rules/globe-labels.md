@@ -15,9 +15,13 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - Big area lettering hides once the camera is well inside the area, so the places inside it take over (like Google Maps):
   continents give way to regions, and regions and oceans give way to point places.
 - Point places (cities, castles…) have no lower limit. Once shown they stay shown down to the camera floor.
-- Keep bands nested from coarse to fine, all above the 600 km camera floor (`MIN_ALT`, `cameraRig.ts`, measured above the drawn
-  ground). Roughly: continents above 6,000 km, regions 1,000–6,000 km, oceans hidden below 1,200 km, cities and capitals below
-  3,500–4,000 km, castles and towns below 1,600 km, keeps and villages below 1,000 km. Fly-to heights are at or over 600 km.
+- Keep bands nested from coarse to fine, all above the 300 km camera floor (`MIN_ALT`, `cameraRig.ts`, measured above the drawn
+  ground). Kinds come in by tiers, one layer per zoom step (comments on `LOD`): continents and oceans 10,000 km (continents gone below
+  6,000, oceans below 1,200), regions 6,000 (gone below 1,000), capitals and seas 4,500, cities and archipelagos 3,500, mountains,
+  forests, wastes and peoples 2,800, rivers, roads and lakes 2,200, castles, towns and islands 1,300, ruins, battles, landmarks,
+  capes and passes 950, villages and inns 650, halls, septs and crossings 450. The fine tiers use the low altitudes down to the floor
+  so no step crowds the screen. A new kind joins a tier rather than making a new step. A fly-to height sits inside its band (below
+  "shown") and at least 80 km above the floor, so a fly-to leaves room to zoom.
   3D sites open in their own view (`ui/modelViewer.ts`), not on the globe.
 - The scale is this planet's, not Earth's (radius 6,915 km, see `src/config.ts`): at 22,000 km the whole Known World fits
   the screen, and at 3,000 km about one and a half Westeroses. Don't copy Earth or Mercator zoom tables. Calibrate by
@@ -26,7 +30,7 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 ## Overlap check (priority, then collision)
 
 - Every frame, names are placed in `RANK` order: continent, ocean, region, capital, city, sea, island, castle, town,
-  landform, lake, river, landmark, ruin, minor. The pinned or searched place always goes first.
+  landform, lake, river, landmark, cape, pass, crossing, battle, inn, ruin, hall, sept, village. The pinned or searched place always goes first.
 - A name whose screen box (from `screenBox`, plus `PAD`) overlaps an already placed box is hidden for that frame.
 - A point name tries right of its symbol, then left, below, above (`SPOTS`); where none is free, symbol and name are drawn off
   the place in rings of `SHIFT` px with a leader line back (`shift`, `--dx/--dy`, `.moved`). Screen only: never move coordinates.
@@ -58,7 +62,7 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 - `src/roads.json` has `roads` (the network: stretches between junctions, ends shared exactly), `minor` (tracks joining
   castles and towns to it, branching like a tree) and `named`. Roads begin and end at their lore places, never cross
   themselves or hook back (no circles or knots), and stay on land.
-- Main roads draw below 8,000 km (`ROADS_BELOW`), tracks below 1,600 km, the castles' height (`TRACKS_BELOW`); names show below 2,000 km.
+- Main roads draw below 8,000 km (`ROADS_BELOW`), tracks below 1,300 km, the castles' height (`TRACKS_BELOW`); names show below 2,200 km.
 
 ## Fades, not pops
 
@@ -74,5 +78,5 @@ Place names are CSS2D labels driven by `update()` in `src/globe/GlobeView.ts`. K
 
 ## Verify
 
-Check label changes in the real app at several heights (home 22,000 km, about 3,500 km, about 1,200 km, the 600 km floor) and count overlaps
+Check label changes in the real app at several heights (home 22,000 km, about 3,500 km, about 1,200 km, the 300 km floor) and count overlaps
 between visible label boxes. There should be none above the floor; at the floor, every point place on screen has its name.

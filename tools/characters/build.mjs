@@ -15,7 +15,7 @@ const last = qm.chapters.length - 1;
 const clamp = (n) => Math.min(last, n);
 const range = (c) => (Array.isArray(c) ? [clamp(c[0]), clamp(c[1] ?? c[0])] : [clamp(c), clamp(c)]);
 // a spot with no name (a bend in the road): "near" the closest place that is a point on the map
-const POINT = new Set(['city', 'town', 'castle', 'ruin', 'landmark', 'minor', 'village', 'port', 'holdfast']);
+const POINT = new Set(['city', 'town', 'castle', 'ruin', 'landmark', 'village', 'sept', 'hall', 'cape', 'pass', 'crossing', 'port', 'holdfast']);
 const near = (ll) => {
   const best = PLACES.filter((p) => POINT.has(p[1])).map((p) => ({ n: p[0], m: miles(ll, [p[3], p[2]]) })).sort((a, b) => a.m - b.m)[0];
   return `near ${best.n}`;

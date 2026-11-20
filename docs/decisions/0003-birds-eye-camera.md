@@ -10,7 +10,7 @@ and the photos tiled at 1 m look like close-up ground stretched over whole regio
 
 ## Decision
 
-- The camera never goes below 600 km above the ground (amended: first written as 20 km, then 400 km on 2026-10-28, 600 km on 2026-10-29).
+- The camera never goes below 300 km above the ground (amended: first written as 20 km, then 400 km on 2026-10-28, 600 km on 2026-10-29, 300 km on 2026-11-20 at the owner's request).
   A screen pixel covers about 250-700 m there, so astronaut photographs of Earth from orbit are the reference for the look.
 - 3D site models (King's Landing, Winterfell) are not drawn on the globe. A "3D model" button beside "Wiki" opens them in a full-screen viewer with its own orbit
   controls. The Wall stays on the globe as it is.

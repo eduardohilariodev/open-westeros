@@ -11,7 +11,7 @@
  },
  "Great Hall": {
   "wiki": "Great Hall of Winterfell",
-  "summary": "The [Great Hall](Great_Hall_of_Winterfell) is used for receiving guests and the place where the household dines together, including the [Lord of Winterfell](Lord_of_Winterfell). It is made of grey stone and has wide doors made of [oak](Oak) and [iron](Iron), which opens to the castle yard, and a rear exit leads to a dimly-lit gallery. Inside, it can hold eight long rows of trestle tables, four to each side of the central aisle, and the hall can seat five hundred people. There is a raised platform for noble guests, and the walls are covered with banners. The hall contains the high seat of the old [Kings in the North](King_in_the_North). The seat's cold stone has been polished by the many lords who have sat upon it, and its massive arms are decorated with the carved heads of snarling [direwolves](Direwolf).",
+  "summary": "The [Great Hall](Great_Hall) is used for receiving guests and the place where the household dines together, including the [Lord of Winterfell](Lord_of_Winterfell). It is made of grey stone and has wide doors made of [oak](Oak) and [iron](Iron), which opens to the castle yard, and a rear exit leads to a dimly-lit gallery. Inside, it can hold eight long rows of trestle tables, four to each side of the central aisle, and the hall can seat five hundred people. There is a raised platform for noble guests, and the walls are covered with banners. The hall contains the high seat of the old [Kings in the North](King_in_the_North). The seat's cold stone has been polished by the many lords who have sat upon it, and its massive arms are decorated with the carved heads of snarling [direwolves](Direwolf).",
   "facts": [
    [
     "Part of",
@@ -221,7 +221,7 @@
  },
  "Shae's Manse": {
   "wiki": "Manse near the Iron Gate",
-  "summary": "A [manse near the Iron Gate](Manse_near_the_Iron_Gate) with its own stable, well, and garden.",
+  "summary": "A [manse near the Iron Gate](Shae's_Manse) with its own stable, well, and garden.",
   "facts": [
    [
     "Part of",
@@ -381,7 +381,7 @@
  },
  "Lion Gate": {
   "wiki": "Lion Gate",
-  "summary": "[Lion Gate](Lion_Gate), leads west to the [Goldroad](Goldroad).",
+  "summary": "[Lion Gate](Lion_Gate), leads west to the [Goldroad](The_Gold_Road).",
   "facts": [
    [
     "Part of",

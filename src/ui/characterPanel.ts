@@ -63,8 +63,6 @@ export function showCharacter(whole: Character, layer: Layer) {
   q('.kind').textContent = `Character · House ${c.house[2]}`;
   q('.model').hidden = true;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent(c.wiki);
-  const more = q<HTMLAnchorElement>('.more');
-  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !info.more;
   q('.credit').hidden = !info.summary;
   q('.sigils-credit').hidden = false;
   const chip = document.createElement('span'), img = new Image();

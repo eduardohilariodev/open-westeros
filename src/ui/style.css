@@ -155,6 +155,8 @@ body:not(.drawer-open) #ui { display: none; }
 /* labels, buttons and placeholders are controls, not text to select */
 label, button, .globe-place, .line-text, input::placeholder { user-select: none; -webkit-user-select: none; }
 .globe-place { --track: .06em; letter-spacing: var(--track); position: relative; text-align: center; pointer-events: auto; cursor: pointer; color: #f3ead0; font: 700 16px/1 var(--font-map); white-space: pre; -webkit-text-stroke: 3px #101c1b; paint-order: stroke fill; }
+/* the hovered name or coat of arms comes in front of its neighbours: beats the depth z-index CSS2DRenderer writes inline */
+:is(.globe-place, .house-sigil):hover { z-index: 1000000 !important; }
 /* a point label's box is its symbol, centred on the place; the name sits to its right */
 .globe-place:not(.globe-area) { width: 13px; height: 13px; }
 .globe-place:not(.globe-area) > span { position: absolute; left: calc(100% + 4px); top: 50%; translate: var(--dx, 0px) calc(var(--dy, 0px) - 50%); text-align: left; transform-origin: 0 50%; }
@@ -205,8 +207,8 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 .globe-place.k-capital { font-family: var(--font-map-sc); font-size: 15px; }
 .globe-place:is(.k-ocean, .k-sea, .k-continent, .k-capital) { font-variant-caps: small-caps; }
 .globe-place.k-city, .globe-place.k-capital { width: 17px; height: 17px; }
-.globe-place.k-minor, .globe-place.k-ruin, .globe-place.k-battle, .globe-place.k-inn { font-size: 13px; }
-.globe-place.k-minor { width: 10px; height: 10px; }
+.globe-place:is(.k-village, .k-sept, .k-hall), .globe-place.k-ruin, .globe-place.k-battle, .globe-place.k-inn { font-size: 13px; }
+.globe-place:is(.k-village, .k-sept, .k-hall) { width: 10px; height: 10px; }
 .globe-place.k-battle { width: 14px; height: 14px; }
 /* one colour per kind, each at least 4.5:1 against the dark stroke (WCAG AA). Families: white for seats of power, gold to
    taupe for settlements by size, blues for water, greens and earths for land, reds and purples for history */
@@ -219,7 +221,9 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 .k-castle, .k-capital { color: #fff; }
 .k-city { color: #ffe2a0; }
 .k-town { color: #cfc8ba; }
-.k-minor { color: #b3a794; }
+.k-village { color: #b3a794; }
+.k-sept { color: #e6d29a; }
+.k-hall { color: #d4b872; }
 .k-ruin, .globe-place.ruined { color: #e0aad2; } /* .ruined: a place the moment finds in ruins (state/changes.ts) */
 .k-battle { color: #ff7f6a; }
 .k-character { color: #e9c46a; }
@@ -232,6 +236,9 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 .k-forest { color: #84c96b; }
 .k-wild { color: #e0a868; }
 .k-landmark { color: #ff9db8; }
+.k-cape { color: #7fcfa0; }
+.k-pass { color: #b8c27a; }
+.k-crossing { color: #e3b7a0; }
 .globe-place:hover { color: #ffd24a; }
 .line-text:hover { fill: #ffd24a; }/* names fade in and out (height bands, overlaps) instead of popping */
 .globe-place { transition: opacity .25s; }
@@ -251,6 +258,15 @@ body.grabbing, body.grabbing * { cursor: grabbing !important; }
 .legend-row .what { display: flex; align-items: center; gap: 8px; flex: 1; }
 .legend-row svg { width: 18px; height: 18px; flex: none; }
 .legend-row .n { color: var(--muted); font-size: 14px; }
+/* umbrella groups: the summary's checkbox toggles every kind inside, the chevron opens the rows */
+.legend-group summary { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; cursor: pointer; list-style: none; font-weight: 600; }
+.legend-group summary::-webkit-details-marker { display: none; }
+.legend-group summary .what { display: flex; align-items: center; gap: 8px; flex: 1; }
+.legend-group summary .n { color: var(--muted); font-size: 14px; font-weight: 400; }
+.legend-group summary::after { content: '▸'; margin-left: 10px; color: var(--muted); transition: rotate .15s; }
+.legend-group[open] summary::after { rotate: 90deg; }
+#ui .legend-group .legend-row { margin-left: 7px; padding-left: 28px; border-left: 1px solid color-mix(in srgb, var(--muted) 45%, transparent); }
+.legend-group .legend-row .what { font-size: 14px; }
 .legend-actions { display: flex; gap: 12px; margin: 2px 0 4px; font-size: 14px; }
 .legend-actions button { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
 
@@ -504,12 +520,6 @@ body.measure-pin canvas, body.measure-pin .globe-place, body.measure-pin .line-t
 #place .body { padding-bottom: 32px; }
 @media (max-width: 700px) { #place .body { padding-bottom: calc(32px + env(safe-area-inset-bottom)); } #place.min .head { border-bottom-color: transparent; } }
 
-#place .more { display: inline-block; margin: 10px 0 0; color: var(--accent); font-size: 14px; font-weight: 600; text-decoration: none; }
-#place .more:hover { text-decoration: underline; }
-#place .more[hidden] { display: none; }
-#place .more { display: inline-flex; align-items: center; gap: 6px; }
-#place .more[hidden] { display: none; }
-#place .more svg { width: 16px; height: 16px; flex: none; }
 
 /* ---------- a character's journey: player bar and step list in the place card, and the sigil that heads the line on the map ---------- */
 #place .char-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
@@ -618,6 +628,7 @@ body.timeline-on #nav { bottom: calc(var(--wheel-h, 104px) + 56px); }
 #modeSwitch button { padding: 8px 18px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: 600 14px/1 inherit; letter-spacing: .03em; cursor: pointer; transition: background .15s, color .15s; }
 #modeSwitch button:hover { color: var(--text); }
 #modeSwitch button[aria-pressed="true"] { background: var(--burgundy); color: var(--gold-hi); }
+@media (max-width: 700px) { #modeSwitch { top: calc(68px + env(safe-area-inset-top)); } } /* the search bar spans the top on a phone (#side, z 30): sit under it */
 .k-house { color: #e9c46a; }
 
 /* a coat of arms at its seat (globe/houses.ts): size by the house's rank, light when its realm is lit */
@@ -641,18 +652,14 @@ body.timeline-on #nav { bottom: calc(var(--wheel-h, 104px) + 56px); }
 @media (max-width: 700px) {
   #house { position: fixed; inset: auto 0 0 0; width: auto; max-width: none; max-height: 52vh; margin: 0; z-index: 25; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   #house::before { content: ''; flex: none; display: block; width: 38px; height: 4px; margin: 9px auto 0; border-radius: 2px; background: #f0d9a04d; }
-  #house .h-head { grid-template-columns: auto 1fr; justify-items: start; text-align: left; align-items: center; gap: 2px 14px; padding: 10px 56px 12px 16px; }
-  #house .crest { grid-row: span 2; }
-  #house .crest img { height: 72px; max-width: 72px; }
+  #house .h-head { padding: 10px 56px 12px; } /* stacked and centred like the desktop card, only smaller */
+  #house .crest img { height: 96px; max-width: 96px; }
   #house h1 { margin: 0; font-size: 20px; }
   #house[hidden] { translate: 0 100%; }
   @starting-style { #house { translate: 0 100%; } }
   body:has(#house:not([hidden])) #status { display: none; }
   #when { bottom: calc(var(--sheet-h, 0px) + 12px + env(safe-area-inset-bottom)); transition: bottom .25s ease; }
 }
-#whenInfo .wi-more { display: inline-block; margin-top: 10px; color: var(--accent); font-size: 12.5px; text-decoration: none; }
-#whenInfo .wi-more::after { content: ' ↗'; }
-#whenInfo .wi-more:hover { text-decoration: underline; }
 #when .t-wheel.far .t-y:not(.big) { font-size: 0; }
 /* the other name of a place, in parentheses under its label */
 .globe-place > span > small { display: block; font: italic 400 1em/1.15 var(--font-map); text-transform: none; letter-spacing: 0; }

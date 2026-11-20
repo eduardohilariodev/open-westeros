@@ -19,7 +19,7 @@ src/ (app) reads the generated files; never edit them by hand.
 
 ## Views
 
-- The globe (`src/globe/`, drawn by `main.ts`): a bird's-eye map, camera at least 600 km above the drawn ground (`cameraRig.ts MIN_ALT`, decision 0003).
+- The globe (`src/globe/`, drawn by `main.ts`): a bird's-eye map, camera at least 300 km above the drawn ground (`cameraRig.ts MIN_ALT`, decision 0003).
 - The 3D model view (`src/ui/modelViewer.ts`): a full-screen overlay with its own renderer and orbit controls that shows a site
   (`src/sites/`, registered in `sites/index.ts`, configured in `config.ts SITES`). Opened from the place card's "3D model" button
   (`placePanel.ts onModel`) or `?place=Name&view=3d`; the globe loop sleeps while it is open. The Wall is part of the globe, not a site.

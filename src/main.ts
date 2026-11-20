@@ -88,19 +88,51 @@ const crossfade = (on: boolean) => {
 reliefBtn.onclick = () => showStyle(reliefBtn.getAttribute('aria-pressed') !== 'true');
 reliefBtn.querySelector('.name')!.textContent = 'Map';
 
-// Legend: one row per kind of name (symbol, colour, count) with a checkbox to show or hide that kind.
-const legendBoxes = PLACE_KINDS.filter(([kind]) => globe.kindCounts[kind]).sort((a, b) => a[1].localeCompare(b[1])).map(([kind, label]) => {
-  const row = document.createElement('label');
-  row.className = 'legend-row';
-  row.innerHTML = `<span class="what"><input type="checkbox" checked /><svg class="k-${kind}" viewBox="0 0 512 512">${PLACE_ICONS[kind]}</svg>${label}</span><span class="n">${globe.kindCounts[kind]}</span>`;
-  const box = row.querySelector('input')!;
-  box.addEventListener('change', () => globe.setKindVisible(kind, box.checked));
-  $('legend').append(row);
-  return { kind, box };
-});
+// Legend: kinds of name in umbrella groups. A group's checkbox shows or hides all its kinds (half-ticked when mixed); open the
+// group for one row per kind (symbol, colour, count). Archipelagos share the island row; they stay their own kind for lettering, LOD and colour.
+const count = (kind: string) => (globe.kindCounts[kind] ?? 0) + (kind === 'island' ? globe.kindCounts.archipelago ?? 0 : 0);
+const setKind = (kind: string, on: boolean) => { globe.setKindVisible(kind, on); if (kind === 'island') globe.setKindVisible('archipelago', on); };
+const LEGEND_GROUPS: [string, string[]][] = [
+  ['Settlements', ['capital', 'city', 'town', 'village']],
+  ['Castles & buildings', ['castle', 'hall', 'sept', 'inn']],
+  ['Land', ['continent', 'region', 'island', 'mountain', 'forest', 'wild', 'cape', 'pass']],
+  ['Water', ['ocean', 'sea', 'lake', 'river']],
+  ['Roads & crossings', ['road', 'crossing']],
+  ['History & peoples', ['ruin', 'battle', 'landmark', 'population']],
+];
+const LABEL: Record<string, string> = { ...Object.fromEntries(PLACE_KINDS.map(([k, label]) => [k, label])), island: 'Islands & archipelagos' };
+const grouped = new Set(LEGEND_GROUPS.flatMap(([, ks]) => ks));
+const other = PLACE_KINDS.map(([k]) => k).filter((k) => k !== 'archipelago' && !grouped.has(k)); // a new kind still gets a row
 const OFF_AT_START = ['battle']; // kinds that start unchecked
-legendBoxes.forEach(({ kind, box }) => { if (OFF_AT_START.includes(kind)) { box.checked = false; globe.setKindVisible(kind, false); } });
-const setAllKinds = (on: boolean) => legendBoxes.forEach(({ kind, box }) => { box.checked = on; globe.setKindVisible(kind, on); });
+const legendBoxes: { kind: string; box: HTMLInputElement }[] = [];
+const groupSyncs: (() => void)[] = [];
+const byName = (a: string, b: string) => a.localeCompare(b);
+for (const [name, all] of [...LEGEND_GROUPS.sort((a, b) => byName(a[0], b[0])), ['Other', other] as [string, string[]]]) {
+  const kinds = all.filter((k) => count(k)).sort((a, b) => byName(LABEL[a], LABEL[b]));
+  if (!kinds.length) continue;
+  const group = document.createElement('details');
+  group.className = 'legend-group';
+  group.innerHTML = `<summary><span class="what"><input type="checkbox" aria-label="Show all ${name}" />${name}</span><span class="n">${kinds.reduce((n, k) => n + count(k), 0)}</span></summary>`;
+  const groupBox = group.querySelector('input')!;
+  const boxes = kinds.map((kind) => {
+    const row = document.createElement('label');
+    row.className = 'legend-row';
+    row.innerHTML = `<span class="what"><input type="checkbox" /><svg class="k-${kind}" viewBox="0 0 512 512">${PLACE_ICONS[kind]}</svg>${LABEL[kind]}</span><span class="n">${count(kind)}</span>`;
+    const box = row.querySelector('input')!;
+    box.checked = !OFF_AT_START.includes(kind);
+    setKind(kind, box.checked);
+    box.addEventListener('change', () => { setKind(kind, box.checked); sync(); });
+    group.append(row);
+    legendBoxes.push({ kind, box });
+    return box;
+  });
+  const sync = () => { const on = boxes.filter((b) => b.checked).length; groupBox.checked = on === boxes.length; groupBox.indeterminate = on > 0 && on < boxes.length; };
+  groupBox.addEventListener('change', () => { boxes.forEach((b, i) => { b.checked = groupBox.checked; setKind(kinds[i], groupBox.checked); }); sync(); });
+  sync();
+  groupSyncs.push(sync);
+  $('legend').append(group);
+}
+const setAllKinds = (on: boolean) => { legendBoxes.forEach(({ kind, box }) => { box.checked = on; setKind(kind, on); }); groupSyncs.forEach((s) => s()); };
 $('legendAll').onclick = () => setAllKinds(true);
 $('legendNone').onclick = () => setAllKinds(false);
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // A bird's-eye world (docs/decisions/0003): the camera stays at least MIN_ALT above the ground under it, peaks included.
-export const MIN_ALT = 600_000, MAX_ALT = 40_000_000; // the floor: a pixel covers about 250-700 m there
+export const MIN_ALT = 300_000, MAX_ALT = 40_000_000; // the floor (300 km since 2026-11-20, was 600 km)
 const rad = THREE.MathUtils.degToRad;
 
 /**
@@ -21,6 +21,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
   let tilt = 0; // radians from straight down; alt is then the distance to the ground point at the screen centre
   let heading = 0; // radians clockwise from north
   let turn: { h0: number; t0: number } | null = null; // an eased turn back to north, cancelled by a drag
+  let lean: { a0: number; a1: number; t0: number } | null = null; // an eased tilt (the 2D/3D button), cancelled by a drag
   const CLEARANCE = 200; // m the camera keeps above the ground
   const MAX_TILT = rad(85); // short of 90°, where the camera would sit on the ground
   // Wheel zoom keeps the spot under the cursor in place: `anchor` is its direction from the planet centre, `anchorNdc` the cursor.
@@ -114,13 +115,13 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
         da -= Math.round(da / (2 * Math.PI)) * 2 * Math.PI;
         heading = (heading - da) % (2 * Math.PI);
         tilt = THREE.MathUtils.clamp(tilt - (my - pinchMidY) * 0.005, 0, MAX_TILT);
-        turn = null;
+        turn = lean = null;
         pinchAngle = ang; pinchMidY = my;
         return;
       }
       if (tilting) {
         tilt = THREE.MathUtils.clamp(tilt - e.movementY * 0.005, 0, MAX_TILT);
-        turn = null;
+        turn = lean = null;
         heading = (heading + e.movementX * 0.005) % (2 * Math.PI);
         return;
       }
@@ -206,7 +207,9 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
     /** Camera altitude (m), the tilt (radians from straight down) and the heading (radians clockwise from north). */
     get alt() { return alt; },
     get tilt() { return tilt; },
-    set tilt(t: number) { tilt = THREE.MathUtils.clamp(t, 0, MAX_TILT); },
+    set tilt(t: number) { lean = null; tilt = THREE.MathUtils.clamp(t, 0, MAX_TILT); },
+    /** Eases the tilt to `t` (radians from straight down) over 0.6 s. */
+    tiltTo(t: number) { lean = { a0: tilt, a1: THREE.MathUtils.clamp(t, 0, MAX_TILT), t0: performance.now() }; },
     get heading() { return heading; },
     set heading(h: number) { turn = null; heading = h; },
     /** Turns to north up by the short way round, easing over 0.6 s. */
@@ -216,7 +219,7 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
       turn = { h0, t0: performance.now() };
     },
     /** Back to straight down and north up, flying to `home`. */
-    goHome() { tilt = heading = 0; flyToDir(home.dir, home.alt); },
+    goHome() { turn = lean = null; tilt = heading = 0; flyToDir(home.dir, home.alt); },
     zoomBy: (f: number) => zoomTo(altGoal * f),
     flyToDir, flyToFit,
     /** Follow `dir()` (a direction from the planet centre) at altitude `a`, keeping it in the middle of what `inset()` leaves free; null lets go. */
@@ -237,6 +240,11 @@ export function createCameraRig(camera: THREE.PerspectiveCamera, controls: Orbit
         const t = Math.min(1, (now - turn.t0) / 600);
         heading = turn.h0 * (1 - ease(t));
         if (t === 1) { heading = 0; turn = null; }
+      }
+      if (lean) {
+        const t = Math.min(1, (now - lean.t0) / 600);
+        tilt = lean.a0 + (lean.a1 - lean.a0) * ease(t);
+        if (t === 1) lean = null;
       }
       if (tilt) { // undo last frame's tilt: back above the ground point at the screen centre
         camera.updateMatrixWorld();

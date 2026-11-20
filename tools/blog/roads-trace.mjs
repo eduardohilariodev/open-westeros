@@ -285,8 +285,8 @@ SHUT = await (async () => {
 
 // ---- tracks: each castle, town and city to the nearest road or track, biggest first, so the tracks branch like a tree ----
 // Canon names few roads; every seat still has a way to the realm's roads. A track that several places share is a road.
-const REACH_MI = { capital: 900, city: 700, town: 350, castle: 350, ruin: 60, minor: 60 };
-const RANK = ['capital', 'city', 'town', 'castle', 'ruin', 'minor'];
+const REACH_MI = { capital: 900, city: 700, town: 350, castle: 350, ruin: 60, village: 60, sept: 60, hall: 60 };
+const RANK = ['capital', 'city', 'town', 'castle', 'ruin', 'village', 'sept', 'hall'];
 const SHARED = 3; // places whose track runs over a stretch before it is drawn as a road
 let tracks = 0;
 const why = { on: 0, wet: 0, none: 0, far: 0 };

@@ -273,13 +273,30 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   // (oceans, regions) gives way to the places inside it once you are well within it, like Google Maps.
   // The whole Known World is ~17,000 km across; at 22,000 km up it all fits the screen, at 3,000 km about Westeros-and-a-half.
   const LOD: Record<string, [number, number, number?]> = {
-    // fitted to the 600 km camera floor (cameraRig.ts MIN_ALT): every kind comes in above it, the finest just above it, and the
+    // fitted to the camera floor (cameraRig.ts MIN_ALT): every kind comes in above it, the finest just above it, and the
     // fly-to heights are at or over it; regions and oceans give way to the places in them at 1,000-1,200 km instead of 500
-    continent: [10_000_000, 8_000_000, 6_000_000], ocean: [10_000_000, 8_000_000, 1_200_000], region: [6_000_000, 3_500_000, 1_000_000], city: [3_500_000, 1_100_000], capital: [4_000_000, 1_000_000],
-    island: [1_600_000, 1_300_000], archipelago: [3_000_000, 1_300_000, 700_000], inn: [1_000_000, 650_000], mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000],
-    sea: [3_500_000, 1_500_000], lake: [2_000_000, 1_200_000], river: [2_000_000, 1_400_000], road: [2_000_000, 1_400_000],
-    castle: [1_600_000, 800_000], town: [1_600_000, 800_000], ruin: [1_600_000, 850_000], landmark: [1_800_000, 900_000],
-    minor: [1_000_000, 650_000], battle: [2_800_000, 850_000], monument: [1_800_000, 900_000], population: [2_500_000, 1_500_000],
+    // Tiers, coarse to fine: each zoom step brings in one more layer instead of everything at once.
+    // 10,000 km: the world
+    continent: [10_000_000, 8_000_000, 6_000_000], ocean: [10_000_000, 8_000_000, 1_200_000],
+    // 6,000 km: the realms
+    region: [6_000_000, 3_500_000, 1_000_000],
+    // 4,500 km: the seats of power and the seas between them
+    capital: [4_500_000, 1_200_000], sea: [4_500_000, 1_800_000],
+    // 3,500 km: the great cities and island groups
+    city: [3_500_000, 1_100_000], archipelago: [3_500_000, 1_300_000, 700_000],
+    // 2,800 km: the lie of the land, and who lives there
+    mountain: [2_800_000, 1_500_000], forest: [2_800_000, 1_500_000], wild: [2_800_000, 2_000_000], population: [2_800_000, 1_500_000],
+    // 2,200 km: the lines across it
+    river: [2_200_000, 1_400_000], road: [2_200_000, 1_400_000], lake: [2_200_000, 1_200_000],
+    // below 1,300 km the fine tiers spread down to the 300 km floor, so no step crowds the screen
+    // 1,300 km: castles, towns, islands
+    castle: [1_300_000, 750_000], town: [1_300_000, 750_000], island: [1_300_000, 900_000],
+    // 950 km: history and the shape of the coast and hills
+    ruin: [950_000, 600_000], battle: [950_000, 600_000], landmark: [950_000, 600_000], cape: [950_000, 600_000], pass: [950_000, 600_000],
+    // 650 km: villages and roadside inns
+    village: [650_000, 480_000], inn: [650_000, 480_000],
+    // 450 km: the finest grain: buildings inside towns and castles, bridges and fords
+    hall: [450_000, 380_000], sept: [450_000, 380_000], crossing: [450_000, 380_000],
   };
   const ROADS_BELOW = 8_000_000, TRACKS_BELOW = LOD.castle[0]; // main roads and the tracks to places are drawn from these altitudes down (tracks with the castles); road names come in at 1,600 km (LOD)
   type Gen = (typeof PLACES)[number];
@@ -337,7 +354,7 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
   measure();
   document.fonts.ready.then(() => { measure(); labelVersion++; }); // async: labelVersion is declared by then
   // When names overlap on screen, the higher tier keeps its spot: continents, oceans, regions, cities, then ever smaller places.
-  const RANK = ['continent', 'ocean', 'region', 'archipelago', 'population', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'monument', 'landmark', 'battle', 'inn', 'ruin', 'minor'];
+  const RANK = ['continent', 'ocean', 'region', 'archipelago', 'population', 'capital', 'city', 'sea', 'island', 'castle', 'town', 'mountain', 'forest', 'wild', 'lake', 'river', 'road', 'landmark', 'cape', 'pass', 'crossing', 'battle', 'inn', 'ruin', 'hall', 'sept', 'village'];
   const ranked = [...places].sort((a, b) => RANK.indexOf(a.kind) - RANK.indexOf(b.kind));
   let order = ranked; // ranked, with the pinned place first
   const pt = new THREE.Vector3();
@@ -678,10 +695,10 @@ export function createGlobeView(renderer: THREE.WebGLRenderer, labelsEl: HTMLEle
       heading: () => rig.heading,
       resetNorth() { rig.turnToNorth(); },
       zoom: rig.zoomBy,
-      canTilt: false,
+      canTilt: true,
       tilt: () => rig.tilt,
       setTilt(t: number) { rig.tilt = t; },
-      toggleTilt() {},
+      toggleTilt() { rig.tiltTo(rig.tilt > 0.3 ? 0 : rad(55)); }, // 2D: straight down; 3D: leaning like Google Earth's tilt
       home: rig.goHome,
       altitude: () => rig.alt,
       pick: rig.pick,

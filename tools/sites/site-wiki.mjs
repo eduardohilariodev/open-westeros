@@ -4,6 +4,7 @@
 // Usage: node tools/sites/site-wiki.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { rich, titleOf } from '../wiki/md.mjs';
+import { relinker } from '../wiki/relink.mjs';
 
 const bullet = (s) => new RegExp(`^\\s*(?:-\\s+)+${s}`), para = (s) => new RegExp(`^${s}`);
 // name -> { find: the article line (a bullet or paragraph, raw markdown), sentence?: keep only the sentence matching this, title?: the wiki article when it isn't the line's first link }
@@ -81,6 +82,9 @@ for (const site of SITES) {
     };
   }
 }
+// Card links that reach the map under another name are rewritten to the map name (tools/wiki/relink.mjs).
+const { relink } = relinker(Object.fromEntries(SITES.flatMap((s) => Object.keys(s.places).map((n) => [n, s.article]))));
+for (const [n, v] of Object.entries(out)) v.summary = relink(n, v.summary);
 writeFileSync('src/sites/site-wiki.json', JSON.stringify(out, null, 1) + '\n');
 console.log(`${Object.keys(out).length} site places`);
 for (const [n, v] of Object.entries(out)) console.log(`  ${n} -> ${v.wiki}: ${v.summary.slice(0, 70)}`);

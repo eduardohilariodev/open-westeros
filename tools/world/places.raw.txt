@@ -3,34 +3,34 @@
 The Lands of Always Winter|region|1450,170|0_0 1083,747
 Thenn|mountain|-|0_0 1147,1210
 The Frostfangs|mountain|1380,700|0_0 1010,1430
-Giant's Stair|landmark|-|0_0 1135,1430
+Giant's Stair|pass|-|0_0 1135,1430
 The Haunted Forest|forest|1650,750|0_0 1375,1520
 The Frozen Shore|region|1040,960|0_0 930,1770
-Lorn Point|landmark|-|0_0 870,1838
+Lorn Point|cape|-|0_0 870,1838
 Bay of Ice|sea|1290,1100|0_0 975,1895
 Mormont's Keep|castle|1218,1190|0_0 990,1880
 Bear Island|island|1230,1250|0_0 1062,1885
-Skirling Pass|landmark|-|0_0 1115,1550
+Skirling Pass|pass|-|0_0 1115,1550
 The Milkwater|river|1560,850|0_0 1245,1400
-The Gorge|landmark|-|0_0 1310,1737
+The Gorge|pass|-|0_0 1310,1737
 Shadow Tower|castle|-|0_0 1330,1778
 The Nightfort|castle|-|0_0 1437,1748
 Castle Black|castle|1795,985|0_0 1492,1733
 Eastwatch-by-the-Sea|castle|1925,985|0_0 1600,1733
 The Wall|landmark|1860,940|0_0 1555,1743
 Mole's Town|town|ll:62.09,-8.28|0_0 1508,1755
-Whitetree|minor|-|0_0 1470,1715
+Whitetree|village|-|0_0 1470,1715
 Brandon's Gift|region|1760,1050|0_0 1578,1768
 The New Gift|region|1770,1100|0_0 1578,1853
-Queenscrown|minor|-|0_0 1411,1830
+Queenscrown|castle|-|0_0 1411,1830
 Hardhome|town|ll:64.554,-3.187|0_0 1675,1555
-Storrold's Point|landmark|ll:64.38,-3.55|-
-Craster's Keep|minor|-|0_0 1422,1665
+Storrold's Point|cape|ll:64.38,-3.55|-
+Craster's Keep|castle|-|0_0 1422,1665
 Fist of the First Men|landmark|ll:64.06,-13.58|0_0 1315,1572
 Skane|island|2070,900|0_0 1755,1635
 Skagos|island|2190,980|0_0 1925,1827
 Deepdown|castle|-|0_0 1847,1840
-Driftwood Hall|minor|-|0_0 1752,1738
+Driftwood Hall|castle|-|0_0 1752,1738
 Westwatch-by-the-Bridge|castle|-|0_0 1319,1781
 Sentinel Stand|castle|-|0_0 1342,1775
 Greyguard|castle|-|0_0 1355,1771
@@ -46,20 +46,20 @@ Rimegate|castle|-|0_0 1549,1733
 Long Barrow|castle|-|0_0 1562,1733
 The Torches|castle|-|0_0 1573,1733
 Greenguard|castle|-|0_0 1586,1733
-Bridge of Skulls|landmark|-|0_0 1313,1783
+Bridge of Skulls|crossing|-|0_0 1313,1783
 Kingshouse (Skagos)|castle|ll:61.912,1.587|0_0 1877,1746
 Bay of Seals|sea|2060,1100|0_0 1760,1855
 # --- the North ---
-Sea Dragon Point|landmark|1080,1400|0_2500 692,113
+Sea Dragon Point|cape|1080,1400|0_2500 692,113
 Wolfswood|forest|1400,1480|0_2500 1010,250
 Deepwood Motte|castle|1265,1412|0_2500 1062,142
-Breakstone Hill|minor|-|0_2500 1300,25
+Breakstone Hill|castle|-|0_2500 1300,25
 The Northern Mountains|mountain|-|0_2500 1235,43
-Tumbledown Tower|minor|-|0_2500 1290,225
+Tumbledown Tower|castle|-|0_2500 1290,225
 Castle Cerwyn|castle|-|0_2500 1248,352
 Last Hearth|castle|-|0_2500 1515,10
 Karhold|castle|-|0_2500 1803,140
-Grey Cliffs|landmark|2210,1350|0_2500 1883,80
+Grey Cliffs|cape|2210,1350|0_2500 1883,80
 The Lonely Hills|mountain|1650,1440|0_2500 1480,240
 The Last River|river|1950,1380|0_2500 1620,125
 The Dreadfort|castle|1850,1490|0_2500 1587,247
@@ -85,8 +85,8 @@ The Neck|region|1400,2150|0_2500 1205,812
 Greywater Watch|castle|-|0_2500 1185,905
 Flint's Finger|castle|1050,2100|0_2500 840,787
 Cape Kraken|region|910,2150|0_2500 718,853
-Flint Cliffs|landmark|1110,2180|0_2500 940,865
-Cape of Eagles|landmark|-|0_2500 1037,1038
+Flint Cliffs|cape|1110,2180|0_2500 940,865
+Cape of Eagles|cape|-|0_2500 1037,1038
 Ironman's Bay|sea|1310,2520|0_2500 1010,1135
 The Twins|castle|1475,2385>ll:43.97,-13.23|0_2500 1225,1030
 The Bite|sea|1880,2070|0_2500 1415,825
@@ -95,8 +95,8 @@ Longsister|island|1760,2150|0_2500 1465,845
 Littlesister|island|1850,2100|0_2500 1580,830
 Sweetsister|island|1950,2140|0_2500 1595,800
 Baelish Keep|castle|-|0_2500 1658,842
-The Paps|landmark|2240,2130|0_2500 1870,812
-The Fingers|landmark|2200,2200|0_2500 1880,850
+The Paps|island|2240,2130|0_2500 1870,812
+The Fingers|cape|2200,2200|0_2500 1880,850
 Seagard|castle|1425,2435|0_2500 1160,1083
 # --- Iron Islands & Riverlands ---
 Iron Islands|archipelago|990,2330|0_2500 672,1155
@@ -117,7 +117,7 @@ Harrenton|town|ll:38.789,-9.676|-
 God's Eye|lake|1640,2900|0_2500 1350,1385
 The Isle of Faces|island|1710,2830|0_2500 1397,1432
 The Trident|river|ll:40.023,-8.944|0_2500 1424,1245
-The Red Fork|river|1590,2640|0_2500 1270,1255
+The Red Fork|river|1590,2640>ll:40.807,-11.979|0_2500 1270,1255
 The Blue Fork|river|1545,2575|0_2500 1330,1210
 The Green Fork|river|1540,2530|0_2500 1268,1090
 The Tumblestone|river|ll:39.852,-16.092|0_2500 1345,1318
@@ -131,7 +131,7 @@ Whitewalls|castle|-|0_2500 1443,1400
 Darry|castle|-|0_2500 1437,1308
 The Crossroads Inn|inn|-|0_2500 1423,1290
 Fairmarket|town|-|0_2500 1295,1195
-Antlers|minor|-|0_2500 1527,1467
+Antlers|castle|-|0_2500 1527,1467
 # --- the Vale ---
 The Eyrie|capital|1928,2508|0_2500 1600,1145
 The Mountains of the Moon|mountain|1830,2550|0_2500 1540,1280
@@ -153,7 +153,7 @@ Dragonstone|castle|2158,2885|0_2500 1812,1470
 Claw Isle|island|2280,2790|0_2500 1895,1370
 Driftmark|island|-|0_2500 1760,1478
 The Gullet|sea|-|0_2500 1805,1535
-Massey's Hook|landmark|-|0_2500 1815,1590
+Massey's Hook|cape|-|0_2500 1815,1590
 Blackwater Bay|sea|1960,3040|0_2500 1685,1565
 The Blackwater Rush|river|1650,3035|0_2500 1342,1555
 Rosby|castle|-|0_2500 1550,1610
@@ -253,10 +253,10 @@ The Scourge|river|1850,3890|0_5000 1555,422
 The Greenblood|river|2040,3950|0_5000 1680,457
 The Vaith|river|1890,3965|0_5000 1480,478
 The Brimstone|river|1540,3930|0_5000 1290,505
-The Broken Arm|landmark|2200,3880|0_5000 1855,290
+The Broken Arm|cape|2200,3880|0_5000 1855,290
 The Sea of Dorne|sea|2050,3700|0_5000 1690,260
 The Rainwood|forest|2060,3520|0_5000 1750,97
-Cape Wrath|landmark|2020,3590|0_5000 1890,100
+Cape Wrath|cape|2020,3590|0_5000 1890,100
 Estermont|island|2250,3600|0_5000 1900,157
 Shipbreaker Bay|sea|2150,3420|0_5000 1800,5
 The Targaryen Islands|archipelago|-|0_5000 150,1168
@@ -268,8 +268,8 @@ Oakenshield|island|1050,3410|-
 Green Shield|island|940,3380|-
 Grey Shield|island|920,3430|-
 South Shield|island|990,3460|-
-The Prince's Pass|landmark|1465,3680|-
-The Boneway|landmark|1640,3720|-
+The Prince's Pass|pass|1465,3680|-
+The Boneway|pass|1640,3720|-
 Tarth|island|2330,3320|-
 Bloodstone|island|2400,3640|-
 River Road|road|1330,2780>ll:38.625,-16.194|-
@@ -279,7 +279,7 @@ Lorath|city|3020,2368|2500_2500 617,1025
 Lorath Bay|sea|2940,2570|2500_2500 570,1115
 The Hills of Norvos|mountain|3150,2640|2500_2500 605,1300
 Norvos|city|3150,2775|2500_2500 740,1375
-The Axe|landmark|3470,2530|2500_2500 1010,1165
+The Axe|cape|3470,2530|2500_2500 1010,1165
 Qohor|city|3595,3045|2500_2500 1113,1612
 The Forest of Qohor|forest|3640,2800|2500_2500 1172,1480
 Old Andalos|region|2800,2740|2500_2500 260,1465
@@ -304,7 +304,7 @@ Vaes Khadokh|ruin|3973,3028|2500_2500 1447,1600
 Vaes Khewo|ruin|4467,3110|2500_2500 1878,1675
 The Shivering Sea|ocean|-|2500_2500 1515,287
 Bitterweed Bay|sea|-|2500_2500 1170,1220
-Sarne Delta|landmark|-|2500_2500 1655,1148
+Sarne Delta|wild|-|2500_2500 1655,1148
 Witch Isle|island|-|2500_2500 75,1170
 Lorassyon|island|-|2500_2500 750,990
 # --- the Free Cities & the Valyrian coast ---
@@ -360,14 +360,14 @@ Isle of Love|island|2400,5420|2500_5000 85,1715
 The Indigo Straits|sea|2730,5400|2500_5000 365,1735
 Jhala|island|2640,5550|2500_5000 240,1830
 Red Flower Vale|region|2820,5490|2500_5000 435,1840
-Lizard Head|landmark|3300,5530|2500_5000 825,1816
-Golden Head|landmark|3085,5638|2500_5000 790,1945
+Lizard Head|cape|3300,5530|2500_5000 825,1816
+Golden Head|cape|3085,5638|2500_5000 790,1945
 Naath|island|3760,5515|2500_5000 1230,1810
 Basilisk Isles|archipelago|4330,5200|2500_5000 1760,1577
 Isle of Toads|island|4540,5430|2500_5000 1900,1740
 Isle of Tears|island|4430,5440|2500_5000 1915,1830
 Gogossos|town|4465,5530|2500_5000 1850,1832
-Basilisk Point|landmark|4310,5580|2500_5000 1790,1900
+Basilisk Point|cape|4310,5580|2500_5000 1790,1900
 Isle of Flies|island|-|2500_5000 1580,1690
 Sweet Lotus Vale|region|2580,5630|2500_7500 230,95
 Ebonhead|town|-|2500_7500 253,145
@@ -410,7 +410,7 @@ The Howling Hills|mountain|6730,2830|5000_2500 1860,1495
 The Silver Lakes|lake|-|5000_2500 217,1537
 The Fallen Kingdom of Hyrkoon|region|-|5000_2500 1620,1800
 # --- Slaver's Bay, Lhazar, the Red Waste ---
-The Khyzai Pass|landmark|5070,3800|5000_5000 472,280
+The Khyzai Pass|pass|5070,3800|5000_5000 472,280
 Meereen|city|4915,3735|5000_5000 323,285
 Yunkai|city|4793,3845|5000_5000 225,383
 Astapor|city|4730,4137>ll:21.356,31.279|5000_5000 168,645
@@ -422,7 +422,7 @@ Lhazar|region|5430,3850|5000_5000 710,355
 The Skahazadhan|river|5280,3690|5000_5000 880,137
 Krazaaj Has|ruin|5408,3518|5000_5000 775,95
 Vaes Mejhah|ruin|5560,3478|5000_5000 890,65
-The Black Cliffs|landmark|4330,3935>ll:24.70,27.64|5000_5000 70,325
+The Black Cliffs|cape|4330,3935>ll:24.70,27.64|5000_5000 70,325
 The Poison Sea|lake|6190,3665|5000_5000 1425,235
 Adakhakileki|ruin|6100,3538|5000_5000 1360,125
 Vaes Jini|ruin|6195,3448|5000_5000 1437,45
@@ -449,7 +449,7 @@ Ax Isle|island|4890,5210|5000_5000 318,1555
 Zamettar|city|4683,5327|5000_5000 125,1665
 Yeen|town|4768,5577|5000_5000 190,1890
 Gorosh|town|5623,5218>ll:7.582,41.007|5000_5000 940,1565
-Wyvern Point|landmark|5710,5310|5000_5000 1070,1600
+Wyvern Point|cape|5710,5310|5000_5000 1070,1600
 Lesser Moraq|island|5950,5100|5000_5000 1115,1465
 Great Moraq|island|6370,4900|5000_5000 1530,1255
 Faros|town|6122,4798|5000_5000 1375,1215
@@ -508,7 +508,7 @@ Stygai|ruin|8207,5355|7500_5000 1230,1740
 The Shadow Lands|mountain|8440,5010|7500_5000 1550,1250
 The Saffron Straits|sea|8440,5490|-
 Ulthos|continent|8630,5670|7500_7500 1780,127
-The Vale of Shadows|landmark|-|7500_5000 1285,1790
+The Vale of Shadows|pass|-|7500_5000 1285,1790
 The Straits of Leng|sea|-|7500_5000 590,1215
 # --- anchors (the 3D sites; used for alignment only) ---
 King's Landing|site|1821,3075>ll:34.93,-7.748|0_2500 1510,1637
@@ -519,9 +519,8 @@ Ice River Clans|population|-|@1262,2012
 Cave-dwellers|population|-|@1600,1682
 Nightrunner Tribes|population|-|@1817,1734
 Hornfoot Tribes|population|-|@1832,1871
-Forktop|minor|-|@1495,1992
+Forktop|mountain|-|@1495,1992
 The Antler|river|-|@1915,1986
-Storrord's Point|landmark|-|@2140,1985
 Kingshouse|castle|-|@2400,2271
 Goldgrass|castle|-|@1362,3248
 The Long Lake|lake|-|@1855,2670
@@ -532,73 +531,73 @@ Pebble|island|-|@2225,3580
 Sealskin Point|castle|ll:43.134,-22.458|@938,3902
 Volmark|castle|-|@1147,4000
 Straits of Fair Isle|sea|-|@990,4340
-Nunn's Deep|minor|-|@1228,4228
-Oxcross|minor|-|@1210,4350
+Nunn's Deep|landmark|-|@1228,4228
+Oxcross|village|-|@1210,4350
 Red Lake|castle|-|@1129,4765
 Coldmoat|castle|-|@1205,4848
 Horseshoe Hills|mountain|-|@1100,4823
-Brandybottom|minor|-|@1157,4846
-Dosk|minor|-|@1155,4862
-Little Dosk|minor|-|@1140,4898
-Cobble Cove|minor|-|@1117,4937
-Hewett's Town|minor|-|@1072,4995
+Brandybottom|village|-|@1157,4846
+Dosk|village|-|@1155,4862
+Little Dosk|village|-|@1140,4898
+Cobble Cove|village|-|@1117,4937
+Hewett's Town|town|-|@1072,4995
 Leafy Lake|lake|-|@1224,4875
 Chequy Water|river|-|@1208,4910
 Grimston|castle|ll:30.812,-20.328|@972,4988
 Hag's Mire|wild|-|@1580,3910
-Oldstones|minor|-|@1595,3945
-Sevenstreams|minor|-|@1590,3965
-Ramsford|minor|-|@1615,3982
-Wendish Town|minor|-|@1572,4025
-Mudgrave|minor|-|@1575,4102
-Pennytree|minor|-|@1548,4118
+Oldstones|castle|-|@1595,3945
+Sevenstreams|village|-|@1590,3965
+Ramsford|village|-|@1615,3982
+Wendish Town|village|-|@1572,4025
+Mudgrave|town|-|@1575,4102
+Pennytree|village|-|@1548,4118
 Inn of the Kneeling Man|inn|-|@1615,4122
-Sallydance|minor|-|@1684,4133
-Nutten|minor|-|@1780,4128
-Riverbend|minor|-|@1740,4150
-Harroway|minor|-|@1810,4163
-Ruby Ford|minor|-|@1825,4187
+Sallydance|village|-|@1684,4133
+Nutten|town|-|@1780,4128
+Riverbend|village|-|@1740,4150
+Harroway|town|-|@1810,4163
+Ruby Ford|crossing|-|@1825,4187
 Lambswold|castle|-|@1600,4152
 Willow Wood|castle|-|@1428,4158
 Stone Mill|battle|-|@1515,4182
 Lychester|castle|-|@1647,4195
 Atranta|castle|-|@1546,4215
 Sherrer|castle|-|@1473,4273
-High Heart|minor|-|@1612,4262
+High Heart|mountain|-|@1612,4262
 Acorn Hall|castle|-|@1592,4293
 Wayfarer's Rest|castle|-|@1533,4303
-Mummer's Ford|minor|-|@1462,4306
-Rushing Falls|minor|-|@1655,4320
-Crossed Elms|minor|-|@1767,4352
-Lake Town|minor|-|@1791,4406
-Briarwhite|minor|-|@1822,4427
-Tumbler's Falls|minor|-|@1652,4458
-Widow's Ford|minor|-|@1918,4197
-Saltpans|minor|-|@1950,4212
-Quiet Isle|minor|-|@1981,4229
+Mummer's Ford|town|-|@1462,4306
+Rushing Falls|landmark|-|@1655,4320
+Crossed Elms|village|-|@1767,4352
+Lake Town|village|-|@1791,4406
+Briarwhite|castle|-|@1822,4427
+Tumbler's Falls|town|-|@1652,4458
+Widow's Ford|crossing|-|@1918,4197
+Saltpans|town|-|@1950,4212
+Quiet Isle|sept|-|@1981,4229
 Gods Eye River|river|-|@1847,4540
 Field of Fire|battle|-|@1655,4560
 Redgrass Field|battle|-|@1782,4580
 The Northmarch|region|-|@1525,4770
 Lesser Mander|river|-|@1310,4740
-New Barrel|minor|-|@1390,4946
+New Barrel|castle|-|@1390,4946
 Appleton|castle|-|@1321,4979
 Cider Hall|castle|-|@1433,4990
 Grassfield Keep|castle|-|@1730,4880
 Grassy Vale|town|-|@1707,4868
 Griffin's Roost|castle|ll:30.908,-4.589|@2205,4995
 Gates of the Moon|castle|ll:42.267,-6.15|@2125,4028
-Giant's Lance|landmark|ll:42.34,-6.18|@1988,3975
+Giant's Lance|mountain|ll:42.34,-6.18|@1988,3975
 Heart's Home|castle|ll:43.534,-4.937|@2139,3867
-Crackclaw Point|landmark|-|@2490,4172
-The Whispers|minor|-|@2375,4247
-Hull|minor|-|@2258,4433
-Spicetown|minor|-|@2255,4462
+Crackclaw Point|cape|-|@2490,4172
+The Whispers|castle|-|@2375,4247
+Hull|town|-|@2258,4433
+Spicetown|town|-|@2255,4462
 High Tide|castle|-|@2297,4442
 Sweetport|castle|ll:35.621,-3.004|@2318,4566
-Rambton|minor|-|@2298,4588
+Rambton|village|-|@2298,4588
 Evenfall Hall|castle|-|@2412,4918
-Wickenden|minor|-|@2216,4250
+Wickenden|town|-|@2216,4250
 Bandallon|castle|-|@922,5186
 Brightwater Keep|castle|-|@1046,5204
 Honeyholt|castle|-|@1063,5281
@@ -606,16 +605,16 @@ Uplands|castle|-|@1168,5337
 Blackcrown|castle|-|@907,5413
 Three Towers|castle|-|@955,5461
 Mouth of the Mander|river|-|@1095,5130
-Mermaid's Palace|minor|-|@836,5578
+Mermaid's Palace|village|-|@836,5578
 Starfish Harbor|town|-|@815,5597
 Ryamsport|town|-|@849,5639
 Vinetown|town|-|@890,5679
 Isle of Pigs|island|-|@952,5662
-Cuy|minor|-|@1110,5617
+Cuy|town|-|@1110,5617
 Dunstonbury|castle|-|@1214,5130
 Horn Hill|castle|-|@1263,5198
 Ashford|castle|-|@1563,5025
-Ashford Meadow|minor|-|@1563,5040
+Ashford Meadow|pass|-|@1563,5040
 Whitegrove|castle|-|@1379,5095
 Starpike|castle|-|@1343,5142
 Harvest Hall|castle|-|@1707,5107
@@ -629,27 +628,27 @@ King's Mountain|castle|-|@2052,5050
 Crow's Nest|castle|-|@2109,5082
 Stonehelm|castle|-|@2035,5150
 The Red Watch|region|-|@2135,5140
-Fawnton|minor|-|@2121,5184
+Fawnton|castle|-|@2121,5184
 Mistwood|castle|-|@2267,5167
 Weeping Town|town|-|@2260,5245
 Roost|castle|-|@2171,5010
 Rain House|castle|-|@2416,5073
 Greenstone|castle|-|@2388,5215
-Water Gardens|minor|-|@2393,5614
+Water Gardens|hall|-|@2393,5614
 Last Lament|island|-|@2495,6603
 Lorath Island|island|-|@3450,3872
-The Tree of Crowns|minor|-|@2930,5301
+The Tree of Crowns|landmark|-|@2930,5301
 Kyth|ruin|-|@4690,4328
 Vaes Gorqoyi|ruin|-|@4635,4082
 Hornoth|ruin|-|@4630,4615
 Rathylar|ruin|-|@4753,4638
 The Sarne|river|-|@4603,4347
 The Qhoyne|river|-|@3858,4620
-Barter Beach|minor|-|@4863,7165
+Barter Beach|village|-|@4863,7165
 Talon|island|-|@4945,7152
 Basilisk Bay|sea|-|@4880,7423
 Field of Crows|battle|-|@5070,4653
-Lonely Hill|landmark|-|@5621,4853
+Lonely Hill|mountain|-|@5621,4853
 Black Fort|town|-|@5410,7063
 Howling Mountain|mountain|-|@5070,7087
 Lower Zamoyos|river|-|@5270,7350
@@ -723,7 +722,273 @@ Ambush on the Wendwater|battle|ll:33.928,-4.807|-
 Battle at Long Lake|battle|ll:57.230,-9.580|-
 Battle Above the Gods Eye|battle|ll:38.181,-9.730|-
 Battle Beneath the Gods Eye|battle|ll:38.181,-9.641|-
-Battle by the Lakeshore|battle|ll:38.181,-10.303|-
-Battle of the Reeds|battle|ll:37.469,-9.730|-
-Butcher's Ball|battle|ll:37.469,-9.642|-
+Battle by the Lakeshore|battle|ll:38.207,-10.374|-
+Battle of the Reeds|battle|ll:37.425,-9.685|-
+Butcher's Ball|battle|ll:37.436,-9.636|-
 Battle on the Green Fork|battle|ll:42.104,-11.244|-
+# --- wiki gap additions (see docs/findings.md 2026-11-19) ---
+Castle Driftmark|castle|ll:37.170,-3.700|-
+Dun Fort|castle|ll:36.553,-5.752|-
+Hollard castle|ruin|ll:36.660,-5.640|-
+Gods Eye town|town|ll:37.490,-9.950|-
+Village near Harrenhal|village|ll:38.460,-9.100|-
+Burned village on the Red Fork|ruin|ll:40.762,-12.695|-
+Iron Holt|castle|ll:41.950,-20.620|-
+Standfast|castle|ll:32.460,-17.280|-
+Barrow Hall|castle|ll:50.715,-17.300|-
+Great Pyramid of Ghis|ruin|ll:17.125,31.680|-
+Hightower|castle|ll:26.630,-19.260|-
+Lord Hewett's castle|castle|ll:30.785,-19.030|-
+Red Keep|hall|ll:34.933,-7.747|-
+Aegonfort|hall|ll:34.934,-7.748|-
+Maegor's Holdfast|hall|ll:34.933,-7.746|-
+Tower of the Hand|hall|ll:34.933,-7.745|-
+Dragonpit|hall|ll:34.934,-7.755|-
+New Castle|castle|ll:50.123,-9.686|-
+Wolf's Den|castle|ll:50.121,-9.694|-
+Ravenry|hall|ll:26.643,-19.254|-
+Sept at Dragonstone|sept|ll:37.541,-2.528|-
+Blacktyde (castle)|castle|ll:43.380,-18.942|-
+Corpse Lake|castle|ll:42.950,-23.265|-
+Crow Spike Keep|castle|ll:42.937,-23.393|-
+Downdelving|castle|ll:42.857,-23.247|-
+Hoare Castle|ruin|ll:42.843,-23.375|-
+Grey Garden|castle|ll:42.130,-18.066|-
+Harlaw Hall|castle|ll:42.210,-18.156|-
+Harridan Hill|castle|ll:42.223,-18.030|-
+Tower of Glimmering|castle|ll:42.170,-18.264|-
+Shatterstone|castle|ll:43.090,-21.590|-
+Morne|ruin|ll:31.800,-0.456|-
+Abandoned village|ruin|ll:40.310,-12.540|-
+Lord Goodbrook's village|ruin|ll:39.063,-12.760|-
+Amberly|castle|ll:30.033,-1.827|-
+Blackpool|castle|ll:54.483,-14.013|-
+Broad Arch|castle|ll:32.553,-4.142|-
+Gallowsgrey|castle|ll:33.003,-4.789|-
+Grandview|castle|ll:31.693,-3.648|-
+Parchments|castle|ll:31.427,-4.194|-
+Poddingfield|castle|ll:32.180,-6.559|-
+Darkdell|castle|ll:30.000,-16.894|-
+Hammerhal|castle|ll:27.730,-18.654|-
+Holyhall|castle|ll:32.723,-12.780|-
+Ivy Hall|castle|ll:28.270,-16.298|-
+Ring|castle|ll:28.543,-18.933|-
+Risley Glade|castle|ll:29.533,-16.356|-
+Greenfield|castle|ll:35.683,-17.025|-
+Wyndhall|castle|ll:38.353,-18.910|-
+Grey Glen|castle|ll:42.120,-6.330|-
+Gull Tower|castle|ll:41.427,-1.369|-
+Newkeep|castle|ll:42.003,-5.880|-
+Ninestars|castle|ll:42.137,-6.510|-
+Holdfast in the hills|castle|ll:54.670,-13.459|-
+Muddy Hall|ruin|ll:40.323,-12.860|-
+Oldforge|ruin|ll:41.063,-13.609|-
+Stinkwater|castle|ll:23.820,-3.374|-
+Winter town|town|ll:54.740,-13.320|-
+Shadow city|town|ll:23.890,-2.370|-
+Village beneath Dragonstone|village|ll:37.550,-2.510|-
+Village near Storm's End|village|ll:31.180,-4.000|-
+Weasel's village|village|ll:37.150,-9.800|-
+Hidden village|village|ll:40.350,-11.450|-
+Blackbuckle|village|ll:40.900,-13.000|-
+Buckle|village|ll:40.840,-13.120|-
+Cairns|village|ll:40.960,-13.220|-
+Claypool|village|ll:40.880,-13.220|-
+Honeytree|village|ll:41.020,-13.100|-
+Bawdy Badger|inn|ll:33.713,-10.337|-
+Bloody Caltrops|inn|ll:33.707,-10.336|-
+Broken Anvil|inn|ll:34.934,-7.757|-
+Old inn on Eel Alley|inn|ll:34.931,-7.745|-
+Broken Shield|inn|ll:27.943,-3.978|-
+Drunken Dornishman|inn|ll:27.937,-3.977|-
+Loon|inn|ll:27.941,-3.985|-
+Checkered Hazard|inn|ll:26.644,-19.247|-
+Quill and Tankard|inn|ll:26.637,-19.244|-
+Lord's Sept|sept|ll:26.645,-19.253|-
+Sailor's Sept|sept|ll:26.635,-19.254|-
+Seven Shrines|sept|ll:26.641,-19.243|-
+Starry Sept|sept|ll:26.639,-19.251|-
+Hogs Head|inn|ll:32.834,-12.588|-
+Lady Catelyn's sept|sept|ll:54.751,-13.318|-
+Smoking Log|inn|ll:54.739,-13.318|-
+Otter Gimpknee's inn|inn|ll:41.699,-19.926|-
+Sept at Lordsport|sept|ll:41.703,-19.934|-
+Peach|inn|ll:37.171,-12.947|-
+Sept at Castle Black|sept|ll:62.129,-8.867|-
+Sept at Darry|sept|ll:39.921,-9.118|-
+Sept at Harrenhal|sept|ll:38.793,-9.648|-
+Sept at Highgarden|sept|ll:29.801,-16.508|-
+Sept at Maidenpool|sept|ll:38.541,-6.218|-
+Sept of Riverrun|sept|ll:40.241,-13.568|-
+Sept of the Snows|sept|ll:50.121,-9.688|-
+Seven Swords|inn|ll:36.561,-5.758|-
+Merchant's House|inn|ll:23.577,14.886|-
+Long Bridge|crossing|ll:23.581,14.890|-
+Bridge of Eyes|crossing|ll:45.413,6.242|-
+Sept-Beyond-the-Sea|sept|ll:45.406,6.246|-
+Bridge of Dream|crossing|ll:29.580,12.330|-
+Bracken inn|inn|ll:40.652,-12.879|-
+Gods Eye village|village|ll:38.002,-10.279|-
+Old inn by the lakeshore|inn|ll:37.625,-9.321|-
+Donnelwood|village|ll:38.977,-9.855|-
+Fieldstone|village|ll:38.735,-9.319|-
+Mousedown Mill|village|ll:39.028,-9.906|-
+Sludgy Pond|sept|ll:39.057,-9.411|-
+Bowshot Bridge|crossing|ll:40.483,-11.465|-
+Swynford|village|ll:41.100,-13.251|-
+Middleton|town|ll:35.080,-8.916|-
+Moontown|town|ll:40.000,-13.221|-
+Longtown|town|ll:38.607,-6.595|-
+Silver Bridge|crossing|ll:34.903,-8.157|-
+Frozen Ford|crossing|ll:61.530,-8.870|-
+Crofters' village|village|ll:54.697,-14.198|-
+Stony Shore village|village|ll:53.690,-24.200|-
+Inn near Ashford|inn|ll:30.147,-12.770|-
+Ivy-covered inn|inn|ll:35.530,-7.831|-
+Small sept|sept|ll:38.593,-6.169|-
+Pebbleton|town|ll:42.910,-23.102|-
+First sept on the Iron Islands|sept|ll:42.937,-23.356|-
+City of the Lamb Men|town|ll:29.043,44.690|-
+Dragonmont|mountain|ll:37.550,-2.530|-
+Great Barrow|landmark|ll:50.720,-17.300|-
+Hardstone Hills|mountain|ll:42.270,-22.000|-
+Nagga's hill|mountain|ll:43.080,-21.590|-
+Grey King's Hall|ruin|ll:43.080,-21.600|-
+Seal Rock|island|ll:50.110,-9.760|-
+Teats|mountain|ll:40.780,-13.470|-
+Whispering Wood|forest|ll:41.500,-13.200|-
+Wat's Wood|forest|ll:32.460,-17.370|-
+Fourteen Flames|mountain|ll:14.300,19.750|-
+Stonecrab Cay|island|ll:23.110,-20.010|-
+Horseshoe Rock|island|ll:23.270,-19.970|-
+Bastard's Cradle|island|ll:24.070,-21.450|-
+Red Deer Island|island|ll:40.807,-11.979|-
+Hollow hill|mountain|ll:37.500,-12.500|-
+Threepenny Wood|forest|ll:37.100,-12.850|-
+White Wood|forest|ll:39.500,-12.000|-
+Spiderwood|forest|ll:38.600,-9.000|-
+Lorgen's Wood|forest|ll:40.950,-13.250|-
+Howling Hill|mountain|ll:32.000,-5.000|-
+Misty Wood|forest|ll:30.800,-5.600|-
+Maiden Isle|island|ll:30.600,-3.000|-
+Misty Isle|island|ll:38.150,-9.850|-
+Onion Rock|island|ll:35.000,-7.400|-
+Rosewood|landmark|ll:30.300,-16.000|-
+Tally Hill|mountain|ll:35.550,-3.200|-
+Sellagoro's Shield|island|ll:45.430,6.200|-
+Headman's Mount|mountain|ll:46.760,-8.690|-
+Aegon's High Hill|mountain|ll:34.923,-7.742|-
+Hill of Rhaenys|mountain|ll:34.940,-7.752|-
+Visenya's Hill|mountain|ll:34.925,-7.760|-
+Battle Island|island|ll:26.635,-19.257|-
+Isle of Ravens|island|ll:26.650,-19.245|-
+Bloody Isle|island|ll:26.636,-19.258|-
+Isle of the Gods|island|ll:45.405,6.245|-
+Great Lagoon|lake|ll:45.410,6.255|-
+Aegon, Rhaenys, and Visenya|island|ll:42.000,-33.000|-
+Nagga's Cradle|sea|ll:43.000,-22.000|-
+Alyssa's Tears|landmark|ll:42.330,-6.165|-
+Durran's Point|cape|ll:31.140,-3.960|-
+Mill by the Acorn Water|village|ll:54.670,-13.320|-
+Mill by the Weeping Water|village|ll:55.450,-6.080|-
+Skipping Stones|crossing|ll:40.796,-12.345|-
+Warren's stone towerhouse|castle|ll:40.773,-12.502|-
+Weatherback Ridge|mountain|ll:62.050,-8.870|-
+Burning Mill|village|ll:40.240,-12.780|-
+Blackbottom Bend|pass|ll:38.840,-12.760|-
+Stone|castle|ll:42.285,-6.150|-
+Snow|castle|ll:42.300,-6.150|-
+Sky|castle|ll:42.313,-6.150|-
+Pearl Palace|castle|ll:9.660,-0.300|-
+Bechester|village|ll:40.457,-11.710|-
+Old Ferry|village|ll:40.632,-11.366|-
+Crone's Mill|village|ll:40.510,-11.886|-
+Stonyhead|village|ll:40.330,-8.057|-
+Sweetwillow|village|ll:44.077,-13.415|-
+Old Willow|village|ll:39.030,-10.079|-
+White Willow|village|ll:38.523,-9.139|-
+Hogg Hall|village|ll:37.867,-8.605|-
+Merrydown Dell|pass|ll:38.630,-10.247|-
+Blackwood Vale|pass|ll:41.117,-13.414|-
+Crossbow Ridge|mountain|ll:41.290,-13.431|-
+Rutting Meadow|pass|ll:41.063,-13.449|-
+Battle Valley|pass|ll:41.210,-13.343|-
+Greenhill|mountain|ll:41.250,-13.626|-
+Grindcorn Mill|village|ll:41.130,-13.467|-
+Lord's Mill|village|ll:41.143,-13.361|-
+Ravishment|landmark|ll:41.223,-13.485|-
+Waspwood|forest|ll:41.277,-13.609|-
+Woodhedge|ruin|ll:41.170,-13.396|-
+Peasedale|sept|ll:40.480,-13.780|-
+Bloody Meadow|pass|ll:39.880,-9.051|-
+Lancewood|village|ll:40.053,-13.396|-
+Mory|village|ll:37.277,-13.151|-
+Shermer's Grove|village|ll:38.781,-9.687|-
+Longleaf|village|ll:38.320,-14.398|-
+Burning septry|sept|ll:40.400,-14.183|-
+Black Bog|wild|ll:31.493,-4.241|-
+Summerfield|pass|ll:30.547,-12.337|-
+Greenpools|village|ll:32.763,-12.352|-
+Redpool|village|ll:31.560,-4.304|-
+Blackhull|village|ll:34.663,-8.074|-
+Eysen|village|ll:30.000,-16.125|-
+Greenaway|village|ll:36.760,-6.010|-
+Misty Moor|pass|ll:39.190,-9.220|-
+Runnymudd|village|ll:36.970,-13.084|-
+Shady Glen|pass|ll:35.643,-8.738|-
+Woodmere|village|ll:43.730,-13.009|-
+Lann's Point|cape|ll:36.710,-20.351|-
+Derring Downs|pass|ll:32.380,-17.407|-
+Nunny|village|ll:32.500,-16.869|-
+Smithyton|village|ll:30.067,-16.279|-
+Weeping Ridge|mountain|ll:35.527,-10.047|-
+Yore|village|ll:34.885,-8.206|-
+Vale of Arryn|pass|ll:41.987,-6.150|-
+Valyrian peninsula|cape|ll:14.433,19.482|-
+Aquos Dhaen|ruin|ll:15.140,19.258|-
+Draconys|ruin|ll:14.167,20.320|-
+Rhyos|ruin|ll:15.473,20.018|-
+Mhysa Faer|ruin|ll:16.883,34.312|-
+Chroyane|ruin|ll:29.727,12.974|-
+Palace of Sorrow|hall|ll:29.731,12.972|-
+Nymeria's palace|hall|ll:34.304,12.443|-
+Palace With a Thousand Rooms|hall|ll:34.524,31.323|-
+Palace of Khal Drogo|hall|ll:38.133,52.635|-
+Drogo's manse|hall|ll:35.053,4.925|-
+Illyrio's manse|hall|ll:35.054,4.927|-
+Temple of Trios|sept|ll:28.523,1.523|-
+Fountain of the Drunken God|hall|ll:28.517,1.525|-
+Temple of Trade|sept|ll:23.813,4.253|-
+Perfumed Garden|hall|ll:23.807,4.254|-
+Sinner's Steps|hall|ll:38.943,12.843|-
+Citadel|hall|ll:26.644,-19.246|-
+Sandship|hall|ll:23.894,-2.347|-
+Tower of Owls|hall|ll:28.833,-3.867|-
+Caverns beneath Casterly Rock|hall|ll:36.706,-20.325|-
+Horns of Hazzat|landmark|ll:24.194,32.637|-
+Lyber|ruin|ll:34.040,45.886|-
+Silver Sea|sea|ll:36.550,37.112|-
+Floating palace|hall|ll:36.617,36.946|-
+Pepper Coast|cape|ll:2.570,24.226|-
+Ibben|island|ll:53.880,67.944|-
+Cannibal Bay|sea|ll:55.473,35.850|-
+White Waste|wild|ll:56.940,35.380|-
+Black Pudding|village|ll:7.787,24.298|-
+Port Plunder|village|ll:7.387,24.769|-
+Sty|village|ll:7.587,24.836|-
+Whore's Gash|village|ll:7.187,24.366|-
+Straits of Tarth|sea|ll:31.480,-2.239|-
+Merling Rock|island|ll:36.300,-4.658|-
+Spears of the merling king|island|ll:36.007,-4.988|-
+Drearfort|castle|ll:47.060,-0.965|-
+# --- wiki gap rivers (lines in vector-world.json) ---
+Widow's Wash|river|ll:41.500,-13.400|-
+Greenapple|river|ll:39.740,-13.140|-
+Bitter River|river|ll:40.000,-12.400|-
+Maiden|river|ll:39.950,-11.840|-
+Big Willow|river|ll:39.950,-11.330|-
+Little Willow|river|ll:39.970,-10.750|-
+Rippledown Rill|river|ll:39.500,-10.800|-
+Acorn Water|river|ll:54.580,-13.080|-
+Noyne|river|ll:38.400,12.970|-
+Selhoru|river|ll:29.890,16.770|-

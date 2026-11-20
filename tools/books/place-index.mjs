@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { PLACES } from '../../src/world-data.ts';
 import { books, sentences } from './find.mjs';
 
-const SKIP = new Set(['region', 'ocean', 'sea', 'continent', 'minor', 'wild', 'road']); // too broad to locate, or not a point
+const SKIP = new Set(['region', 'ocean', 'sea', 'continent', 'village', 'sept', 'hall', 'wild', 'road']); // too broad to locate, or not a point
 const REL = /\b(north|south|east|west|northern|southern|eastern|western|miles?|leagues?|days?|day's|fortnight|mouth|shore|bank|confluence|headwaters|road|river|hills?|ride|rode|sail|sailed|across|between|beyond|near|overlook\w*|lies|stands?|sits)\b/i;
 const DIST = /\b(miles?|leagues?|days?|day's|fortnight|\d+)\b/i;
 const MAX_NOTES = 8;

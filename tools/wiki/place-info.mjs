@@ -5,6 +5,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rich, titleOf } from './md.mjs';
 import { parse, parseHouse } from './article.mjs';
+import { relinker } from './relink.mjs';
 export { parse, parseHouse };
 
 const DIR = 'docs/sources/wiki';
@@ -40,6 +41,15 @@ for (const [name, file] of Object.entries(places)) {
     .map((t) => { sigils.add(houses[t].sigil); return [t, houses[t].sigil, houses[t].label ?? t]; });
   out[name] = { wiki: title, ...(image && { image }), ...(images.length && { images }), ...(captions.some(Boolean) && { captions }), ...(summary && { summary }), ...(more && { more: true }), ...(facts.length && { facts }), ...(placeHouses.length && { houses: placeHouses }) };
 }
+// Card links that reach the map under another name are rewritten to the map name (tools/wiki/relink.mjs).
+const partOf = (v) => v.facts.find(([k]) => k === 'Part of')?.[1].match(/\]\(([^)]+)\)/)?.[1].replace(/_/g, ' ');
+const sitesOf = Object.fromEntries(Object.entries(JSON.parse(readFileSync('src/sites/site-wiki.json', 'utf8'))).map(([n, v]) => [n, partOf(v) ?? n]));
+const { relink, count } = relinker(sitesOf);
+for (const [name, p] of Object.entries(out)) {
+  if (p.summary) p.summary = relink(name, p.summary);
+  if (p.facts) p.facts = p.facts.map(([k, v]) => [k, relink(name, v)]);
+}
+console.log(`${count()} card links rewritten to map places`);
 writeFileSync('src/place-wiki.json', JSON.stringify(out));
 writeFileSync(`${DIR}/_sigils.json`, JSON.stringify([...sigils].sort()));
 console.log(`${Object.keys(out).length} places, ${Object.values(out).filter((p) => !p.summary).length} without a summary, ${Object.values(out).filter((p) => !p.image).length} without an image, ${Object.values(out).filter((p) => p.houses).length} with houses (${sigils.size} sigils)`);

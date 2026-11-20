@@ -42,8 +42,9 @@ const nameLink = (page: string, label: string, ...kids: (Node | string)[]) => {
   let title = page.split('#')[0];
   try { title = decodeURIComponent(title); } catch { /* keep it raw */ }
   title = title.replace(/_/g, ' ').replace(/ \([^)]*\)$/, '');
-  // the wiki drops the article the map keeps: "North" for "The North", "Reach" for "The Reach"
-  const go = [title, `The ${title}`, label, `The ${label}`].reduce<(() => void) | null>((found, n) => found ?? resolve(n), null);
+  // the wiki drops the article the map keeps: "North" for "The North", "Reach" for "The Reach"; other names the map has under
+  // another title (redirects, spellings, the label) are already rewritten to the map's name by tools/wiki/relink.mjs
+  const go = [title, `The ${title}`].reduce<(() => void) | null>((found, n) => found ?? resolve(n), null);
   if (!go) return anchor(WIKI + page, ...(kids.length ? kids : [label]));
   const a = document.createElement('a');
   a.href = '#'; a.className = 'to-map'; a.title = `Show ${label} on the map`;
@@ -100,9 +101,6 @@ export const showCard = (c: Card) => {
   q('.model').hidden = !model;
   q('.model').onclick = model ? () => { capture('model_opened', { place: c.name }); model(); } : null;
   q<HTMLAnchorElement>('.wiki').href = WIKI + encodeURIComponent((info.wiki ?? c.name).replace(/ /g, '_'));
-  // the lead is all the card shows; a link at the end of it when the article has more to read
-  const more = q<HTMLAnchorElement>('.more');
-  more.href = q<HTMLAnchorElement>('.wiki').href; more.hidden = !('more' in info && info.more) || !!c.text;
   q('.credit').hidden = !info.wiki || !!c.text;
   // Houses of the place: the sigil opens the wiki's file page (author and licence), the name opens the house's article.
   q('.sigils-credit').hidden = !info.houses;
@@ -142,6 +140,7 @@ export const showCard = (c: Card) => {
   q('.body').scrollTop = 0;
 };
 q<HTMLImageElement>('.hero').onerror = () => { q('.hero').hidden = true; }; // hot-linked: hide it if it fails
+q<HTMLImageElement>('.tile img').onerror = () => { q('.photos').hidden = true; }; // same for the Images tile: no broken frame
 
 // Gallery: the place's pictures from its wiki article (file names in place-info), opened by the panel's picture or its
 // Images tile. thumb.php resizes by width but refuses to upscale (400), so the big picture tries the widest first and

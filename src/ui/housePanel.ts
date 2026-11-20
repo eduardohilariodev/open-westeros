@@ -5,7 +5,7 @@ import { tintOf } from '../sigilTint';
 type HouseWiki = Record<string, { summary?: string; facts?: [string, string][] }>;
 let houseWiki: HouseWiki = {};
 const houseWikiReady = import('../house-wiki.json').then((m) => { houseWiki = m.default as unknown as HouseWiki; });
-import { ERAS, EVENTS, WIKI_YEAR, YEAR_STOPS } from '../timeline';
+import { ERAS, EVENTS, YEAR_STOPS } from '../timeline';
 import { BOOKS, CHAPTERS, atEnd, EPISODES, chapterTitle, getBook, getMoment, onPeriod, setMoment, setPeriod, START, withMoment, type Moment } from '../state/time';
 
 // The houses overlay's sidebar (index.html #house): a big coat of arms, the house's facts, who it is sworn to and who is sworn to it.
@@ -107,8 +107,6 @@ export function initWhen(onClose: () => void) {
   wheel.tabIndex = 0; wheel.role = 'slider'; wheel.ariaLabel = 'Year (AC) and chapter';
   const info = mk('div', 'card'), infoHead = mk('div', 'wi-head'), infoBody = mk('div', 'wi-body');
   info.id = 'whenInfo'; info.hidden = true;
-  const more = mk('a', 'wi-more');
-  more.target = '_blank'; more.rel = 'noopener';
   info.append(pickerEl(onClose), infoHead, infoBody);
   document.body.append(info);
 
@@ -187,9 +185,8 @@ export function initWhen(onClose: () => void) {
     infoBody.replaceChildren(...here.flatMap((e) => [
       mk('h3', 'wi-ev', (e.ca ? 'ca. ' : '') + e.title + (e.to ? ` (${span({ from: e.from, to: e.to })})` : e.from !== year ? ` (${fmt(e.from)})` : '')),
       mk('p', 'wi-text', e.text),
-    ]), ...(here.length ? [mk('p', 'wi-credit', 'Wiki of Ice and Fire, Timeline of major events (CC BY-SA)')] : []), more);
+    ]), ...(here.length ? [mk('p', 'wi-credit', 'Wiki of Ice and Fire, Timeline of major events (CC BY-SA)')] : []));
     info.scrollTop = 0;
-    more.href = WIKI_YEAR(year); more.textContent = `${fmt(year)} on the wiki`;
   };
   /** The wheel rests on a stop: that stop is the moment (a chapter of the books, or a year of the history). */
   const apply = (s: Stop) => setMoment(s.at !== undefined ? { track: 'books', at: s.at } : { track: 'history', year: s.y });

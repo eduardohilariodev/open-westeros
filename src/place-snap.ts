@@ -84,7 +84,6 @@ export const PLACE_SNAP: Record<string, [number, number]> = {
   "The Thousand Islands": [42.506,88.58],
   "Leng Yi": [13.728,68.022],
   "The Manticore Isles": [5.148,66.562],
-  "Storrord's Point": [64.708,-3.713],
   "Pebble": [46.686,-3.719],
   "Crackclaw Point": [39.966,-0.631],
   "Last Lament": [11.566,-0.132],

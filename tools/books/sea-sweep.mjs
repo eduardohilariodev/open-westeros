@@ -1,4 +1,4 @@
-// Lists the point places (cities, towns, castles, ruins) that sit in our sea or in a lake: a place the canon puts on land is
+// Lists the point places (cities, towns, castles, ruins, villages and other minor places) that sit in our sea or in a lake: a place the canon puts on land is
 // either misplaced (a fit error, snap it to the shore) or on an island the vector land lacks (listed in island-places.json, with
 // why, so it is not reported again). Exit code 1 when an unlisted place is wet.
 // Usage: node tools/books/sea-sweep.mjs
@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { PLACES } from '../../src/world-data.ts';
 import { W, nearestOf } from './place-checks.mjs';
 
-const KINDS = new Set(['capital', 'city', 'town', 'castle', 'ruin', 'site']);
+const KINDS = new Set(['capital', 'city', 'town', 'castle', 'ruin', 'site', 'village', 'sept', 'hall']);
 const islands = JSON.parse(readFileSync('tools/books/island-places.json', 'utf8'));
 const inRing = (p, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
 const dry = (p) => W.land.reduce((n, r) => n + (inRing(p, r) ? 1 : 0), 0) % 2 === 1 && !W.lakes.some((l) => l.rings.some((r) => inRing(p, r)));

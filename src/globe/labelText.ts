@@ -17,7 +17,7 @@ export const AREA_KINDS = new Set(['continent', 'ocean', 'sea', 'lake', 'river',
 /** Type size range in px per kind, small end to large end: oceans and continents the biggest lettering, water and regions next, rivers and small places least. */
 export const FONT_PX: Record<string, [number, number]> = {
   archipelago: [12, 19], continent: [18, 32], ocean: [18, 32], sea: [14, 24], region: [14, 24], population: [12, 19], lake: [12, 18], capital: [13, 19], city: [12, 18],
-  river: [11, 16], road: [11, 16], ruin: [10, 13], minor: [10, 13],
+  river: [11, 16], road: [11, 16], ruin: [10, 13], village: [10, 13], sept: [10, 13], hall: [10, 13],
 };
 export const FONT_DEFAULT: [number, number] = [11, 15];
 
